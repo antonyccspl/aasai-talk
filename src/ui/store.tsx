@@ -1,36 +1,30 @@
 import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useCallback,
-  useRef,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useRef,
+    useState,
 } from "react";
-import { ColorMode, setColorMode } from "./theme";
-import { CallSlab, fetchCallSlabs } from "../data/call-slabs";
-import {
-  usePlatformContext,
-  useWorkspaceField,
-  useWorkspacePeople,
-} from "../data/sample-workspace";
-import { DirectoryPerson } from "../data/directory";
-import {
-  Announcement,
-  AppConfig,
-  NotificationItem,
-  PlatformMetric,
-  PolicySection,
-  SafetyReport,
-} from "../data/platform-data";
-import { supabasePublishableKey, supabaseUrl } from "../data/supabase-config";
 import { useAuth } from "../data/auth";
+import { CallSlab, fetchCallSlabs } from "../data/call-slabs";
+import { fetchPhoneUnreadMessageCount, subscribeToAllPhoneMessages } from "../data/chat";
+import { DirectoryPerson } from "../data/directory";
+import { fetchPhoneHostApplicationStatus } from "../data/host-applications";
+import { prepareMessageNotifications, showIncomingMessageNotification } from "../data/local-notifications";
 import { fetchDemoProfile, fetchOwnProfile } from "../data/profile";
 import {
-  fetchUserPreferences,
-  saveUserPreferences,
+    usePlatformContext,
+    useWorkspaceField,
+    useWorkspacePeople,
+} from "../data/sample-workspace";
+import { supabasePublishableKey, supabaseUrl } from "../data/supabase-config";
+import {
+    fetchUserPreferences,
+    saveUserPreferences,
 } from "../data/user-preferences";
-import { fetchPhoneHostApplicationStatus } from "../data/host-applications";
 import { fetchPhoneWalletBalance } from "../data/wallet";
+import { ColorMode, setColorMode } from "./theme";
 
 export const defaultFacets = {
   availability: "All",
@@ -69,6 +63,9 @@ export type Call = {
   seconds: number;
   incoming?: boolean;
   chargedCoins?: number;
+  /** Caller-only prepaid talk-time budget, calculated when the call starts. */
+  availableSeconds?: number;
+  videoUpgradeRequestedBy?: string;
 };
 
 export type Transaction = {
@@ -232,10 +229,7 @@ function useDemoState() {
       setProfile(profileResult.value);
       if (profileResult.value.photo) setPhoto(profileResult.value.photo);
     }
-    if (
-      preferencesResult.status === "fulfilled" &&
-      preferencesResult.value
-    ) {
+    if (preferencesResult.status === "fulfilled" && preferencesResult.value) {
       setFavorites(preferencesResult.value.favorites);
       setBlocked(preferencesResult.value.blocked);
       setAvailable(preferencesResult.value.availability === "Available");
@@ -246,15 +240,27 @@ function useDemoState() {
       );
     for (const result of [profileResult, preferencesResult, hostStatusResult]) {
       if (result.status === "rejected")
-        console.error("Failed to refresh part of authenticated user data:", result.reason);
+        console.error(
+          "Failed to refresh part of authenticated user data:",
+          result.reason,
+        );
     }
-  }, [demoPhone, user, setAvailable, setBlocked, setFavorites, setHostStatus, setProfile]);
+  }, [
+    demoPhone,
+    user,
+    setAvailable,
+    setBlocked,
+    setFavorites,
+    setHostStatus,
+    setProfile,
+  ]);
 
   useEffect(() => {
     if (!user && !demoPhone) return;
     let active = true;
     void refreshUserData().catch((error) => {
-      if (active) console.error("Failed to load authenticated user data:", error);
+      if (active)
+        console.error("Failed to load authenticated user data:", error);
     });
     return () => {
       active = false;
@@ -310,22 +316,70 @@ function useDemoState() {
   const [calls, setCalls] = useWorkspaceField<Call[]>("calls", []);
 
   const [active, setActive] = useState<Call | null>(null);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [openChatPhone, setOpenChatPhone] = useState<string | null>(null);
+  const openChatPhoneRef = useRef<string | null>(null);
 
   useEffect(() => {
+    openChatPhoneRef.current = openChatPhone;
+  }, [openChatPhone]);
+
+  const refreshUnreadMessageCount = useCallback(async () => {
+    if (!demoPhone || !/^\+91\d{10}$/.test(demoPhone)) {
+      setUnreadMessageCount(0);
+      return;
+    }
+    setUnreadMessageCount(await fetchPhoneUnreadMessageCount(demoPhone));
+  }, [demoPhone]);
+
+  useEffect(() => {
+    if (!demoPhone) {
+      setUnreadMessageCount(0);
+      return;
+    }
+    let activeSubscription = true;
+    void prepareMessageNotifications()
+      .then(() => undefined)
+      .catch((error) => console.warn("Unable to prepare message notifications:", error));
+    const refresh = () => {
+      void refreshUnreadMessageCount().catch((error) =>
+        console.error("Unable to refresh unread message count:", error),
+      );
+    };
+    refresh();
+    const unsubscribe = subscribeToAllPhoneMessages(demoPhone, (message) => {
+      refresh();
+      if (
+        activeSubscription &&
+        message.recipient_phone === demoPhone &&
+        openChatPhoneRef.current !== message.sender_phone
+      ) {
+        void showIncomingMessageNotification(message.sender_phone, message.text)
+          .catch((error) => console.warn("Unable to show message notification:", error));
+      }
+    });
+    return () => {
+      activeSubscription = false;
+      unsubscribe();
+    };
+  }, [demoPhone, refreshUnreadMessageCount]);
+
+  const refreshWalletBalance = useCallback(async () => {
     const phone = demoPhone || user?.phone;
     if (!phone) return;
+    const serverBalance = await fetchPhoneWalletBalance(phone);
+    setBalance(serverBalance);
+  }, [demoPhone, setBalance, user?.phone]);
+
+  useEffect(() => {
     let activeRequest = true;
-    void fetchPhoneWalletBalance(phone)
-      .then((serverBalance) => {
-        if (activeRequest) setBalance(serverBalance);
-      })
-      .catch((error) => {
-        if (activeRequest) console.error("Failed to load wallet balance:", error);
-      });
+    void refreshWalletBalance().catch((error) => {
+      if (activeRequest) console.error("Failed to load wallet balance:", error);
+    });
     return () => {
       activeRequest = false;
     };
-  }, [demoPhone, setBalance, user?.phone]);
+  }, [refreshWalletBalance]);
 
   useEffect(() => {
     if (!active || active.status !== "Connected") return;
@@ -499,6 +553,7 @@ function useDemoState() {
     setTheme,
     balance,
     setBalance,
+    refreshWalletBalance,
     transactions,
     setTransactions,
     pack,
@@ -511,6 +566,9 @@ function useDemoState() {
     setCalls,
     active,
     setActive,
+    unreadMessageCount,
+    refreshUnreadMessageCount,
+    setOpenChatPhone,
     finishCall,
     read,
     setRead,
@@ -562,3 +620,13 @@ export const duration = (seconds: number) =>
   `${Math.floor(seconds / 60)
     .toString()
     .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
+/** Remaining talk time for active calls, displayed as hours:minutes:seconds. */
+export const talkTime = (seconds: number) => {
+  const remaining = Math.max(0, Math.floor(seconds));
+  const wholeMinutes = Math.floor(remaining / 60);
+  return `${Math.floor(wholeMinutes / 60)
+    .toString()
+    .padStart(2, "0")}:${(wholeMinutes % 60)
+    .toString()
+    .padStart(2, "0")}:${(remaining % 60).toString().padStart(2, "0")}`;
+};

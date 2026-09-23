@@ -19,21 +19,22 @@ import {
   T,
   Wave,
 } from "./components";
-import { duration, people, personFor, useDemo } from "./store";
+import { coins, duration, people, personFor, talkTime, useDemo } from "./store";
 import { colors as c } from "./theme";
 import {
   startPhoneCall,
+  fetchPhoneCallSummary,
+  fetchPhoneHostCallCapabilities,
+  acceptPhoneCallVideoUpgrade,
+  requestPhoneCallVideoUpgrade,
   updatePhoneCall,
   settlePhoneCall,
-  chargePhoneCallMinute,
   subscribeToPhoneCall,
 } from "@/data/call-sessions";
 import { useAuth } from "@/data/auth";
 import { ZegoMedia } from "./zego-media";
 import { startCallSound, stopCallSound } from "@/data/call-sounds";
-
-const callCoinCost = (seconds: number, type: "audio" | "video") =>
-  seconds ? Math.ceil(seconds / 60) * (type === "video" ? 50 : 20) : 0;
+import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 
 export function CallScreen({
   mode,
@@ -49,35 +50,60 @@ export function CallScreen({
   const d = useDemo();
   const auth = useAuth();
   const p = people.find((person) => person.id === id) ?? {
-    id, name: "Caller", status: "Available" as const, photo: undefined, color: c.mint,
-    age: 0, gender: "", city: "", languages: [], interests: [], bio: "",
+    id,
+    name: "Caller",
+    status: "Available" as const,
+    photo: undefined,
+    color: c.mint,
+    age: 0,
+    gender: "",
+    city: "",
+    languages: [],
+    interests: [],
+    bio: "",
   };
-  const video = mode === "video" || type === "video";
+  const requestedVideo = mode === "video" || type === "video";
+  const activeForThisCall =
+    d.active?.person === id && (!sessionId || d.active.id === sessionId);
+  const video = activeForThisCall ? d.active?.type === "video" : requestedVideo;
   const incoming = mode === "incoming";
+  const availableSeconds = d.active?.availableSeconds;
+  const remainingTalkSeconds = Math.max(
+    0,
+    (availableSeconds ?? 0) - (d.active?.seconds ?? 0),
+  );
   const connectedRoute = (mode === "audio" || mode === "video") && !!sessionId;
-  const outgoing = mode === "outgoing" || ((mode === "audio" || mode === "video") && !connectedRoute);
+  const outgoing =
+    mode === "outgoing" ||
+    ((mode === "audio" || mode === "video") && !connectedRoute);
   const [state, setState] = useState(
-    incoming
-      ? "Incoming"
-      : outgoing
-        ? "Ringing"
-        : "Connected",
+    incoming ? "Incoming" : outgoing ? "Ringing" : "Connected",
   );
   const [muted, setMuted] = useState(false);
   const [camera, setCamera] = useState(true);
   const [front, setFront] = useState(true);
-  const [route, setRoute] = useState(d.active?.speaker === undefined ? "Speaker" : d.active.speaker ? "Speaker" : "Earpiece");
+  const [route, setRoute] = useState(
+    d.active?.speaker === undefined
+      ? "Speaker"
+      : d.active.speaker
+        ? "Speaker"
+        : "Earpiece",
+  );
   const soundKey = useRef(`call-sound-${Date.now()}-${Math.random()}`).current;
   const [soundError, setSoundError] = useState("");
-  const [foreground, setForeground] = useState(AppState.currentState === "active");
+  const [foreground, setForeground] = useState(
+    AppState.currentState === "active",
+  );
   const [callError, setCallError] = useState("");
   const [mediaStatus, setMediaStatus] = useState("Starting media…");
   const connectingRef = useRef(false);
   const actionRef = useRef(false);
   const closedRef = useRef(false);
   const [actionPending, setActionPending] = useState(false);
-  const chargedMinuteRef = useRef(0);
-  const chargingMinuteRef = useRef(false);
+  const [hostCapabilities, setHostCapabilities] = useState<{
+    audio: boolean;
+    video: boolean;
+  } | null>(null);
   const blocked = d.blocked.includes(id);
   const conflict = !!d.active && d.active.person !== id;
   const activeCallId = d.active?.id ?? "";
@@ -87,41 +113,114 @@ export function CallScreen({
   const activePhone = auth.demoPhone;
   const setActiveCall = d.setActive;
   const incomingCall = d.active?.incoming;
-  const onMediaStatus = useCallback((status: string) => setMediaStatus(status), []);
-  const onMediaError = useCallback((message: string) => {
-    setCallError(message);
-    setMediaStatus("Media unavailable");
-    if (mediaSessionId && activePhone) {
-      void updatePhoneCall(mediaSessionId, activePhone, "ended")
-        .then(() => incomingCall ? undefined : settlePhoneCall(mediaSessionId, activePhone))
-        .catch((error) => console.error("Failed to close unavailable media call:", error));
-    }
-    setActiveCall((current) => {
-      if (!current || current.id !== mediaSessionId) return current;
-      return null;
-    });
-  }, [activePhone, setActiveCall, incomingCall, mediaSessionId]);
+  const hostPhone = d.active?.incoming
+    ? auth.demoPhone
+    : id.startsWith("phone_")
+      ? `+${id.slice("phone_".length)}`
+      : "";
+  const canSwitchToVideo =
+    !video &&
+    d.active?.status === "Connected" &&
+    hostCapabilities?.video === true &&
+    !d.active?.videoUpgradeRequestedBy;
+  const videoRequestFromMe =
+    !!d.active?.videoUpgradeRequestedBy &&
+    d.active.videoUpgradeRequestedBy === auth.demoPhone;
+  const videoRequestForMe =
+    !!d.active?.videoUpgradeRequestedBy && !videoRequestFromMe;
+  const onMediaStatus = useCallback(
+    (status: string) => setMediaStatus(status),
+    [],
+  );
+  const onMediaError = useCallback(
+    (message: string) => {
+      setCallError(message);
+      setMediaStatus("Media unavailable");
+      if (mediaSessionId && activePhone) {
+        void updatePhoneCall(mediaSessionId, activePhone, "ended")
+          .then(() =>
+            incomingCall
+              ? undefined
+              : settlePhoneCall(mediaSessionId, activePhone),
+          )
+          .catch((error) =>
+            console.error("Failed to close unavailable media call:", error),
+          );
+      }
+      setActiveCall((current) => {
+        if (!current || current.id !== mediaSessionId) return current;
+        return null;
+      });
+    },
+    [activePhone, setActiveCall, incomingCall, mediaSessionId],
+  );
   useEffect(() => {
-    const listener = AppState.addEventListener("change", value => setForeground(value === "active"));
+    if (!hostPhone) return;
+    let mounted = true;
+    void fetchPhoneHostCallCapabilities(hostPhone)
+      .then((value) => {
+        if (mounted) setHostCapabilities(value);
+      })
+      .catch((error) =>
+        console.warn("Failed to load Host call capabilities:", error),
+      );
+    return () => {
+      mounted = false;
+    };
+  }, [hostPhone]);
+  useEffect(() => {
+    const listener = AppState.addEventListener("change", (value) =>
+      setForeground(value === "active"),
+    );
     return () => listener.remove();
   }, []);
   useEffect(() => {
-    const shouldRing = foreground && !actionPending && !closedRef.current && !callError &&
+    const shouldRing =
+      foreground &&
+      !actionPending &&
+      !closedRef.current &&
+      !callError &&
       (incoming ? !!sessionId : outgoing && d.active?.status === "Ringing");
     let disposed = false;
     if (shouldRing) {
       setSoundError("");
-      void startCallSound(soundKey, incoming, route === "Speaker").catch(error => {
-        if (!disposed) setSoundError(error instanceof Error ? error.message : "Call sound is unavailable.");
-      });
+      void startCallSound(soundKey, incoming, route === "Speaker").catch(
+        (error) => {
+          if (!disposed)
+            setSoundError(
+              error instanceof Error
+                ? error.message
+                : "Call sound is unavailable.",
+            );
+        },
+      );
     } else void stopCallSound(soundKey);
-    return () => { disposed = true; void stopCallSound(soundKey); };
-  }, [foreground, incoming, outgoing, sessionId, d.active?.status, actionPending, callError, route, soundKey]);
+    return () => {
+      disposed = true;
+      void stopCallSound(soundKey);
+    };
+  }, [
+    foreground,
+    incoming,
+    outgoing,
+    sessionId,
+    d.active?.status,
+    actionPending,
+    callError,
+    route,
+    soundKey,
+  ]);
   useEffect(() => {
     setState(incoming ? "Incoming" : outgoing ? "Ringing" : "Connected");
   }, [incoming, outgoing, sessionId]);
   useEffect(() => {
-    if (mode !== "incoming" || state !== "Incoming" || actionPending || !foreground) return;
+    if (
+      mode !== "incoming" ||
+      state !== "Incoming" ||
+      actionPending ||
+      !foreground
+    )
+      return;
     Vibration.vibrate([0, 700, 500], true);
     return () => {
       Vibration.cancel();
@@ -131,32 +230,6 @@ export function CallScreen({
     if (d.active?.person === id && !incoming)
       d.setActive((x) => (x ? { ...x, status: state } : x));
   }, [state, incoming, d.active?.person, id]);
-  useEffect(() => {
-    if (incoming || state !== "Connected" || !mediaSessionId || !activePhone) return;
-    const timer = setInterval(() => {
-      const completedMinute = Math.floor((d.active?.seconds ?? 0) / 60);
-      if (completedMinute <= chargedMinuteRef.current || chargingMinuteRef.current) return;
-      const nextMinute = chargedMinuteRef.current + 1;
-      chargingMinuteRef.current = true;
-      void chargePhoneCallMinute(mediaSessionId, activePhone, nextMinute)
-        .then((result) => {
-          if (result.charged && !result.responseInvalid) {
-            chargedMinuteRef.current = nextMinute;
-            if (typeof result.remaining_coins === "number" && result.remaining_coins >= 0)
-              d.setBalance(result.remaining_coins);
-          } else if (!result.responseInvalid && result.insufficient_balance) {
-            void end("Ended");
-          }
-        })
-        .catch((error) => {
-          console.error("Failed to charge completed call minute:", error);
-        })
-        .finally(() => {
-          chargingMinuteRef.current = false;
-        });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [activePhone, d.active?.seconds, incoming, mediaSessionId, state]);
   async function end(status = "Ended") {
     if (closedRef.current) return;
     closedRef.current = true;
@@ -164,7 +237,8 @@ export function CallScreen({
     await stopCallSound(soundKey);
     setActionPending(true);
     const activeSessionId =
-      sessionId || (d.active && /^[0-9a-f-]{36}$/.test(d.active.id) ? d.active.id : "");
+      sessionId ||
+      (d.active && /^[0-9a-f-]{36}$/.test(d.active.id) ? d.active.id : "");
     let settledCharge: number | undefined;
     if (auth.demoPhone && activeSessionId) {
       try {
@@ -181,15 +255,29 @@ export function CallScreen({
           d.active?.seconds ?? 0,
         );
         if (!incoming && !d.active?.incoming) {
-          const settlement = await settlePhoneCall(activeSessionId, auth.demoPhone);
-          settledCharge = settlement.coins_charged;
+          const settlement = await settlePhoneCall(
+            activeSessionId,
+            auth.demoPhone,
+          );
+          const summary = await fetchPhoneCallSummary(
+            activeSessionId,
+            auth.demoPhone,
+          );
+          settledCharge = summary.coins_charged;
+          await d
+            .refreshWalletBalance()
+            .catch((error) =>
+              console.error(
+                "Failed to refresh the settled wallet balance:",
+                error,
+              ),
+            );
         }
       } catch (error) {
         console.error("Failed to close and settle call:", error);
       }
     }
-    if (d.active)
-      d.finishCall(status, settledCharge);
+    if (d.active) d.finishCall(status, settledCharge);
     else
       d.setCalls((v) => [
         {
@@ -204,19 +292,106 @@ export function CallScreen({
       ]);
     router.replace(`/calls/result/${id}?status=${status}` as never);
   }
+  async function switchToVideo() {
+    const requesterPhone = auth.demoPhone;
+    if (
+      !canSwitchToVideo ||
+      !mediaSessionId ||
+      !requesterPhone ||
+      actionPending
+    )
+      return;
+    setActionPending(true);
+    setCallError("");
+    setMediaStatus("Video request sent");
+    try {
+      await requestPhoneCallVideoUpgrade(mediaSessionId, requesterPhone);
+      d.setActive((current) => {
+        if (!current || current.id !== mediaSessionId) return current;
+        return { ...current, videoUpgradeRequestedBy: requesterPhone };
+      });
+    } catch (error) {
+      setCallError(
+        error instanceof Error
+          ? error.message
+          : "Unable to switch this call to video.",
+      );
+      setMediaStatus("Connected");
+    } finally {
+      setActionPending(false);
+    }
+  }
+  async function acceptVideoUpgrade() {
+    if (
+      !videoRequestForMe ||
+      !mediaSessionId ||
+      !auth.demoPhone ||
+      actionPending
+    )
+      return;
+    setActionPending(true);
+    setCallError("");
+    setMediaStatus("Starting video…");
+    try {
+      const result = await acceptPhoneCallVideoUpgrade(
+        mediaSessionId,
+        auth.demoPhone,
+      );
+      d.setActive((current) => {
+        if (!current || current.id !== mediaSessionId) return current;
+        if (current.incoming) return { ...current, type: result.callType };
+        const remainingCoins = result.remainingCoins ?? d.balance;
+        const remainder = 60 - (current.seconds % 60);
+        return {
+          ...current,
+          type: result.callType,
+          availableSeconds:
+            current.seconds +
+            remainder +
+            Math.floor(remainingCoins / result.coinsPerMinute) * 60,
+        };
+      });
+      if (!d.active?.incoming && typeof result.remainingCoins === "number")
+        d.setBalance(result.remainingCoins);
+      router.replace(
+        `/calls/video/${id}?session=${mediaSessionId}&type=video` as never,
+      );
+    } catch (error) {
+      setCallError(
+        error instanceof Error
+          ? error.message
+          : "Unable to accept the video request.",
+      );
+      setMediaStatus("Connected");
+    } finally {
+      setActionPending(false);
+    }
+  }
   async function connect() {
     if (blocked || conflict || actionRef.current || closedRef.current) return;
     setCallError("");
     if (d.active && !incoming) return;
-    if (!incoming && d.paid && d.hostStatus !== "approved" && d.balance < (video ? 50 : 20))
-      return go("/wallet/low-balance");
     if (!auth.demoPhone || !id.startsWith("phone_"))
       return go("/status/unavailable");
     const hostPhone = `+${id.slice("phone_".length)}`;
     let session;
+    let callCoinsPerMinute: number | undefined;
     actionRef.current = true;
     setActionPending(true);
     try {
+      if (!incoming && d.paid) {
+        const hostSlabs = await fetchHostCurrentSlabs(hostPhone);
+        const slab = hostSlabs.find(
+          (row) => row.call_type === (video ? "VIDEO" : "AUDIO"),
+        );
+        callCoinsPerMinute = slab
+          ? Math.ceil(slab.diamonds_per_minute * slab.coins_per_diamond)
+          : undefined;
+        if (!callCoinsPerMinute || d.balance < callCoinsPerMinute) {
+          go("/wallet/low-balance");
+          return;
+        }
+      }
       if (incoming && sessionId) {
         await stopCallSound(soundKey);
         await updatePhoneCall(sessionId, auth.demoPhone, "connected");
@@ -224,7 +399,7 @@ export function CallScreen({
           id: sessionId,
           roomId: "",
           status: "connected" as const,
-          callType: video ? "video" as const : "audio" as const,
+          callType: video ? ("video" as const) : ("audio" as const),
         };
       } else {
         session = await startPhoneCall(
@@ -247,7 +422,9 @@ export function CallScreen({
     }
     if (closedRef.current) {
       // Cancel may have been pressed while session creation was in flight.
-      await updatePhoneCall(session.id, auth.demoPhone, "cancelled").catch(console.warn);
+      await updatePhoneCall(session.id, auth.demoPhone, "cancelled").catch(
+        console.warn,
+      );
       return;
     }
     Vibration.cancel();
@@ -259,6 +436,10 @@ export function CallScreen({
       seconds: 0,
       incoming,
       speaker: route === "Speaker",
+      availableSeconds:
+        !incoming && callCoinsPerMinute
+          ? Math.floor(d.balance / callCoinsPerMinute) * 60
+          : undefined,
     });
     if (incoming || session.status === "connected")
       router.replace(
@@ -274,13 +455,16 @@ export function CallScreen({
   }, [outgoing, sessionId, id, type]);
   useEffect(() => {
     const activeId =
-      sessionId || (d.active && /^[0-9a-f-]{36}$/.test(d.active.id) ? d.active.id : "");
+      sessionId ||
+      (d.active && /^[0-9a-f-]{36}$/.test(d.active.id) ? d.active.id : "");
     if (!activeId || !auth.demoPhone) return;
     return subscribeToPhoneCall(activeId, auth.demoPhone, async (status) => {
       if (status === "connected" && outgoing) {
         await stopCallSound(soundKey);
         if (closedRef.current) return;
-        d.setActive((current) => (current ? { ...current, status: "Connected" } : current));
+        d.setActive((current) =>
+          current ? { ...current, status: "Connected" } : current,
+        );
         router.replace(
           `/calls/${video ? "video" : "audio"}/${id}?session=${activeId}&type=${video ? "video" : "audio"}` as never,
         );
@@ -309,36 +493,58 @@ export function CallScreen({
     );
   return (
     <Shell
-      title={
-        incoming
-          ? "Incoming call"
-          : video
-            ? "Video call"
-            : "Audio call"
-      }
+      title={incoming ? "Incoming call" : video ? "Video call" : "Audio call"}
       immersive
       skipSkeleton
       footer={
         ringing ? (
           incoming ? (
             <Row>
-              <Button title="Decline" icon="phone-off" variant="danger"
-                disabled={actionPending} style={{ flex: 1 }} onPress={() => end("Rejected")} />
-              <Button title={actionPending ? "Connecting…" : "Accept"} icon={video ? "video" : "phone"}
-                disabled={blocked || conflict || actionPending || closedRef.current}
-                style={{ flex: 1 }} onPress={connect} />
+              <Button
+                title="Decline"
+                icon="phone-off"
+                variant="danger"
+                disabled={actionPending}
+                style={{ flex: 1 }}
+                onPress={() => end("Rejected")}
+              />
+              <Button
+                title={actionPending ? "Connecting…" : "Accept"}
+                icon={video ? "video" : "phone"}
+                disabled={
+                  blocked || conflict || actionPending || closedRef.current
+                }
+                style={{ flex: 1 }}
+                onPress={connect}
+              />
             </Row>
           ) : (
             <View style={{ gap: 10 }}>
-              <Button title={route === "Speaker" ? "Speaker on" : "Speaker off"}
-                icon={route === "Speaker" ? "volume-2" : "headphones"} variant="secondary"
+              <Button
+                title={route === "Speaker" ? "Speaker on" : "Speaker off"}
+                icon={route === "Speaker" ? "volume-2" : "headphones"}
+                variant="secondary"
                 onPress={() => {
                   const next = route !== "Speaker";
                   setRoute(next ? "Speaker" : "Earpiece");
-                  d.setActive(current => current ? { ...current, speaker: next } : current);
-                }} />
-              {callError && !d.active && <Button title="Try again" disabled={actionPending} onPress={connect} />}
-              <Button title="Cancel call" icon="phone-off" variant="danger" onPress={() => end("Cancelled")} />
+                  d.setActive((current) =>
+                    current ? { ...current, speaker: next } : current,
+                  );
+                }}
+              />
+              {callError && !d.active && (
+                <Button
+                  title="Try again"
+                  disabled={actionPending}
+                  onPress={connect}
+                />
+              )}
+              <Button
+                title="Cancel call"
+                icon="phone-off"
+                variant="danger"
+                onPress={() => end("Cancelled")}
+              />
             </View>
           )
         ) : (
@@ -367,11 +573,29 @@ export function CallScreen({
                 }
               />
               <IconButton
-                label={video ? "Toggle camera" : "Open chat"}
-                icon={
-                  video ? (camera ? "video" : "video-off") : "message-circle"
+                label={
+                  video
+                    ? "Toggle camera"
+                    : canSwitchToVideo
+                      ? "Switch to video"
+                      : "Open chat"
                 }
-                onPress={() => (video ? setCamera(!camera) : go(`/chat/${id}`))}
+                icon={
+                  video
+                    ? camera
+                      ? "video"
+                      : "video-off"
+                    : canSwitchToVideo
+                      ? "video"
+                      : "message-circle"
+                }
+                onPress={() =>
+                  video
+                    ? setCamera(!camera)
+                    : canSwitchToVideo
+                      ? switchToVideo()
+                      : go(`/chat/${id}`)
+                }
               />
               <IconButton
                 label="End call"
@@ -383,7 +607,9 @@ export function CallScreen({
             <Row style={{ justifyContent: "space-around" }}>
               <T size={11}>Microphone</T>
               <T size={11}>{route}</T>
-              <T size={11}>{video ? "Camera" : "Chat"}</T>
+              <T size={11}>
+                {video ? "Camera" : canSwitchToVideo ? "Video" : "Chat"}
+              </T>
               <T size={11} color={c.error}>
                 End
               </T>
@@ -392,81 +618,164 @@ export function CallScreen({
         )
       }
     >
-    <Row style={{ justifyContent: "space-between", alignItems: "center" }}>
-      <View style={{ gap: 4 }}>
-        <T mono size={11} color={c.mint} bold>
-          {video ? "VIDEO CONNECTION" : "AUDIO CONNECTION"}
-        </T>
-        <T size={13} color={c.secondary}>
-          {ringing ? "Waiting for response" : "Private 1:1 conversation"}
-        </T>
-      </View>
-      <Badge
-        text={ringing ? state : duration(d.active?.seconds || 0)}
-        warning={state !== "Connected" && !ringing}
-      />
-    </Row>
-    {video && !ringing ? (
-      <Card
-        style={{
-          height: 454,
-          backgroundColor: "#14201c",
-          borderColor: c.line,
-          borderWidth: 1,
-          overflow: "hidden",
-          padding: 0,
-          borderRadius: 26,
-        }}
-      >
-        {!ringing && mediaSessionId && auth.demoPhone && (
-          <ZegoMedia
-            sessionId={mediaSessionId}
-            phone={auth.demoPhone}
-            video
-            muted={muted}
-            camera={camera}
-            front={front}
-            speaker={route === "Speaker"}
-            onStatus={onMediaStatus}
-            onError={onMediaError}
-            videoPlaceholder={
-              <View style={{ alignItems: "center", gap: 10, paddingHorizontal: 30 }}>
-                <View style={{ padding: 8, borderRadius: 99, backgroundColor: c.successSurface }}>
-                  <Avatar person={p} size={86} />
-                </View>
-                <T bold size={21}>{p.name}</T>
-                <T size={13} color={c.secondary} style={{ textAlign: "center" }}>
-                  {camera ? "Waiting for their video…" : "Your camera is off"}
-                </T>
-              </View>
-            }
+      <Row style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <View style={{ gap: 4 }}>
+          <T mono size={11} color={c.mint} bold>
+            {video ? "VIDEO CONNECTION" : "AUDIO CONNECTION"}
+          </T>
+          <T size={13} color={c.secondary}>
+            {ringing ? "Waiting for response" : "Private 1:1 conversation"}
+          </T>
+        </View>
+        <Badge
+          text={
+            ringing
+              ? state
+              : d.active?.incoming
+                ? duration(d.active?.seconds ?? 0)
+                : talkTime(remainingTalkSeconds)
+          }
+          warning={state !== "Connected" && !ringing}
+        />
+      </Row>
+      {!ringing && !video && videoRequestFromMe && (
+        <Notice>
+          Video request sent. Waiting for the other participant to accept.
+        </Notice>
+      )}
+      {!ringing && !video && videoRequestForMe && (
+        <Card style={{ gap: 10 }}>
+          <T bold>Switch this call to video?</T>
+          <T size={12} color={c.secondary}>
+            The next billed minute will use the Host’s video-call rate.
+          </T>
+          <Button
+            title={actionPending ? "Accepting video…" : "Accept video"}
+            icon="video"
+            disabled={actionPending}
+            onPress={acceptVideoUpgrade}
           />
-        )}
-        <View
+        </Card>
+      )}
+      {video && !ringing ? (
+        <Card
           style={{
-            position: "absolute",
-            zIndex: 3,
-            top: 16,
-            left: 16,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 8,
+            height: 454,
+            backgroundColor: "#14201c",
+            borderColor: c.line,
+            borderWidth: 1,
+            overflow: "hidden",
+            padding: 0,
+            borderRadius: 26,
           }}
         >
-          <View style={{ backgroundColor: "rgba(8,13,11,0.74)", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6 }}>
-            <Row style={{ gap: 6 }}>
-              <View style={{ width: 6, height: 6, borderRadius: 99, backgroundColor: c.mint }} />
-              <T mono size={10} color={c.mint} bold>LIVE</T>
-            </Row>
+          {!ringing && mediaSessionId && auth.demoPhone && (
+            <ZegoMedia
+              sessionId={mediaSessionId}
+              phone={auth.demoPhone}
+              video
+              muted={muted}
+              camera={camera}
+              front={front}
+              speaker={route === "Speaker"}
+              onStatus={onMediaStatus}
+              onError={onMediaError}
+              videoPlaceholder={
+                <View
+                  style={{
+                    alignItems: "center",
+                    gap: 10,
+                    paddingHorizontal: 30,
+                  }}
+                >
+                  <View
+                    style={{
+                      padding: 8,
+                      borderRadius: 99,
+                      backgroundColor: c.successSurface,
+                    }}
+                  >
+                    <Avatar person={p} size={86} />
+                  </View>
+                  <T bold size={21}>
+                    {p.name}
+                  </T>
+                  <T
+                    size={13}
+                    color={c.secondary}
+                    style={{ textAlign: "center" }}
+                  >
+                    {camera ? "Waiting for their video…" : "Your camera is off"}
+                  </T>
+                </View>
+              }
+            />
+          )}
+          <View
+            style={{
+              position: "absolute",
+              zIndex: 3,
+              top: 16,
+              left: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: "rgba(8,13,11,0.74)",
+                borderRadius: 99,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <Row style={{ gap: 6 }}>
+                <View
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 99,
+                    backgroundColor: c.mint,
+                  }}
+                />
+                <T mono size={10} color={c.mint} bold>
+                  LIVE
+                </T>
+              </Row>
+            </View>
+            <View
+              style={{
+                backgroundColor: "rgba(8,13,11,0.74)",
+                borderRadius: 99,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <T mono size={10} color={c.text}>
+                {d.active?.incoming
+                  ? duration(d.active?.seconds ?? 0)
+                  : talkTime(remainingTalkSeconds)}
+              </T>
+            </View>
           </View>
-          <View style={{ backgroundColor: "rgba(8,13,11,0.74)", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6 }}>
-            <T mono size={10} color={c.text}>{duration(d.active?.seconds || 0)}</T>
+          <View
+            style={{
+              position: "absolute",
+              zIndex: 3,
+              left: 16,
+              right: 124,
+              bottom: 16,
+              gap: 2,
+            }}
+          >
+            <T bold size={18} numberOfLines={1}>
+              {p.name}
+            </T>
+            <T size={12} color={c.mint} numberOfLines={1}>
+              {mediaStatus}
+            </T>
           </View>
-        </View>
-        <View style={{ position: "absolute", zIndex: 3, left: 16, right: 124, bottom: 16, gap: 2 }}>
-          <T bold size={18} numberOfLines={1}>{p.name}</T>
-          <T size={12} color={c.mint} numberOfLines={1}>{mediaStatus}</T>
-        </View>
         </Card>
       ) : (
         <View
@@ -523,12 +832,6 @@ export function CallScreen({
                   ? mediaStatus
                   : state}
           </T>
-          {d.paid && (
-            <T mono size={11} color={c.muted}>
-              {d.callSlabs.find((row) => row.call_type === (video ? "VIDEO" : "AUDIO"))
-                ?.diamonds_per_minute ?? "—"} diamonds per minute
-            </T>
-          )}
         </View>
       )}
       {!ringing && <Wave large />}
@@ -606,9 +909,11 @@ export function CallsList() {
                 <T size={11} color={c.muted}>
                   {`${call.incoming ? "Incoming" : "Outgoing"} · ${call.status} · ${duration(call.seconds)}`}
                 </T>
-                <T mono size={10} color={c.warning}>
-                  {(call.chargedCoins ?? callCoinCost(call.seconds, call.type))} coins spent
-                </T>
+                {!call.incoming && (
+                  <T mono size={10} color={c.warning}>
+                    {call.chargedCoins ?? 0} coins spent
+                  </T>
+                )}
               </Pressable>
               <IconButton
                 icon="phone"
@@ -672,38 +977,73 @@ export function CallDetail({
   status?: string;
 }) {
   const d = useDemo();
+  const auth = useAuth();
   const call =
     d.calls.find((x) => x.id === id) ||
     d.calls.find((x) => x.person === id) ||
     d.calls[0];
+  const [summary, setSummary] = useState<Awaited<
+    ReturnType<typeof fetchPhoneCallSummary>
+  > | null>(null);
   const p = personFor(call.person);
-  const canCallAgain = d.profile.gender === "Male" && d.hostStatus !== "approved";
+  const sessionId = /^[0-9a-f-]{36}$/.test(call.id) ? call.id : "";
+  useEffect(() => {
+    if (!sessionId || !auth.demoPhone) return;
+    let active = true;
+    void fetchPhoneCallSummary(sessionId, auth.demoPhone)
+      .then((value) => {
+        if (active) setSummary(value);
+      })
+      .catch((error) => console.error("Failed to load call summary:", error));
+    if (!call.incoming) {
+      void d.refreshWalletBalance().catch((error) =>
+        console.error("Failed to refresh the caller wallet for the receipt:", error),
+      );
+    }
+    return () => {
+      active = false;
+    };
+  }, [auth.demoPhone, call.incoming, d.refreshWalletBalance, sessionId]);
+  const displaySeconds = summary?.duration_seconds ?? call.seconds;
+  const displayCoins = summary?.coins_charged ?? call.chargedCoins;
+  const displayStatus = summary?.status ?? status ?? call.status;
+  const canCallAgain =
+    d.profile.gender === "Male" && d.hostStatus !== "approved";
   return (
     <Shell title={result ? "Call summary" : "Call details"}>
       <View style={{ alignItems: "center", gap: 12, padding: 14 }}>
         <Avatar person={p} size={84} />
         <T size={23} bold>
-          {result ? `Call ${(status || call.status).toLowerCase()}` : p.name}
+          {result ? `Call ${displayStatus.toLowerCase()}` : p.name}
         </T>
         <T color={c.secondary}>
           {p.name} · {call.type} call
         </T>
-        <Badge text={status || call.status} />
+        <Badge text={displayStatus} />
       </View>
       <Card>
         <Setting
           title="Duration"
-          detail={duration(call.seconds)}
+          detail={duration(displaySeconds)}
           icon="clock"
         />
-        {d.paid && (
+        {d.paid && !call.incoming && (
           <Setting
             title="Amount"
             detail={
-              call.seconds
-                ? `${call.chargedCoins ?? callCoinCost(call.seconds, call.type)} coins spent`
-                : "0 coins · not connected"
+              summary
+                ? `${displayCoins ?? 0} coins spent`
+                : displaySeconds
+                  ? "Loading server receipt…"
+                  : "0 coins · not connected"
             }
+            icon="credit-card"
+          />
+        )}
+        {d.paid && !call.incoming && (
+          <Setting
+            title="Available coins"
+            detail={coins(d.balance)}
             icon="credit-card"
           />
         )}

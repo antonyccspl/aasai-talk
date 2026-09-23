@@ -24,7 +24,7 @@ import {
 import { defaultFacets, people, personFor, useDemo } from "./store";
 import { colors as c } from "./theme";
 import { useRefreshPeople } from '../data/sample-workspace';
-import { fetchPhoneConversations, fetchPhoneMessages, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
+import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
 import { useAuth } from "@/data/auth";
 
 export function Discovery({ mode = "explore" }: { mode?: string }) {
@@ -414,6 +414,7 @@ export function Conversations() {
 }
 export function Chat({ id }: { id: string }) {
   const d = useDemo();
+  const { refreshUnreadMessageCount, setOpenChatPhone } = d;
   const auth = useAuth();
   const p = personFor(id);
   const [liveMessages, setLiveMessages] = useState<PhoneMessage[]>([]);
@@ -424,16 +425,26 @@ export function Chat({ id }: { id: string }) {
   useEffect(() => {
     if (!auth.demoPhone || !otherPhone) return;
     let active = true;
+    setOpenChatPhone(otherPhone);
     const loadMessages = () => fetchPhoneMessages(auth.demoPhone!, otherPhone)
-      .then((messages) => { if (active) setLiveMessages(messages); })
+      .then((messages) => {
+        if (active) setLiveMessages(messages);
+        return markPhoneConversationRead(auth.demoPhone!, otherPhone);
+      })
+      .then(() => { if (active) void refreshUnreadMessageCount(); })
       .catch((error) => { if (active) setChatError(error instanceof Error ? error.message : "Unable to load messages."); });
     void loadMessages();
     const refreshTimer = setInterval(() => { void loadMessages(); }, 5000);
     const unsubscribe = subscribeToPhoneMessages(auth.demoPhone, otherPhone, (message) => {
       setLiveMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
+      if (message.recipient_phone === auth.demoPhone) {
+        void markPhoneConversationRead(auth.demoPhone!, otherPhone)
+          .then(() => refreshUnreadMessageCount())
+          .catch((error) => console.warn("Unable to mark incoming message as read:", error));
+      }
     });
-    return () => { active = false; clearInterval(refreshTimer); unsubscribe(); };
-  }, [auth.demoPhone, otherPhone]);
+    return () => { active = false; setOpenChatPhone(null); clearInterval(refreshTimer); unsubscribe(); };
+  }, [auth.demoPhone, otherPhone, refreshUnreadMessageCount, setOpenChatPhone]);
   const send = () => {
     if (!text.trim() || blocked) return;
     if (!auth.demoPhone || !otherPhone) {

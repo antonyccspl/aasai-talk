@@ -1,27 +1,30 @@
-import React, { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TextStyle,
-  View,
-  ViewStyle,
-  useWindowDimensions,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+    fetchHostCurrentSlabs,
+    type HostCurrentSlab,
+} from "@/data/host-metrics";
 import { Feather, FontAwesome6 } from "@expo/vector-icons";
 import { router } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
+import {
+    Animated,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TextStyle,
+    useWindowDimensions,
+    View,
+    ViewStyle,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { coins, duration, Person, personFor, talkTime, useDemo } from "./store";
 import { colors as c, fonts } from "./theme";
-import { coins, duration, Person, personFor, useDemo } from "./store";
-import { fetchHostCurrentSlabs, type HostCurrentSlab } from "@/data/host-metrics";
 export type IconName = React.ComponentProps<typeof Feather>["name"];
 export const go = (path: string) => router.push(path as never);
 export function T({
@@ -562,8 +565,12 @@ export function UserCard({ person }: { person: Person }) {
       active = false;
     };
   }, [hostPhone]);
-  const audioRate = hostSlabs.find(row => row.call_type === 'AUDIO')?.diamonds_per_minute;
-  const videoRate = hostSlabs.find(row => row.call_type === 'VIDEO')?.diamonds_per_minute;
+  const audioRate = hostSlabs.find(
+    (row) => row.call_type === "AUDIO",
+  )?.diamonds_per_minute;
+  const videoRate = hostSlabs.find(
+    (row) => row.call_type === "VIDEO",
+  )?.diamonds_per_minute;
   const pulse = useRef(new Animated.Value(0.3)).current;
   useEffect(() => {
     const animation = Animated.loop(
@@ -652,7 +659,7 @@ export function UserCard({ person }: { person: Person }) {
         <Row>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Audio call with ${person.name}, ${audioRate === undefined ? 'rate unavailable' : `${audioRate} diamonds per minute`}`}
+            accessibilityLabel={`Audio call with ${person.name}, ${audioRate === undefined ? "rate unavailable" : `${audioRate} diamonds per minute`}`}
             onPress={() => go(`/calls/outgoing/${person.id}?type=audio`)}
             style={[
               s.button,
@@ -670,13 +677,17 @@ export function UserCard({ person }: { person: Person }) {
               </T>
               <DiamondMark size={9} />
               <T mono size={10} color={c.secondary}>
-                {slabsLoading ? '…' : audioRate === undefined ? '—' : `${audioRate}/min`}
+                {slabsLoading
+                  ? "…"
+                  : audioRate === undefined
+                    ? "—"
+                    : `${audioRate}/min`}
               </T>
             </Row>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Video call with ${person.name}, ${videoRate === undefined ? 'rate unavailable' : `${videoRate} diamonds per minute`}`}
+            accessibilityLabel={`Video call with ${person.name}, ${videoRate === undefined ? "rate unavailable" : `${videoRate} diamonds per minute`}`}
             onPress={() => go(`/calls/outgoing/${person.id}?type=video`)}
             style={[
               s.button,
@@ -694,7 +705,11 @@ export function UserCard({ person }: { person: Person }) {
               </T>
               <DiamondMark size={9} />
               <T mono size={10} color={c.secondary}>
-                {slabsLoading ? '…' : videoRate === undefined ? '—' : `${videoRate}/min`}
+                {slabsLoading
+                  ? "…"
+                  : videoRate === undefined
+                    ? "—"
+                    : `${videoRate}/min`}
               </T>
             </Row>
           </Pressable>
@@ -855,8 +870,14 @@ export function Shell({
                 style={[s.row, { flex: 1 }]}
               >
                 <AasaiTalkMark size={30} />
-                <T bold size={21}>
-                  Aasai talk
+                <T
+                  bold
+                  size={21}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={{ flexShrink: 1 }}
+                >
+                  Aasai Talk
                 </T>
               </Pressable>
             )}
@@ -865,7 +886,10 @@ export function Shell({
                 {d.paid && !isApprovedHost && !title && !compact && (
                   <Pressable
                     onPress={() => go("/wallet")}
-                    style={[s.balance, { backgroundColor: c.high, borderColor: c.line }]}
+                    style={[
+                      s.balance,
+                      { backgroundColor: c.high, borderColor: c.line },
+                    ]}
                     accessibilityLabel="Open wallet"
                   >
                     <CoinStack size={21} />
@@ -894,12 +918,24 @@ export function Shell({
           </Row>
           {d.active && !immersive && (
             <Pressable
-              onPress={() => go(`/calls/${d.active!.type}/${d.active!.person}${d.active!.status === "Connected" ? `?session=${d.active!.id}` : ""}`)}
+              onPress={() =>
+                go(
+                  `/calls/${d.active!.type}/${d.active!.person}${d.active!.status === "Connected" ? `?session=${d.active!.id}` : ""}`,
+                )
+              }
               style={[s.ongoing, { backgroundColor: c.successSurface }]}
             >
               <Icon name="phone" color={c.mint} size={16} />
               <T size={12} color={c.mint}>
-                {personFor(d.active.person).name} · {duration(d.active.seconds)}{" "}
+                {personFor(d.active.person).name} ·{" "}
+                {d.active.incoming
+                  ? duration(d.active.seconds)
+                  : talkTime(
+                      Math.max(
+                        0,
+                        (d.active.availableSeconds ?? 0) - d.active.seconds,
+                      ),
+                    )}{" "}
                 · Return to call
               </T>
             </Pressable>
@@ -944,11 +980,26 @@ export function Shell({
                   onPress={() => router.replace(path as never)}
                   style={[s.tab, tab === name && { backgroundColor: c.high }]}
                 >
-                  <Icon
-                    name={icon}
-                    color={tab === name ? c.mint : c.secondary}
-                    size={21}
-                  />
+                  <View>
+                    <Icon
+                      name={icon}
+                      color={tab === name ? c.mint : c.secondary}
+                      size={21}
+                    />
+                    {name === "Messages" && d.unreadMessageCount > 0 && (
+                      <View
+                        style={{
+                          position: "absolute", top: -8, right: -12, minWidth: 17, height: 17,
+                          paddingHorizontal: 4, borderRadius: 9, backgroundColor: c.danger,
+                          alignItems: "center", justifyContent: "center",
+                        }}
+                      >
+                        <T size={9} bold color="#fff">
+                          {d.unreadMessageCount > 99 ? "99+" : d.unreadMessageCount}
+                        </T>
+                      </View>
+                    )}
+                  </View>
                   <T mono size={10} color={tab === name ? c.mint : c.secondary}>
                     {name}
                   </T>

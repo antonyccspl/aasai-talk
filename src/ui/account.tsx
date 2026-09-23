@@ -26,6 +26,7 @@ import { colors as c } from "./theme";
 import { PhotoPicker } from "./photo-picker";
 import { useAuth } from "@/data/auth";
 import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
+import { fetchPhoneMessageNotifications, subscribeToAllPhoneMessages, type PhoneMessageNotification } from "@/data/chat";
 
 function latestEligibleBirthday() {
   const date = new Date();
@@ -1380,31 +1381,33 @@ export function Safety({ id, mode }: { id: string; mode: string }) {
   );
 }
 export function Notifications() {
-  const d = useDemo();
+  const auth = useAuth();
   const [filter, setFilter] = useState("All");
-  const items = d.notifications;
-  const list = items.filter(
-    (x) => filter !== "Unread" || !d.read.includes(x.id),
-  );
+  const [items, setItems] = useState<PhoneMessageNotification[]>([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!auth.demoPhone) return;
+    let active = true;
+    const load = () => fetchPhoneMessageNotifications(auth.demoPhone!)
+      .then((rows) => { if (active) setItems(rows); })
+      .catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : "Unable to load notifications."); });
+    void load();
+    const unsubscribe = subscribeToAllPhoneMessages(auth.demoPhone, () => { void load(); });
+    return () => { active = false; unsubscribe(); };
+  }, [auth.demoPhone]);
+  const list = items.filter((x) => filter !== "Unread" || !x.read_at);
   return (
     <Shell title="Notifications">
       <Chips items={["All", "Unread"]} selected={filter} onChange={setFilter} />
-      <Button
-        title="Mark all as read"
-        variant="secondary"
-        onPress={() =>
-          d.setRead((v) => [...new Set([...v, ...items.map((x) => x.id)])])
-        }
-      />
+      {error ? <Notice error>{error}</Notice> : null}
       {list.map((x) => (
         <Setting
           key={x.id}
-          title={`${d.read.includes(x.id) ? "" : "• "}${x.title}`}
-          detail={x.body}
-          icon={x.icon}
+          title={`${x.read_at ? "" : "• "}New message`}
+          detail={x.text}
+          icon="message-circle"
           onPress={() => {
-            d.setRead((v) => [...v, x.id]);
-            go(x.path);
+            go(`/chat/phone_${x.sender_phone.replace("+", "")}`);
           }}
         />
       ))}
