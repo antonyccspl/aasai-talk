@@ -1,0 +1,1890 @@
+FRND-STYLE SOCIAL & REAL-TIME CALLING APP
+FULL PRODUCT REQUIREMENTS & DEVELOPMENT PLAN
+Technology: React Native + Supabase
+Document Version: 1.0
+
+============================================================
+1. PROJECT OVERVIEW
+============================================================
+
+Build a mobile social communication platform where users can discover other users/hosts, see availability, chat in real time, and make direct one-to-one audio and video calls.
+
+Core technology:
+- React Native for Android/iOS mobile application
+- Supabase Auth for authentication
+- Supabase PostgreSQL for persistent data
+- Supabase Realtime for presence, chat events, typing and realtime state
+- Supabase Storage for media
+- Supabase Edge Functions for secure backend logic
+- Dedicated WebRTC/RTC provider for actual audio/video media
+- FCM/APNs for push notifications
+- Payment gateway for wallet recharge if calls are paid
+- Separate web admin dashboard
+
+IMPORTANT:
+Supabase should NOT carry the actual audio/video media stream. Use a WebRTC/RTC service such as Agora, ZEGOCLOUD, Twilio, Stream, or a self-hosted WebRTC stack. For an MVP, a managed RTC provider is recommended.
+
+============================================================
+2. USER ROLES
+============================================================
+
+2.1 NORMAL USER
+
+Capabilities:
+- Register/login
+- Create and edit profile
+- Upload profile photo
+- Browse/discover users
+- Search and filter users
+- View online/busy/offline status
+- Favorite users
+- Send and receive chat messages
+- Send images/media where enabled
+- Make audio calls
+- Make video calls
+- Receive incoming calls
+- View call history
+- Recharge wallet
+- View wallet balance and transactions
+- Rate users after calls
+- Block users
+- Report users
+- Manage notification/privacy settings
+- Delete account
+
+2.2 HOST / CREATOR
+
+Capabilities:
+- Host profile
+- Profile verification
+- Set availability
+- Online/offline
+- Available/busy state
+- Receive audio calls
+- Receive video calls
+- Chat
+- View call history
+- View earnings
+- View wallet
+- Request withdrawals
+- View ratings
+- Block/report users
+- Manage profile
+
+2.3 ADMIN
+
+Capabilities:
+- Admin authentication
+- Dashboard
+- User management
+- Host management
+- Host verification
+- Reports
+- User suspension/blocking
+- Call monitoring metadata
+- Payment management
+- Wallet management
+- Host earnings
+- Withdrawals
+- Pricing/rates
+- Notifications
+- App settings
+- Analytics
+- Audit logs
+
+============================================================
+3. AUTHENTICATION
+============================================================
+
+Supported:
+- Mobile number + OTP
+- Email/password (optional)
+- Google login (optional)
+- Apple login for iOS (optional)
+- Session persistence
+- Logout
+- Account deletion
+
+Authentication must be handled by Supabase Auth.
+
+Do not store authentication passwords manually in PostgreSQL.
+
+============================================================
+4. USER PROFILE
+============================================================
+
+Profile fields:
+- User ID
+- Name
+- Username
+- Profile photo
+- Date of birth
+- Gender
+- Bio
+- Languages
+- Interests
+- Location (only if required)
+- Role
+- Verification status
+- Rating
+- Created date
+- Updated date
+
+Profile actions:
+- View profile
+- Edit profile
+- Change photo
+- Add/remove interests
+- Update availability
+- Favorite
+- Block
+- Report
+
+============================================================
+5. USER DISCOVERY
+============================================================
+
+Home/Discover screen should support:
+
+- User list
+- Host list
+- Search
+- Online filter
+- Available filter
+- Gender filter if applicable
+- Language filter
+- Age filter
+- Interest filter
+- Rating filter
+- Price filter
+- Popular users
+- New users
+
+Each user card may display:
+- Profile photo
+- Name
+- Rating
+- Online status
+- Availability
+- Audio call button
+- Video call button
+- Chat button
+- Favorite button
+
+============================================================
+6. ONLINE / BUSY / OFFLINE SYSTEM
+============================================================
+
+Required states:
+- ONLINE
+- BUSY
+- OFFLINE
+
+Optional:
+- AWAY
+- DO_NOT_DISTURB
+
+Recommended durable fields:
+- presence
+- availability
+- last_seen
+- current_call_id
+
+Example:
+
+ONLINE:
+presence = online
+availability = available
+current_call_id = null
+
+BUSY:
+presence = online
+availability = busy
+current_call_id = call-id
+
+OFFLINE:
+presence = offline
+availability = unavailable
+last_seen = timestamp
+
+Implementation:
+- Supabase Realtime Presence for live presence
+- PostgreSQL for durable last_seen and important availability state
+- Backend-controlled transitions for call-related busy state
+
+Do not rely only on React Native local state.
+
+============================================================
+7. REAL-TIME CHAT
+============================================================
+
+Chat must support one-to-one conversations.
+
+Features:
+- Create conversation
+- Send message
+- Receive message realtime
+- Message timestamp
+- Delivered state
+- Read state
+- Unread count
+- Typing indicator
+- Last message
+- Conversation list
+- Delete message if product requires it
+- Media messages if enabled
+
+Message types:
+- TEXT
+- IMAGE
+- VIDEO
+- AUDIO
+- FILE
+- SYSTEM
+- CALL
+
+Typing indicator should use Supabase Realtime rather than writing every keystroke to PostgreSQL.
+
+Suggested tables:
+- conversations
+- conversation_members
+- messages
+
+============================================================
+8. AUDIO CALLING
+============================================================
+
+One-to-one audio calling.
+
+Call flow:
+
+1. Caller selects user
+2. Backend checks receiver status
+3. Backend creates/reserves call
+4. Receiver is marked BUSY/reserved
+5. Push notification is sent
+6. Receiver sees incoming call
+7. Receiver accepts/rejects
+8. Backend generates RTC token
+9. Both users join RTC channel
+10. Call becomes CONNECTED
+11. Call continues
+12. One user ends call
+13. Backend finalizes call
+14. Duration is calculated
+15. Billing is calculated server-side if paid
+16. Call history is saved
+17. Availability is restored
+
+Audio controls:
+- Mute/unmute
+- Speaker
+- End call
+- Call timer
+- Connection status
+
+Call states:
+- INITIATED
+- RINGING
+- ACCEPTED
+- CONNECTING
+- CONNECTED
+- ENDED
+- REJECTED
+- MISSED
+- CANCELLED
+- FAILED
+- BUSY
+
+============================================================
+9. VIDEO CALLING
+============================================================
+
+One-to-one video calling.
+
+Features:
+- Remote video
+- Local preview
+- Microphone
+- Camera on/off
+- Switch front/back camera
+- Speaker
+- End call
+- Call timer
+- Connection status
+- Network recovery
+
+Video permission:
+- Camera
+- Microphone
+
+Handle:
+- Permission allowed
+- Permission denied
+- Permission permanently denied
+- Network failure
+- RTC failure
+- User rejection
+- User busy
+- User offline
+
+============================================================
+10. RTC / WEBRTC REQUIREMENT
+============================================================
+
+Actual audio/video must use a dedicated RTC layer.
+
+Options:
+- Agora
+- ZEGOCLOUD
+- Twilio
+- Stream
+- Self-hosted WebRTC
+
+Recommended MVP:
+Use a managed RTC provider.
+
+Backend:
+- Generate temporary RTC token
+- Validate user/call
+- Return channel information
+- Token expiry
+- Prevent unauthorized channel access
+
+Never expose permanent RTC secrets in React Native.
+
+Flow:
+
+React Native
+    |
+    v
+Supabase Edge Function
+    |
+    v
+Generate RTC token
+    |
+    v
+React Native joins RTC channel
+
+============================================================
+11. CALL AVAILABILITY & RACE CONDITIONS
+============================================================
+
+Important requirement:
+
+If two users try to call the same host at the same time, only one call should succeed.
+
+Example:
+User A calls Host X
+User B calls Host X
+
+Backend must atomically reserve Host X:
+AVAILABLE -> RESERVED/BUSY
+
+Do not implement this only in frontend code.
+
+Possible backend approach:
+- Transaction/locking
+- Atomic database function
+- Edge Function
+- Call reservation record
+
+============================================================
+12. INCOMING CALL
+============================================================
+
+Incoming call screen:
+
+- Caller name
+- Caller photo
+- Audio/video type
+- Accept
+- Reject
+- Optional timeout
+
+For production mobile behavior:
+- Push notification
+- Foreground incoming-call UI
+- Background handling
+- App-killed handling
+- iOS CallKit integration if required
+- Android call/connection integration as appropriate
+
+Incoming call timeout should result in MISSED or CANCELLED depending on business rules.
+
+============================================================
+13. CALL HISTORY
+============================================================
+
+Display:
+- Caller/receiver
+- Call type
+- Incoming/outgoing
+- Duration
+- Amount
+- Date/time
+- Status
+
+Filters:
+- All
+- Audio
+- Video
+- Incoming
+- Outgoing
+- Missed
+
+Suggested call table fields:
+- id
+- caller_id
+- receiver_id
+- call_type
+- status
+- started_at
+- connected_at
+- ended_at
+- duration_seconds
+- rate_per_minute
+- total_amount
+- rtc_channel_id
+- created_at
+
+============================================================
+14. WALLET SYSTEM
+============================================================
+
+If calls are paid, user wallet is required.
+
+Wallet features:
+- Current balance
+- Recharge
+- Transaction history
+- Call debit
+- Refund
+- Bonus
+- Transaction status
+
+Suggested tables:
+- wallets
+- wallet_transactions
+- payments
+
+Transaction types:
+- RECHARGE
+- CALL_DEBIT
+- REFUND
+- BONUS
+- WITHDRAWAL
+- ADMIN_ADJUSTMENT
+
+IMPORTANT:
+Wallet balance must be updated through secure backend/database logic, not trusted client code.
+
+============================================================
+15. PAYMENT / RECHARGE
+============================================================
+
+Example packages:
+- Rs.100
+- Rs.250
+- Rs.500
+- Rs.1000
+- Custom amount if required
+
+Payment flow:
+
+User
+ -> Create payment order
+ -> Payment gateway
+ -> Payment completed
+ -> Gateway webhook
+ -> Backend verifies payment
+ -> Wallet credited
+ -> Transaction recorded
+ -> User receives notification
+
+Never credit wallet solely because the mobile client says payment succeeded.
+
+Payment should be confirmed through server-side verification/webhook.
+
+============================================================
+16. CALL BILLING
+============================================================
+
+Example pricing:
+- Audio: Rs.5/minute
+- Video: Rs.10/minute
+
+Billing:
+duration x rate = amount
+
+Example:
+7-minute audio call x Rs.5 = Rs.35
+
+Requirements:
+- Billing calculated on backend
+- Use connected call duration
+- Define minimum billing unit
+- Define rounding rules
+- Define grace period
+- Define insufficient balance behavior
+- Define refund rules
+- Handle call failure
+- Prevent duplicate billing
+- Store billing reference
+
+Do not trust client-side duration or price.
+
+============================================================
+17. PREPAID CALL LOGIC
+============================================================
+
+If the user pays before/during calls:
+
+Required rules:
+- Check minimum wallet balance before starting
+- Reserve/authorize amount if business model requires it
+- Deduct according to connected duration
+- Stop or warn when balance is insufficient
+- Finalize amount after call
+- Refund unused reserved amount if applicable
+
+Example:
+Minimum required balance = Rs.20
+Audio rate = Rs.5/min
+
+If balance is Rs.10:
+Do not allow the call if minimum balance is Rs.20.
+
+============================================================
+18. HOST EARNINGS
+============================================================
+
+If hosts earn from calls:
+
+Example:
+Customer pays Rs.100
+Platform commission = Rs.30
+Host earning = Rs.70
+
+Suggested table:
+host_earnings
+- id
+- host_id
+- call_id
+- gross_amount
+- platform_fee
+- host_amount
+- status
+- created_at
+
+Statuses:
+- PENDING
+- AVAILABLE
+- PAID
+- REVERSED
+
+Commission percentage should be configurable from admin.
+
+============================================================
+19. WITHDRAWAL SYSTEM
+============================================================
+
+Host can request withdrawal.
+
+Flow:
+Host earnings
+ -> Withdrawal request
+ -> Validation
+ -> Admin/automatic processing
+ -> Bank/UPI payout
+ -> Completed
+
+Withdrawal fields:
+- id
+- host_id
+- amount
+- payment_method
+- account_reference
+- status
+- requested_at
+- processed_at
+
+Statuses:
+- PENDING
+- PROCESSING
+- COMPLETED
+- REJECTED
+- FAILED
+
+Never expose sensitive bank/payment credentials to frontend.
+
+============================================================
+20. PUSH NOTIFICATIONS
+============================================================
+
+Use FCM for Android and APNs where required for iOS.
+
+Notification types:
+- New message
+- Incoming audio call
+- Incoming video call
+- Missed call
+- Call ended
+- Wallet recharge
+- Payment success
+- Payment failure
+- Earnings update
+- Withdrawal update
+- New follower/favorite if implemented
+- Admin announcement
+
+Device token table:
+device_tokens
+- id
+- user_id
+- token
+- platform
+- active
+- updated_at
+
+============================================================
+21. BLOCK SYSTEM
+============================================================
+
+Blocked user should not be able to:
+- Message blocker
+- Call blocker
+- Video call blocker
+- Access restricted profile information
+
+Table:
+blocked_users
+- blocker_id
+- blocked_user_id
+- created_at
+
+Apply blocking checks on backend/database policies.
+
+============================================================
+22. REPORT SYSTEM
+============================================================
+
+Report reasons:
+- Spam
+- Harassment
+- Fake profile
+- Abusive behavior
+- Scam
+- Inappropriate content
+- Other
+
+Table:
+reports
+- id
+- reporter_id
+- reported_user_id
+- reason
+- description
+- status
+- created_at
+- resolved_at
+- resolved_by
+
+Statuses:
+- OPEN
+- UNDER_REVIEW
+- RESOLVED
+- REJECTED
+
+============================================================
+23. RATING & REVIEW
+============================================================
+
+After completed call:
+- 1 to 5 star rating
+- Optional review
+- Optional tags
+
+Example tags:
+- Friendly
+- Great conversation
+- Good audio
+- Good video
+- Helpful
+
+Table:
+ratings
+- id
+- from_user_id
+- to_user_id
+- call_id
+- rating
+- review
+- created_at
+
+Prevent multiple ratings for the same completed call unless editing is explicitly supported.
+
+============================================================
+24. FAVORITES / FOLLOWING
+============================================================
+
+Optional feature.
+
+Favorites table:
+favorites
+- user_id
+- favorite_user_id
+- created_at
+
+Features:
+- Add favorite
+- Remove favorite
+- Favorites list
+- Optional notification when favorite becomes available
+
+============================================================
+25. ADMIN DASHBOARD
+============================================================
+
+Build a separate web admin application.
+
+Suggested technology:
+- React/Next.js
+- Supabase
+
+Dashboard metrics:
+- Total users
+- Online users
+- Hosts
+- Calls today
+- Audio minutes
+- Video minutes
+- Revenue
+- Platform commission
+- Host earnings
+- Pending withdrawals
+- Open reports
+
+============================================================
+26. ADMIN USER MANAGEMENT
+============================================================
+
+Admin actions:
+- Search users
+- View user profile
+- Verify user
+- Suspend user
+- Block/unblock
+- Delete account
+- Change role
+- View calls
+- View wallet
+- View transactions
+- View reports
+
+All sensitive admin actions should create audit logs.
+
+============================================================
+27. HOST MANAGEMENT
+============================================================
+
+Admin features:
+- Host applications
+- Pending verification
+- Approved hosts
+- Rejected hosts
+- Suspended hosts
+- Host profile
+- Host rating
+- Total calls
+- Total minutes
+- Gross revenue
+- Host earnings
+- Withdrawals
+
+============================================================
+28. PRICING MANAGEMENT
+============================================================
+
+Do not hardcode call rates in React Native.
+
+Use database configuration.
+
+Example table:
+call_rates
+- id
+- call_type
+- rate_per_minute
+- minimum_balance
+- effective_from
+- active
+- created_at
+- updated_at
+
+Admin can configure:
+- Audio rate
+- Video rate
+- Minimum call balance
+- Platform commission
+- Host commission
+- Promotional rates
+
+============================================================
+29. APP SETTINGS
+============================================================
+
+Admin-configurable:
+- Maintenance mode
+- Minimum app version
+- Support email
+- Support phone
+- Terms URL
+- Privacy URL
+- Call rates
+- Commission
+- Recharge packages
+- Withdrawal minimum
+- Maximum withdrawal
+- New user bonus
+- Referral bonus
+- Feature flags
+
+============================================================
+30. SUPABASE DATABASE STRUCTURE
+============================================================
+
+Core tables:
+
+users
+profiles
+user_presence
+
+conversations
+conversation_members
+messages
+
+calls
+call_participants
+
+wallets
+wallet_transactions
+payments
+payment_webhooks
+
+host_profiles
+host_earnings
+withdrawals
+
+favorites
+blocked_users
+reports
+ratings
+
+notifications
+device_tokens
+
+call_rates
+app_settings
+
+admin_users
+audit_logs
+
+============================================================
+31. DATABASE RELATIONSHIP OVERVIEW
+============================================================
+
+User
+ |
+ +-- Profile
+ +-- Presence
+ +-- Wallet
+ +-- Messages
+ +-- Conversations
+ +-- Calls
+ +-- Ratings
+ +-- Favorites
+ +-- Blocks
+ +-- Reports
+ +-- Notifications
+ +-- Device Tokens
+
+Host
+ |
+ +-- Host Profile
+ +-- Calls
+ +-- Earnings
+ +-- Withdrawals
+ +-- Ratings
+
+Call
+ |
+ +-- Caller
+ +-- Receiver
+ +-- RTC session
+ +-- Billing
+ +-- Host earning
+ +-- Rating
+
+Payment
+ |
+ +-- User
+ +-- Wallet transaction
+ +-- Gateway webhook
+
+============================================================
+32. SUPABASE SERVICES
+============================================================
+
+Supabase Auth:
+- Authentication
+- Sessions
+- User identity
+
+PostgreSQL:
+- Permanent application data
+
+Realtime:
+- Presence
+- Chat
+- Typing
+- Realtime call state events
+- Unread count updates where appropriate
+
+Storage:
+- Profile photos
+- Chat images
+- Chat videos
+- Voice messages
+- Documents if required
+
+Edge Functions:
+- RTC token generation
+- Payment order creation
+- Payment verification
+- Payment webhook handling
+- Wallet operations
+- Call billing
+- Host earnings
+- Push notification dispatch
+- Withdrawal processing
+- Other sensitive backend operations
+
+============================================================
+33. REAL-TIME ARCHITECTURE
+============================================================
+
+Use PostgreSQL for permanent data.
+
+Use Supabase Realtime for temporary/realtime events.
+
+Use RTC provider for actual media.
+
+Architecture:
+
+React Native
+ |
+ +-- Supabase Auth
+ |
+ +-- PostgreSQL
+ |
+ +-- Realtime
+ |
+ +-- Storage
+ |
+ +-- Edge Functions
+ |
+ +-- RTC Provider
+ |
+ +-- FCM/APNs
+ |
+ +-- Payment Gateway
+
+Do NOT use Supabase as an audio/video streaming service.
+
+============================================================
+34. SECURITY REQUIREMENTS
+============================================================
+
+Mandatory:
+- Enable RLS on all user-sensitive tables
+- Never expose Supabase service-role key
+- Never expose payment secret keys
+- Never expose RTC signing secrets
+- Use Edge Functions for privileged operations
+- Validate all IDs server-side
+- Validate wallet operations server-side
+- Validate call authorization server-side
+- Validate payment webhooks
+- Use temporary RTC tokens
+- Add token expiry
+- Prevent unauthorized channel joining
+- Add rate limiting where appropriate
+- Add audit logs for admin actions
+- Validate uploaded files
+- Restrict storage access
+- Implement account deletion securely
+
+============================================================
+35. RLS REQUIREMENTS
+============================================================
+
+Examples:
+
+Users can:
+- Read public profiles
+- Update their own profile
+- Read their own wallet
+- Read their own transactions
+- Read conversations they belong to
+- Read messages in their conversations
+- Create messages only as themselves
+
+Users cannot:
+- Read another user's private wallet
+- Modify another user's wallet
+- Modify another user's earnings
+- Access admin data
+- Modify call billing
+- Modify payment verification
+- Modify host earnings
+
+Admin access must use controlled roles and policies.
+
+============================================================
+36. MOBILE APP SCREEN LIST
+============================================================
+
+Authentication:
+- Splash
+- Login
+- OTP
+- Create Profile
+- Permissions
+
+Main:
+- Home
+- Discover
+- Search
+- Favorites
+- Notifications
+- Profile
+
+Communication:
+- Chat List
+- Chat
+- Incoming Call
+- Audio Call
+- Video Call
+- Call History
+
+Wallet:
+- Wallet
+- Recharge
+- Payment
+- Transaction History
+
+Profile:
+- My Profile
+- Edit Profile
+- Settings
+- Privacy
+- Blocked Users
+- Help
+- Report
+- Delete Account
+
+Host:
+- Host Dashboard
+- Availability
+- Earnings
+- Call History
+- Withdraw
+- Host Profile
+
+============================================================
+37. NAVIGATION REQUIREMENT
+============================================================
+
+Recommended navigation:
+
+Root
+ |
+ +-- Auth Stack
+ |    +-- Login
+ |    +-- OTP
+ |    +-- Create Profile
+ |
+ +-- Main Stack
+      +-- Home
+      +-- Discover
+      +-- Chats
+      +-- Notifications
+      +-- Profile
+
+Modal/overlay screens:
+- Incoming Call
+- Audio Call
+- Video Call
+- Recharge
+- Payment
+- Report
+- Block confirmation
+
+============================================================
+38. APP PERMISSIONS
+============================================================
+
+Required depending on features:
+- Microphone
+- Camera
+- Notifications
+- Photo/media access
+- Contacts only if product explicitly requires it
+- Background capabilities for calling as required by platform
+
+Handle:
+- Permission granted
+- Permission denied
+- Permanently denied
+- Permission changed in settings
+
+============================================================
+39. BACKGROUND / APP-KILLED CALLING
+============================================================
+
+Must test:
+- App open
+- App background
+- App killed
+- Screen locked
+- Poor network
+- Wi-Fi to mobile data
+- Mobile data to Wi-Fi
+- Phone interruption
+- Another incoming call
+- Bluetooth headset
+- Speaker
+- Microphone permission
+- Camera permission
+
+Incoming call should still be handled appropriately when the app is backgrounded or killed, subject to platform restrictions and implementation.
+
+============================================================
+40. ERROR STATES
+============================================================
+
+Calling:
+- Receiver offline
+- Receiver busy
+- Receiver rejected
+- Call timeout
+- Insufficient balance
+- Permission denied
+- RTC connection failed
+- Network unavailable
+- Token expired
+- Server error
+
+Chat:
+- Message failed
+- Retry
+- Upload failed
+- Network unavailable
+- File too large
+
+Payment:
+- Payment cancelled
+- Payment failed
+- Payment pending
+- Webhook delayed
+- Duplicate payment
+- Payment verification failed
+- Refund
+
+============================================================
+41. ANALYTICS
+============================================================
+
+Track:
+- App install
+- Registration
+- Login
+- Profile completion
+- Daily active users
+- Monthly active users
+- Online users
+- Calls initiated
+- Calls accepted
+- Calls rejected
+- Missed calls
+- Average call duration
+- Audio minutes
+- Video minutes
+- Recharge count
+- Recharge amount
+- Revenue
+- Platform commission
+- Host earnings
+- Withdrawals
+- Retention
+
+Avoid collecting unnecessary sensitive data.
+
+============================================================
+42. LOGGING & MONITORING
+============================================================
+
+Monitor:
+- API errors
+- Edge Function errors
+- Payment failures
+- RTC failures
+- Push notification failures
+- Database errors
+- App crashes
+- Authentication errors
+
+Recommended:
+- Crash reporting
+- Error tracking
+- Server logs
+- Payment reconciliation
+- Daily financial reconciliation
+
+============================================================
+43. ANTI-FRAUD / ABUSE PROTECTION
+============================================================
+
+Implement:
+- OTP rate limiting
+- Login rate limiting
+- Message spam limits
+- Call spam limits
+- Report abuse detection
+- Payment verification
+- Duplicate webhook protection
+- Duplicate transaction protection
+- Wallet transaction idempotency
+- Withdrawal validation
+- Suspicious activity logging
+- Admin audit logs
+
+============================================================
+44. IDEMPOTENCY REQUIREMENTS
+============================================================
+
+Important for payments and wallet.
+
+If a payment webhook is received twice:
+- Wallet must be credited only once.
+
+If call finalization is called twice:
+- Billing must happen only once.
+
+Use:
+- Unique transaction reference
+- Idempotency key
+- Processed webhook record
+- Database constraints
+
+============================================================
+45. DATA RETENTION
+============================================================
+
+Define retention rules for:
+- Messages
+- Media
+- Call metadata
+- Payment records
+- Audit logs
+- Reports
+- Notifications
+
+If call recording is ever introduced:
+- Explicitly define consent
+- Storage policy
+- Access policy
+- Retention period
+- Deletion process
+
+Do not add call recording unless it is a deliberate product requirement.
+
+============================================================
+46. PRIVACY & COMPLIANCE
+============================================================
+
+Before production:
+- Privacy Policy
+- Terms of Service
+- Community Guidelines
+- Refund Policy
+- Payment terms
+- Host terms
+- Data deletion process
+- User consent
+- Age eligibility rules
+- Content/reporting policy
+
+For India/payment/host payout operations, obtain appropriate legal, tax, payment, and compliance advice before launch.
+
+============================================================
+47. PERFORMANCE REQUIREMENTS
+============================================================
+
+Mobile app:
+- Fast startup
+- Pagination
+- Lazy loading
+- Image compression
+- Cached profile images
+- Efficient FlatList/FlashList usage
+- Avoid unnecessary realtime subscriptions
+- Avoid unnecessary database queries
+
+Chat:
+- Pagination
+- Message batching where appropriate
+
+Discover:
+- Pagination
+- Server-side filtering
+- Search optimization
+
+Database:
+- Proper indexes
+- Query optimization
+- Avoid N+1 queries
+
+============================================================
+48. DATABASE INDEXING
+============================================================
+
+Consider indexes for:
+- profiles.role
+- profiles.created_at
+- user_presence.presence
+- user_presence.availability
+- messages.conversation_id
+- messages.created_at
+- calls.caller_id
+- calls.receiver_id
+- calls.status
+- calls.created_at
+- wallet_transactions.user_id
+- payments.user_id
+- withdrawals.host_id
+- reports.status
+
+Exact indexes should be finalized after query design.
+
+============================================================
+49. API / EDGE FUNCTION LIST
+============================================================
+
+Suggested Edge Functions:
+
+Authentication:
+- profile initialization
+
+Presence:
+- update availability
+- reserve user for call
+- release user after call
+
+Calling:
+- create call
+- accept call
+- reject call
+- cancel call
+- generate RTC token
+- end/finalize call
+- calculate billing
+
+Payments:
+- create payment order
+- verify payment
+- payment webhook
+- refund
+
+Wallet:
+- get balance
+- recharge confirmation
+- debit wallet
+- refund wallet
+
+Host:
+- calculate host earning
+- create withdrawal
+- process withdrawal
+
+Notifications:
+- send push notification
+- incoming call notification
+- chat notification
+
+Admin:
+- suspend user
+- verify host
+- update pricing
+- update app settings
+
+============================================================
+50. REACT NATIVE PROJECT STRUCTURE
+============================================================
+
+Suggested:
+
+src/
+ |
+ +-- assets/
+ +-- components/
+ +-- screens/
+ |    +-- auth/
+ |    +-- home/
+ |    +-- discover/
+ |    +-- chat/
+ |    +-- calls/
+ |    +-- wallet/
+ |    +-- profile/
+ |    +-- host/
+ |
+ +-- navigation/
+ +-- services/
+ |    +-- supabase/
+ |    +-- rtc/
+ |    +-- notifications/
+ |    +-- payments/
+ |
+ +-- hooks/
+ +-- store/
+ +-- utils/
+ +-- constants/
+ +-- types/
+ +-- permissions/
+ +-- config/
+
+Keep payment, RTC, notification, and Supabase logic separated from UI.
+
+============================================================
+51. ENVIRONMENT MANAGEMENT
+============================================================
+
+Create separate environments:
+
+Development
+Staging/UAT
+Production
+
+Never use production credentials in development.
+
+Example variables:
+- Supabase URL
+- Supabase anon/publishable key
+- RTC app ID
+- Payment public configuration
+- Notification configuration
+
+Secrets such as:
+- Supabase service role
+- Payment secret
+- RTC secret
+- Webhook secret
+
+must remain server-side.
+
+============================================================
+52. DEVELOPMENT PHASES
+============================================================
+
+PHASE 1 - FOUNDATION
+
+Tasks:
+- Project setup
+- React Native setup
+- Supabase project
+- Database
+- Auth
+- Navigation
+- RLS
+- Storage
+- Environment setup
+
+Deliverable:
+User can register, login, logout and manage profile.
+
+PHASE 2 - PROFILE & DISCOVERY
+
+Tasks:
+- Profile
+- Profile photo
+- Discover
+- Search
+- Filters
+- Favorites
+- Block
+- Report
+- Presence
+
+Deliverable:
+Users can discover users and see availability.
+
+PHASE 3 - REAL-TIME CHAT
+
+Tasks:
+- Conversations
+- Messages
+- Realtime
+- Typing
+- Read receipts
+- Unread counts
+- Media
+- Push notifications
+
+Deliverable:
+Reliable one-to-one realtime chat.
+
+PHASE 4 - AUDIO CALL
+
+Tasks:
+- RTC provider
+- Token generation
+- Call creation
+- Ringing
+- Accept/reject
+- Busy state
+- Connected state
+- End call
+- Call history
+- Push notifications
+
+Deliverable:
+Stable one-to-one audio calling.
+
+PHASE 5 - VIDEO CALL
+
+Tasks:
+- Camera
+- Video
+- Mic
+- Camera switching
+- Background handling
+- Network recovery
+- Call UI
+
+Deliverable:
+Stable one-to-one video calling.
+
+PHASE 6 - MONETIZATION
+
+Tasks:
+- Wallet
+- Recharge
+- Payment gateway
+- Webhooks
+- Billing
+- Commission
+- Host earnings
+- Withdrawals
+
+Deliverable:
+Secure paid-call system.
+
+PHASE 7 - ADMIN
+
+Tasks:
+- Admin login
+- Dashboard
+- User management
+- Host management
+- Reports
+- Payments
+- Withdrawals
+- Pricing
+- Settings
+- Analytics
+- Audit logs
+
+Deliverable:
+Operational admin platform.
+
+PHASE 8 - PRODUCTION
+
+Tasks:
+- Security audit
+- RLS audit
+- Performance testing
+- Crash monitoring
+- Payment reconciliation
+- RTC testing
+- Push testing
+- Background testing
+- App Store build
+- Play Store build
+- Legal documents
+
+============================================================
+53. MVP SCOPE
+============================================================
+
+Recommended first MVP:
+
+MUST HAVE:
+- Login/OTP
+- Profile
+- User discovery
+- Online/offline/busy
+- One-to-one chat
+- Audio call
+- Video call
+- Incoming call
+- Call history
+- Push notifications
+- Block/report
+
+SECOND RELEASE:
+- Wallet
+- Recharge
+- Paid calls
+- Host earnings
+- Withdrawal
+- Admin pricing
+
+LATER:
+- Ratings
+- Gifts
+- Followers
+- Stories
+- Voice messages
+- Groups
+- Premium subscription
+- Referral system
+- Promotions
+
+============================================================
+54. TESTING CHECKLIST
+============================================================
+
+AUTH:
+- OTP success
+- OTP failure
+- OTP expiry
+- Logout
+- Session expiry
+- Account deletion
+
+PROFILE:
+- Create
+- Edit
+- Upload
+- Delete photo
+- Validation
+
+PRESENCE:
+- Online
+- Offline
+- Busy
+- Reconnect
+- App killed
+- Network switch
+
+CHAT:
+- Send
+- Receive
+- Read
+- Typing
+- Media
+- Retry
+- Offline
+
+AUDIO:
+- Call
+- Accept
+- Reject
+- Missed
+- Busy
+- End
+- Mute
+- Speaker
+- Network recovery
+
+VIDEO:
+- Camera
+- Mic
+- Switch camera
+- Mute
+- End
+- Network recovery
+- Background
+
+PAYMENT:
+- Success
+- Failure
+- Cancel
+- Pending
+- Duplicate webhook
+- Wallet credit
+- Refund
+
+WALLET:
+- Debit
+- Credit
+- Insufficient balance
+- Duplicate transaction
+
+HOST:
+- Earnings
+- Withdrawal
+- Rejection
+- Completion
+
+ADMIN:
+- User block
+- Host verification
+- Report resolution
+- Pricing update
+- Withdrawal processing
+
+============================================================
+55. PRODUCTION RELEASE CHECKLIST
+============================================================
+
+Before release:
+
+[ ] Production Supabase project
+[ ] Production database
+[ ] RLS verified
+[ ] Storage policies verified
+[ ] Edge Functions deployed
+[ ] RTC production credentials
+[ ] Payment production credentials
+[ ] Webhooks configured
+[ ] FCM configured
+[ ] APNs configured
+[ ] App signing
+[ ] Android release build
+[ ] iOS release build
+[ ] Crash monitoring
+[ ] Error monitoring
+[ ] Privacy policy
+[ ] Terms
+[ ] Refund policy
+[ ] Community guidelines
+[ ] Account deletion
+[ ] Support process
+[ ] Backup/recovery plan
+[ ] Financial reconciliation
+[ ] Security review
+[ ] Performance test
+[ ] Real-device call testing
+
+============================================================
+56. KEY ARCHITECTURE RULES
+============================================================
+
+RULE 1:
+React Native handles UI and user interactions.
+
+RULE 2:
+Supabase PostgreSQL stores permanent data.
+
+RULE 3:
+Supabase Realtime handles realtime events/presence.
+
+RULE 4:
+RTC provider handles actual audio/video.
+
+RULE 5:
+Edge Functions handle sensitive business logic.
+
+RULE 6:
+Payment gateway handles payment collection.
+
+RULE 7:
+Webhooks confirm payments.
+
+RULE 8:
+Wallet changes happen server-side.
+
+RULE 9:
+Call billing happens server-side.
+
+RULE 10:
+RTC tokens are generated server-side.
+
+RULE 11:
+RLS protects user data.
+
+RULE 12:
+Admin actions are audited.
+
+============================================================
+57. FINAL RECOMMENDED ARCHITECTURE
+============================================================
+
+                    MOBILE APP
+                 React Native
+                       |
+       +---------------+----------------+
+       |               |                |
+       v               v                v
+   Supabase         Realtime          RTC
+     Auth          Presence/Chat    Audio/Video
+       |
+       v
+   PostgreSQL
+       |
+       +----------------------------+
+       |                            |
+       v                            v
+ Supabase Storage              Edge Functions
+                                     |
+                     +---------------+---------------+
+                     |               |               |
+                     v               v               v
+                 Payments        Notifications     RTC Tokens
+                     |
+                     v
+               Payment Gateway
+
+Admin Web App
+     |
+     v
+Supabase + Edge Functions
+
+============================================================
+58. DEVELOPMENT PRIORITY
+============================================================
+
+Priority 1:
+Authentication + profile + database + RLS
+
+Priority 2:
+Discover + presence
+
+Priority 3:
+Realtime chat
+
+Priority 4:
+Audio call
+
+Priority 5:
+Video call
+
+Priority 6:
+Push notifications/background calling
+
+Priority 7:
+Wallet/payment
+
+Priority 8:
+Host earnings/withdrawals
+
+Priority 9:
+Admin dashboard
+
+Priority 10:
+Analytics/security/performance/production
+
+============================================================
+END OF REQUIREMENTS
+============================================================

@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "Aasai talk",
+    "slug": "aasai-talk",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/aasai-talk-mark.png",
+    "scheme": "aasai-talk",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/images/aasai-talk-mark.png"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0b3d30",
+        "foregroundImage": "./assets/images/aasai-talk-mark.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.anonymous.aasaitalk"
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/aasai-talk-mark.png"
+    },
+    "plugins": [
+      "./plugins/with-call-sounds",
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Aasai Talk to select your profile photo.",
+          "cameraPermission": "Allow Aasai Talk to take your profile photo.",
+          "microphonePermission": "Allow Aasai Talk to use your microphone for calls."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Aasai Talk to use your camera.",
+          "microphonePermission": "Allow Aasai Talk to use your microphone."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#121413",
+          "image": "./assets/images/aasai-talk-mark.png",
+          "imageWidth": 76
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
