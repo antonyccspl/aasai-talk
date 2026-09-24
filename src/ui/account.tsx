@@ -21,12 +21,13 @@ import {
   Shell,
   T,
 } from "./components";
-import { personFor, useDemo } from "./store";
+import { people, personFor, useDemo } from "./store";
 import { colors as c } from "./theme";
 import { PhotoPicker } from "./photo-picker";
 import { useAuth } from "@/data/auth";
 import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
 import { fetchPhoneMessageNotifications, subscribeToAllPhoneMessages, type PhoneMessageNotification } from "@/data/chat";
+import { fetchPhoneCallNotifications, markPhoneCallNotificationRead, type PhoneCallNotification } from "@/data/call-sessions";
 
 function latestEligibleBirthday() {
   const date = new Date();
@@ -374,22 +375,15 @@ export function Auth({ mode }: { mode: string }) {
       </Shell>
     );
   return (
-    <Shell title={mode === "otp" ? "Verify your number" : undefined} immersive>
-      <OnboardingProgress
-        step={mode === "otp" ? 2 : 1}
-        label={mode === "otp" ? "Verification" : "Phone verification"}
-      />
-      <View style={{ paddingTop: 12, gap: 10 }}>
-        <T mono size={11} color={c.mint} bold>
-          {mode === "otp" ? "VERIFY YOUR NUMBER" : "PHONE VERIFICATION"}
-        </T>
+    <Shell immersive>
+      <View style={{ paddingTop: 36, gap: 8 }}>
         <T size={30} bold>
-          {mode === "otp" ? "Verify your number" : "What's your number?"}
+          {mode === "otp" ? "Enter verification code" : "Welcome to Aasai Talk"}
         </T>
         <T color={c.secondary}>
           {mode === "otp"
-            ? "Enter the six-digit code we sent you."
-            : "We'll send you a short six-digit verification code."}
+            ? "Enter the six-digit code sent to your mobile number."
+            : "Enter your mobile number to continue."}
         </T>
       </View>
       {mode === "otp" ? (
@@ -442,7 +436,7 @@ export function Auth({ mode }: { mode: string }) {
               {error}
             </T>
           )}
-          <Notice>Demo OTP: 123456</Notice>
+          <T size={12} color={c.muted}>Demo code: 123456</T>
           <Button
             title={busy ? "Verifying…" : "Verify OTP"}
             disabled={busy}
@@ -496,35 +490,17 @@ export function Auth({ mode }: { mode: string }) {
         </>
       ) : (
         <>
-          <Card>
-            <Field
-              label="Mobile number · India (+91)"
-              value={phone}
-              onChange={(value) => {
-                setPhone(value.replace(/\D/g, "").slice(0, 10));
-                setError("");
-              }}
-              numeric
-              placeholder="98765 43210"
-              error={error}
-            />
-            <T size={12} color={c.secondary}>
-              Enter your 10-digit mobile number
-            </T>
-          </Card>
-          <Card>
-            <Row>
-              <Icon name="shield" color={c.mint} />
-              <View style={{ flex: 1 }}>
-                <T bold color={c.mint}>
-                  Private and secure
-                </T>
-                <T size={12} color={c.secondary}>
-                  We never show your phone number to other users.
-                </T>
-              </View>
-            </Row>
-          </Card>
+          <Field
+            label="Mobile number (+91)"
+            value={phone}
+            onChange={(value) => {
+              setPhone(value.replace(/\D/g, "").slice(0, 10));
+              setError("");
+            }}
+            numeric
+            placeholder="98765 43210"
+            error={error}
+          />
           <Button
             title="Continue with phone"
             icon="arrow-right"
@@ -543,22 +519,8 @@ export function Auth({ mode }: { mode: string }) {
             }}
           />
           <T size={12} color={c.muted}>
-            By continuing, you agree to the Terms and Privacy Policy.
+            Your phone number stays private and is never shown to other users.
           </T>
-          <Row>
-            <Button
-              title="Terms"
-              variant="secondary"
-              style={{ flex: 1 }}
-              onPress={() => go("/settings/policies/terms")}
-            />
-            <Button
-              title="Privacy"
-              variant="secondary"
-              style={{ flex: 1 }}
-              onPress={() => go("/settings/policies/privacy")}
-            />
-          </Row>
         </>
       )}
     </Shell>
@@ -876,30 +838,6 @@ export function Settings({
     }
   };
   if (mode === "permissions") return <Permissions />;
-  if (mode === "theme")
-    return (
-      <Shell title="Theme">
-        <Card>
-          <T size={18} bold>
-            Choose your appearance
-          </T>
-          <T color={c.secondary}>
-            Aasai Talk changes colour instantly when you switch it.
-          </T>
-          <Setting
-            title="Dark mode"
-            detail={
-              d.theme === "dark"
-                ? "Dark appearance is active"
-                : "Light appearance is active"
-            }
-            icon="moon"
-            value={d.theme === "dark"}
-            onToggle={(isDark) => d.setTheme(isDark ? "dark" : "light")}
-          />
-        </Card>
-      </Shell>
-    );
   if (
     mode === "availability" &&
     d.profile.gender === "Female" &&
@@ -1211,7 +1149,6 @@ export function Settings({
         </>
       )}
       {[
-        ["Theme", "settings/theme"],
         ["Privacy policy", "settings/policies/privacy"],
         ["Terms and conditions", "settings/policies/terms"],
         ["Safety center", "settings/policies/safety"],
@@ -1243,6 +1180,8 @@ export function Safety({ id, mode }: { id: string; mode: string }) {
   const [reason, setReason] = useState("");
   const [description, setDescription] = useState("");
   const [success, setSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [stars, setStars] = useState(0);
   const blocked = d.blocked.includes(id);
   if (mode === "block")
@@ -1367,12 +1306,20 @@ export function Safety({ id, mode }: { id: string; mode: string }) {
             onChange={setDescription}
             multiline
           />
+          {submitError ? <Notice error>{submitError}</Notice> : null}
           <Button
-            title="Submit report"
-            disabled={!reason || (reason === "Other" && !description.trim())}
+            title={submitting ? "Submitting…" : "Submit report"}
+            disabled={submitting || !reason || (reason === "Other" && !description.trim())}
             onPress={() => {
-              d.submitSafetyReport(p.id, p.name, reason, description.trim());
-              setSuccess(true);
+              setSubmitting(true);
+              setSubmitError("");
+              void d.submitSafetyReport(p.id, p.name, reason, description.trim())
+                .then(() => setSuccess(true))
+                .catch((error) => {
+                  console.error("Unable to submit safety report:", error);
+                  setSubmitError("Your report could not be saved. Please check your connection and try again.");
+                })
+                .finally(() => setSubmitting(false));
             }}
           />
         </>
@@ -1382,39 +1329,98 @@ export function Safety({ id, mode }: { id: string; mode: string }) {
 }
 export function Notifications() {
   const auth = useAuth();
-  const [filter, setFilter] = useState("All");
-  const [items, setItems] = useState<PhoneMessageNotification[]>([]);
+  const d = useDemo();
+  const [messages, setMessages] = useState<PhoneMessageNotification[]>([]);
+  const [calls, setCalls] = useState<PhoneCallNotification[]>([]);
   const [error, setError] = useState("");
   useEffect(() => {
     if (!auth.demoPhone) return;
     let active = true;
-    const load = () => fetchPhoneMessageNotifications(auth.demoPhone!)
-      .then((rows) => { if (active) setItems(rows); })
-      .catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : "Unable to load notifications."); });
+    const load = () => Promise.all([
+      fetchPhoneMessageNotifications(auth.demoPhone!),
+      fetchPhoneCallNotifications(auth.demoPhone!),
+    ])
+      .then(([messageRows, callRows]) => {
+        if (!active) return;
+        setMessages(messageRows);
+        setCalls(callRows);
+      })
+      .catch((cause) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Unable to load notifications.");
+      });
     void load();
     const unsubscribe = subscribeToAllPhoneMessages(auth.demoPhone, () => { void load(); });
-    return () => { active = false; unsubscribe(); };
+    const refreshTimer = setInterval(() => { void load(); }, 10000);
+    return () => { active = false; clearInterval(refreshTimer); unsubscribe(); };
   }, [auth.demoPhone]);
-  const list = items.filter((x) => filter !== "Unread" || !x.read_at);
+  const groupedMessages = Array.from(
+    messages.reduce((groups, message) => {
+      const existing = groups.get(message.sender_phone);
+      if (!existing) {
+        groups.set(message.sender_phone, { latest: message, unreadCount: message.read_at ? 0 : 1 });
+      } else {
+        if (!message.read_at) existing.unreadCount += 1;
+        if (new Date(message.created_at).getTime() > new Date(existing.latest.created_at).getTime())
+          existing.latest = message;
+      }
+      return groups;
+    }, new Map<string, { latest: PhoneMessageNotification; unreadCount: number }>()).entries(),
+  )
+    .map(([senderPhone, value]) => ({ senderPhone, ...value }))
+    // Notification inbox contains actionable alerts only. Once a chat is
+    // opened, its messages are marked read in Supabase and disappear here.
+    .filter((item) => item.unreadCount > 0)
+    .sort((a, b) => new Date(b.latest.created_at).getTime() - new Date(a.latest.created_at).getTime());
+  const formatTime = (value: string) => new Date(value).toLocaleDateString([], {
+    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
   return (
     <Shell title="Notifications">
-      <Chips items={["All", "Unread"]} selected={filter} onChange={setFilter} />
       {error ? <Notice error>{error}</Notice> : null}
-      {list.map((x) => (
+      {groupedMessages.length > 0 && (
+        <Section title={`Messages${groupedMessages.reduce((count, item) => count + item.unreadCount, 0) ? ` · ${groupedMessages.reduce((count, item) => count + item.unreadCount, 0)} unread` : ""}`} />
+      )}
+      {groupedMessages.map((item) => {
+        const contact = people.find((person) => person.id === `phone_${item.senderPhone.replace("+", "")}`);
+        const name = contact?.name || "New message";
+        return (
         <Setting
-          key={x.id}
-          title={`${x.read_at ? "" : "• "}New message`}
-          detail={x.text}
+          key={item.senderPhone}
+          title={`${item.unreadCount ? "• " : ""}${name}${item.unreadCount > 1 ? ` · ${item.unreadCount} messages` : ""}`}
+          detail={`${item.latest.text} · ${formatTime(item.latest.created_at)}`}
           icon="message-circle"
           onPress={() => {
-            go(`/chat/phone_${x.sender_phone.replace("+", "")}`);
+            go(`/chat/phone_${item.senderPhone.replace("+", "")}`);
           }}
         />
-      ))}
-      {!list.length && (
+      );
+      })}
+      {calls.length > 0 && <Section title={`Calls · ${calls.length}`} />}
+      {calls.map((call) => {
+        const contact = people.find((person) => person.id === `phone_${call.other_phone.replace("+", "")}`);
+        const name = contact?.name || "Caller";
+        const label = call.status === "missed" ? `Missed ${call.call_type} call` : `${call.call_type === "video" ? "Video" : "Audio"} call declined`;
+        return (
+          <Setting
+            key={call.id}
+            title={label}
+            detail={`${name} · ${formatTime(call.created_at)}`}
+            icon={call.call_type === "video" ? "video" : "phone"}
+            onPress={() => {
+              if (auth.demoPhone) {
+                void markPhoneCallNotificationRead(call.id, auth.demoPhone)
+                  .then(() => d.refreshUnreadNotificationCount())
+                  .catch((error) => console.warn("Unable to mark call notification as read:", error));
+              }
+              go(`/calls/detail/${call.id}`);
+            }}
+          />
+        );
+      })}
+      {!groupedMessages.length && !calls.length && (
         <Empty
           title="You’re all caught up"
-          message="New updates will appear here."
+          message="Messages and missed calls will appear here."
           icon="bell"
         />
       )}

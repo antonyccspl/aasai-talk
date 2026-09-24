@@ -110,7 +110,11 @@ export async function sendPhoneMessage(
   if (error) throw new Error(error.message);
   if (!data || typeof data !== "object") throw new Error("Message was not saved.");
   const row = data as Record<string, unknown>;
-  if (!isMessage(row.message) || row.coins_charged !== 1 || typeof row.remaining_coins !== "number")
+  if (
+    !isMessage(row.message) ||
+    row.coins_charged !== 1 ||
+    typeof row.remaining_coins !== "number"
+  )
     throw new Error("Invalid message billing response.");
   return { message: row.message, remainingCoins: row.remaining_coins };
 }

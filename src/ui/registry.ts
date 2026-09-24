@@ -19,7 +19,6 @@ export const screenGroups: [string, [string, string][]][] = [
       ["M10 · Favorites", "/favorites"],
       ["M11 · Conversations", "/messages"],
       ["M12 · Chat", "/chat/priya"],
-      ["M13 · Attachment preview", "/chat/attachment/priya"],
       ["M14 · Media viewer", "/media/priya"],
     ],
   ],

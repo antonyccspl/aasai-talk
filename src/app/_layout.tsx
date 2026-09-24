@@ -1,8 +1,8 @@
 import { Stack, router } from "expo-router";
 import { useEffect, useRef } from "react";
 import { StatusBar } from "expo-status-bar";
-import { View } from "react-native";
-import { DemoProvider, useDemo } from "@/ui/store";
+import { Animated, Pressable, Text, View } from "react-native";
+import { DemoProvider, people, useDemo } from "@/ui/store";
 import { colors } from "@/ui/theme";
 import { SampleWorkspaceProvider } from "@/data/sample-workspace";
 import { AuthProvider, useAuth } from "@/data/auth";
@@ -17,6 +17,60 @@ import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { fetchPhoneWalletBalance } from "@/data/wallet";
 
 const phoneCallId = (value: string) => /^[0-9a-f-]{36}$/.test(value);
+
+function IncomingMessageBanner() {
+  const { incomingMessageNotice, dismissIncomingMessageNotice, unreadMessageCount } = useDemo();
+  const translateY = useRef(new Animated.Value(-180)).current;
+
+  useEffect(() => {
+    if (!incomingMessageNotice) return;
+    translateY.setValue(-180);
+    Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 18, stiffness: 220 }).start();
+    const timer = setTimeout(() => {
+      Animated.timing(translateY, { toValue: -180, duration: 180, useNativeDriver: true })
+        .start(({ finished }) => { if (finished) dismissIncomingMessageNotice(); });
+    }, 5500);
+    return () => clearTimeout(timer);
+  }, [dismissIncomingMessageNotice, incomingMessageNotice?.id, translateY]);
+
+  if (!incomingMessageNotice) return null;
+  const senderId = `phone_${incomingMessageNotice.senderPhone.replace(/^\+/, "")}`;
+  const sender = people.find((person) => person.id === senderId);
+  const name = sender?.name || "New message";
+  const initials = name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  const openChat = () => {
+    dismissIncomingMessageNotice();
+    router.push(`/chat/${senderId}` as never);
+  };
+  return (
+    <Animated.View pointerEvents="box-none" style={{ position: "absolute", top: 48, left: 12, right: 12, zIndex: 1000, transform: [{ translateY }] }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open message from ${name}`}
+        onPress={openChat}
+        style={{ backgroundColor: "#ffffff", borderRadius: 18, borderWidth: 1, borderColor: "#dfcef4", padding: 12, shadowColor: "#27123f", shadowOpacity: 0.16, shadowRadius: 14, elevation: 12, flexDirection: "row", alignItems: "center", gap: 10 }}
+      >
+        <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: "#eee5fa", alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ color: "#d936a4", fontWeight: "800", fontSize: 14 }}>{initials}</Text>
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: "#27123f", fontSize: 14, fontWeight: "800" }} numberOfLines={1}>{name}</Text>
+          <Text style={{ color: "#664f7d", fontSize: 13 }} numberOfLines={1}>{incomingMessageNotice.text}</Text>
+          <Text style={{ color: "#d936a4", fontSize: 11, fontWeight: "700" }}>Tap to reply{unreadMessageCount > 1 ? ` · ${unreadMessageCount} unread` : ""}</Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss message notification"
+          onPress={(event) => { event.stopPropagation(); dismissIncomingMessageNotice(); }}
+          hitSlop={10}
+          style={{ padding: 6 }}
+        >
+          <Text style={{ color: "#664f7d", fontSize: 22, lineHeight: 22 }}>×</Text>
+        </Pressable>
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 /** Keeps a phone call authoritative even while its screen is not mounted. */
 function ActiveCallLifecycle() {
@@ -217,7 +271,6 @@ function ActiveCallLifecycle() {
 }
 
 function AppNavigator() {
-  const { theme } = useDemo();
   const { demoPhone, loading, authenticated } = useAuth();
   const incomingSessionRef = useRef("");
   useEffect(() => {
@@ -232,7 +285,7 @@ function AppNavigator() {
   }, [demoPhone, loading, authenticated]);
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <StatusBar style={theme === "dark" ? "light" : "dark"} />
+      <StatusBar style="dark" />
       <ActiveCallLifecycle />
       <Stack
         screenOptions={{
@@ -241,6 +294,7 @@ function AppNavigator() {
           animation: "none",
         }}
       />
+      <IncomingMessageBanner />
     </View>
   );
 }

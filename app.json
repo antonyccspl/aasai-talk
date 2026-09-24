@@ -4,16 +4,17 @@
     "slug": "aasai-talk",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/aasai-talk-mark.png",
+    "icon": "./assets/images/aasai-talk-logo.jpg",
     "scheme": "aasai-talk",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/images/aasai-talk-mark.png"
+      "icon": "./assets/images/aasai-talk-logo.jpg"
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#0b3d30",
-        "foregroundImage": "./assets/images/aasai-talk-mark.png"
+        "backgroundColor": "#faf7ff",
+          "foregroundImage": "./assets/images/aasai-talk-logo.jpg"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -25,7 +26,7 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/aasai-talk-mark.png"
+      "favicon": "./assets/images/aasai-talk-logo.jpg"
     },
     "plugins": [
       "./plugins/with-call-sounds",
@@ -48,8 +49,8 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#121413",
-          "image": "./assets/images/aasai-talk-mark.png",
+          "backgroundColor": "#faf7ff",
+          "image": "./assets/images/aasai-talk-logo.jpg",
           "imageWidth": 76
         }
       ],

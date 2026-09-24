@@ -26,11 +26,125 @@ import { colors as c } from "./theme";
 import { useRefreshPeople } from '../data/sample-workspace';
 import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
 import { useAuth } from "@/data/auth";
+import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
+import { fetchHostEarningSlabs, type HostEarningSlab } from "@/data/host-metrics";
+
+const formatCallTime = (seconds: number) => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+};
+const formatRupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+
+function HostDashboardHome() {
+  const auth = useAuth();
+  const d = useDemo();
+  const [dashboard, setDashboard] = useState<HostDashboard | null>(null);
+  const [earningSlabs, setEarningSlabs] = useState<HostEarningSlab[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const load = async () => {
+    if (!auth.demoPhone) return;
+    const [dashboardData, slabData] = await Promise.all([
+      fetchPhoneHostDashboard(auth.demoPhone),
+      fetchHostEarningSlabs(),
+    ]);
+    setDashboard(dashboardData);
+    setEarningSlabs(slabData);
+    setError("");
+  };
+  useEffect(() => {
+    void load().catch((cause) => setError(cause instanceof Error ? cause.message : "Unable to load your host dashboard."));
+  }, [auth.demoPhone]);
+  const refresh = async () => {
+    setRefreshing(true);
+    try { await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to refresh your dashboard."); }
+    finally { setRefreshing(false); }
+  };
+  return (
+    <Shell tab="Explore" refreshing={refreshing} onRefresh={refresh}>
+      <Card style={{ borderLeftWidth: 3, borderLeftColor: c.mint }}>
+        <T mono size={11} color={c.mint}>HOST DASHBOARD</T>
+        <T size={24} bold>{d.profile.name ? `Hi, ${d.profile.name}` : "Welcome back"}</T>
+        <T color={c.secondary}>
+          {dashboard?.active_calls ? `${dashboard.active_calls} call${dashboard.active_calls === 1 ? "" : "s"} live now` : "Your call activity and earnings, live from your account."}
+        </T>
+      </Card>
+      {error ? <Notice error>{error}</Notice> : null}
+      <Section title="Today" />
+      <Row>
+        <Card style={{ flex: 1, minHeight: 106 }}>
+          <Icon name="phone-call" color={c.mint} />
+          <T mono size={10} color={c.secondary}>CONNECTED CALLS</T>
+          <T size={25} bold>{dashboard ? dashboard.today_calls : "—"}</T>
+          <T size={11} color={c.muted}>{dashboard ? formatCallTime(dashboard.today_seconds) : "Loading…"}</T>
+        </Card>
+        <Card style={{ flex: 1, minHeight: 106 }}>
+          <Icon name="trending-up" color={c.mint} />
+          <T mono size={10} color={c.secondary}>EARNED TODAY</T>
+          <T size={25} bold>{dashboard ? formatRupees(dashboard.today_earnings_paise) : "—"}</T>
+          <T size={11} color={c.muted}>From completed call billing</T>
+        </Card>
+      </Row>
+      <Section title="All time" />
+      <Row>
+        <Card style={{ flex: 1 }}>
+          <T mono size={10} color={c.secondary}>TOTAL CALLS</T>
+          <T size={23} bold>{dashboard ? dashboard.total_calls : "—"}</T>
+        </Card>
+        <Card style={{ flex: 1 }}>
+          <T mono size={10} color={c.secondary}>TOTAL EARNINGS</T>
+          <T size={23} bold>{dashboard ? formatRupees(dashboard.total_earnings_paise) : "—"}</T>
+        </Card>
+      </Row>
+      <Section title="Host earning rates" />
+      <Card>
+        <Row style={{ justifyContent: "space-between" }}>
+          <T mono size={10} color={c.secondary}>DAILY TALK TIME</T>
+          <T mono size={10} color={c.secondary}>AUDIO / VIDEO</T>
+        </Row>
+        {earningSlabs.map((slab) => (
+          <Row key={slab.min_minutes} style={{ justifyContent: "space-between" }}>
+            <T>{slab.max_minutes === null ? `Above ${slab.min_minutes} min` : `${slab.min_minutes}–${slab.max_minutes} min`}</T>
+            <T bold color={c.mint}>₹{slab.audio_paise_per_minute / 100} / ₹{slab.video_paise_per_minute / 100} per min</T>
+          </Row>
+        ))}
+      </Card>
+      <Row>
+        <Card style={{ flex: 1 }}>
+          <T mono size={10} color={c.secondary}>MISSED / DECLINED</T>
+          <T size={20} bold>{dashboard ? dashboard.missed_calls : "—"}</T>
+        </Card>
+        <Button title="Host tools" variant="secondary" icon="settings" style={{ flex: 1 }} onPress={() => go("/host/status")} />
+      </Row>
+      <Section title="Recent activity" action="View calls" onPress={() => go("/calls")} />
+      {dashboard?.recent_calls.map((call) => {
+        const contact = people.find((person) => person.id === `phone_${call.caller_phone.replace("+", "")}`);
+        const label = call.status === "ended" ? `${call.call_type === "video" ? "Video" : "Audio"} call completed` : call.status === "missed" ? `Missed ${call.call_type} call` : "Call declined";
+        return (
+          <Pressable key={call.id} onPress={() => go(`/calls/detail/${call.id}`)} style={{ backgroundColor: c.low, padding: 16, borderRadius: 18 }}>
+            <Row>
+              <Icon name={call.call_type === "video" ? "video" : "phone"} color={c.mint} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <T bold>{label}</T>
+                <T size={12} color={c.secondary}>{contact?.name || "Caller"} · {new Date(call.created_at).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</T>
+              </View>
+              {call.status === "ended" && <T mono size={11} color={c.muted}>{formatCallTime(call.duration_seconds)}</T>}
+            </Row>
+          </Pressable>
+        );
+      })}
+      {dashboard && !dashboard.recent_calls.length && <Empty icon="phone" title="No calls yet" message="Your completed and missed call activity will appear here." />}
+      <Button title="Earnings & withdrawals" variant="secondary" icon="credit-card" onPress={() => go("/host/withdraw")} />
+    </Shell>
+  );
+}
 
 export function Discovery({ mode = "explore" }: { mode?: string }) {
   const d = useDemo();
   const refreshPeople = useRefreshPeople();
   const isHost = d.hostStatus === "approved";
+  if (isHost && mode === "explore") return <HostDashboardHome />;
   const [refreshing, setRefreshing] = useState(false);
   const searching = mode === "search";
   const favorites = mode === "favorites";
@@ -75,23 +189,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
           : undefined
       }
     >
-      {isHost ? (
-        <Card>
-          <T size={20} bold>
-            Host workspace
-          </T>
-          <T color={c.secondary}>
-            Explore and calling are available from a caller account. Use your
-            Host tools to manage availability and receive calls.
-          </T>
-          <Button
-            title="Open Host status"
-            variant="secondary"
-            onPress={() => go("/host/status")}
-          />
-        </Card>
-      ) : (
-        <>
+      <>
       {searching && (
         <>
           <Field
@@ -140,8 +238,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
           icon="users"
         />
       )}
-        </>
-      )}
+      </>
     </Shell>
   );
 }
@@ -349,7 +446,7 @@ export function Conversations() {
       conversation,
       person: people.find((item) => item.id === `phone_${conversation.otherPhone.replace("+", "")}`) ?? {
         id: `phone_${conversation.otherPhone.replace("+", "")}`,
-        name: conversation.otherPhone,
+        name: "Conversation",
         age: 0,
         gender: "",
         city: "",
@@ -414,7 +511,7 @@ export function Conversations() {
 }
 export function Chat({ id }: { id: string }) {
   const d = useDemo();
-  const { refreshUnreadMessageCount, setOpenChatPhone } = d;
+  const { refreshUnreadMessageCount, refreshUnreadNotificationCount, setOpenChatPhone } = d;
   const auth = useAuth();
   const p = personFor(id);
   const [liveMessages, setLiveMessages] = useState<PhoneMessage[]>([]);
@@ -431,7 +528,12 @@ export function Chat({ id }: { id: string }) {
         if (active) setLiveMessages(messages);
         return markPhoneConversationRead(auth.demoPhone!, otherPhone);
       })
-      .then(() => { if (active) void refreshUnreadMessageCount(); })
+      .then(() => {
+        if (active) {
+          void refreshUnreadMessageCount();
+          void refreshUnreadNotificationCount();
+        }
+      })
       .catch((error) => { if (active) setChatError(error instanceof Error ? error.message : "Unable to load messages."); });
     void loadMessages();
     const refreshTimer = setInterval(() => { void loadMessages(); }, 5000);
@@ -439,12 +541,15 @@ export function Chat({ id }: { id: string }) {
       setLiveMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
       if (message.recipient_phone === auth.demoPhone) {
         void markPhoneConversationRead(auth.demoPhone!, otherPhone)
-          .then(() => refreshUnreadMessageCount())
+          .then(() => {
+            void refreshUnreadMessageCount();
+            void refreshUnreadNotificationCount();
+          })
           .catch((error) => console.warn("Unable to mark incoming message as read:", error));
       }
     });
     return () => { active = false; setOpenChatPhone(null); clearInterval(refreshTimer); unsubscribe(); };
-  }, [auth.demoPhone, otherPhone, refreshUnreadMessageCount, setOpenChatPhone]);
+  }, [auth.demoPhone, otherPhone, refreshUnreadMessageCount, refreshUnreadNotificationCount, setOpenChatPhone]);
   const send = () => {
     if (!text.trim() || blocked) return;
     if (!auth.demoPhone || !otherPhone) {
@@ -466,6 +571,7 @@ export function Chat({ id }: { id: string }) {
   return (
     <Shell
       title="Conversation"
+      scrollToEndToken={liveMessages.at(-1)?.id}
       footer={
         blocked ? (
           <Notice error>
@@ -475,11 +581,6 @@ export function Chat({ id }: { id: string }) {
           <Row
             style={{ backgroundColor: c.high, padding: 6, borderRadius: 32 }}
           >
-            <IconButton
-              icon="plus"
-              label="Add attachment"
-              onPress={() => go(`/chat/attachment/${id}`)}
-            />
             <TextInput
               accessibilityLabel="Message"
               placeholder="Type a message…"
@@ -611,71 +712,6 @@ export function Chat({ id }: { id: string }) {
           variant="secondary"
           onPress={() => go(`/rate/${id}`)}
         />
-      )}
-    </Shell>
-  );
-}
-export function Attachment({ id, viewer }: { id: string; viewer?: boolean }) {
-  const d = useDemo();
-  const [caption, setCaption] = useState("A little inspiration for the day");
-  const [selected, setSelected] = useState("");
-  const [error, setError] = useState(false);
-  return (
-    <Shell title={viewer ? "Shared media" : "Add an attachment"}>
-      <Card
-        style={{
-          minHeight: 240,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Icon name="image" size={70} color={c.mint} />
-        <T size={20} bold>
-          {selected || "Media"}
-        </T>
-        <T color={c.secondary}>Illustrative attachment · no file uploaded</T>
-      </Card>
-      {!viewer && (
-        <>
-          <Chips
-            items={["Image", "Video", "File"]}
-            selected={selected}
-            onChange={setSelected}
-          />
-          <Field label="Caption" value={caption} onChange={setCaption} />
-          <Notice>
-            Native file selection and upload need the media integration. Choose
-            a file type to review the message layout.
-          </Notice>
-          {error && (
-            <Notice error>
-              Upload failed. Your selection and caption are preserved.
-            </Notice>
-          )}
-          <Button
-            title={error ? "Retry sample attachment" : "Send sample attachment"}
-            disabled={!selected}
-            onPress={() => {
-              d.setMessages((v) => [
-                ...v,
-                {
-                  id: Date.now().toString(),
-                  user: id,
-                  mine: true,
-                  text: `${selected} · ${caption}`,
-                  time: "Just now",
-                  image: true,
-                },
-              ]);
-              go(`/chat/${id}`);
-            }}
-          />
-          <Button
-            title="Show upload failure"
-            variant="secondary"
-            onPress={() => setError(true)}
-          />
-        </>
       )}
     </Shell>
   );

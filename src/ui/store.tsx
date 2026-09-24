@@ -8,10 +8,10 @@ import React, {
 } from "react";
 import { useAuth } from "../data/auth";
 import { CallSlab, fetchCallSlabs } from "../data/call-slabs";
+import { fetchPhoneUnreadNotificationCount } from "../data/call-sessions";
 import { fetchPhoneUnreadMessageCount, subscribeToAllPhoneMessages } from "../data/chat";
 import { DirectoryPerson } from "../data/directory";
 import { fetchPhoneHostApplicationStatus } from "../data/host-applications";
-import { prepareMessageNotifications, showIncomingMessageNotification } from "../data/local-notifications";
 import { fetchDemoProfile, fetchOwnProfile } from "../data/profile";
 import {
     usePlatformContext,
@@ -24,7 +24,6 @@ import {
     saveUserPreferences,
 } from "../data/user-preferences";
 import { fetchPhoneWalletBalance } from "../data/wallet";
-import { ColorMode, setColorMode } from "./theme";
 
 export const defaultFacets = {
   availability: "All",
@@ -291,17 +290,6 @@ function useDemoState() {
   }, [available, blocked, favorites, user]);
   const [paid, setPaid] = useWorkspaceField("paid", true);
   const [later, setLater] = useWorkspaceField("later", false);
-  const [theme, setThemeState] = useWorkspaceField<ColorMode>("theme", "dark");
-
-  useEffect(() => {
-    setColorMode(theme);
-  }, [theme]);
-
-  const setTheme = (mode: ColorMode) => {
-    setColorMode(mode);
-    setThemeState(mode);
-  };
-
   const [balance, setBalance] = useWorkspaceField("balance", 1250);
   const [transactions, setTransactions] = useWorkspaceField<Transaction[]>(
     "transactions",
@@ -317,7 +305,17 @@ function useDemoState() {
 
   const [active, setActive] = useState<Call | null>(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [openChatPhone, setOpenChatPhone] = useState<string | null>(null);
+  const [incomingMessageNotice, setIncomingMessageNotice] = useState<{
+    id: string;
+    senderPhone: string;
+    text: string;
+  } | null>(null);
+  const dismissIncomingMessageNotice = useCallback(
+    () => setIncomingMessageNotice(null),
+    [],
+  );
   const openChatPhoneRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -331,22 +329,31 @@ function useDemoState() {
     }
     setUnreadMessageCount(await fetchPhoneUnreadMessageCount(demoPhone));
   }, [demoPhone]);
+  const refreshUnreadNotificationCount = useCallback(async () => {
+    if (!demoPhone || !/^\+91\d{10}$/.test(demoPhone)) {
+      setUnreadNotificationCount(0);
+      return;
+    }
+    setUnreadNotificationCount(await fetchPhoneUnreadNotificationCount(demoPhone));
+  }, [demoPhone]);
 
   useEffect(() => {
     if (!demoPhone) {
       setUnreadMessageCount(0);
+      setUnreadNotificationCount(0);
       return;
     }
     let activeSubscription = true;
-    void prepareMessageNotifications()
-      .then(() => undefined)
-      .catch((error) => console.warn("Unable to prepare message notifications:", error));
     const refresh = () => {
       void refreshUnreadMessageCount().catch((error) =>
         console.error("Unable to refresh unread message count:", error),
       );
+      void refreshUnreadNotificationCount().catch((error) =>
+        console.error("Unable to refresh notification count:", error),
+      );
     };
     refresh();
+    const notificationPoll = setInterval(refresh, 15000);
     const unsubscribe = subscribeToAllPhoneMessages(demoPhone, (message) => {
       refresh();
       if (
@@ -354,15 +361,19 @@ function useDemoState() {
         message.recipient_phone === demoPhone &&
         openChatPhoneRef.current !== message.sender_phone
       ) {
-        void showIncomingMessageNotification(message.sender_phone, message.text)
-          .catch((error) => console.warn("Unable to show message notification:", error));
+        setIncomingMessageNotice({
+          id: message.id,
+          senderPhone: message.sender_phone,
+          text: message.text,
+        });
       }
     });
     return () => {
       activeSubscription = false;
+      clearInterval(notificationPoll);
       unsubscribe();
     };
-  }, [demoPhone, refreshUnreadMessageCount]);
+  }, [demoPhone, refreshUnreadMessageCount, refreshUnreadNotificationCount]);
 
   const refreshWalletBalance = useCallback(async () => {
     const phone = demoPhone || user?.phone;
@@ -443,19 +454,17 @@ function useDemoState() {
       details,
       status: "Open",
     };
-    try {
-      await fetch(`${supabaseUrl}/rest/v1/safety_reports`, {
-        method: "POST",
-        headers: {
-          apikey: supabasePublishableKey,
-          "Content-Type": "application/json",
-          Prefer: "return=minimal",
-        },
-        body: JSON.stringify(payload),
-      });
-    } catch (e) {
-      console.error("Failed to post report to DB:", e);
-    }
+    const response = await fetch(`${supabaseUrl}/rest/v1/safety_reports`, {
+      method: "POST",
+      headers: {
+        apikey: supabasePublishableKey,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok)
+      throw new Error(`Safety report request failed (${response.status}).`);
     setReports((v) => [`${reason} · ${reportedUserName}`, ...v]);
     void platform.refreshPlatformData();
   };
@@ -549,8 +558,6 @@ function useDemoState() {
     setPaid,
     later,
     setLater,
-    theme,
-    setTheme,
     balance,
     setBalance,
     refreshWalletBalance,
@@ -568,7 +575,11 @@ function useDemoState() {
     setActive,
     unreadMessageCount,
     refreshUnreadMessageCount,
+    unreadNotificationCount,
+    refreshUnreadNotificationCount,
     setOpenChatPhone,
+    incomingMessageNotice,
+    dismissIncomingMessageNotice,
     finishCall,
     read,
     setRead,

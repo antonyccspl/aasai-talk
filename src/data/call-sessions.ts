@@ -20,6 +20,47 @@ export type PhoneCallSummary = {
   connected: boolean;
 };
 
+export type PhoneCallNotification = {
+  id: string;
+  other_phone: string;
+  call_type: "audio" | "video";
+  status: "missed" | "rejected";
+  created_at: string;
+};
+
+export async function fetchPhoneCallNotifications(phone: string) {
+  if (!/^\+91\d{10}$/.test(phone)) return [] as PhoneCallNotification[];
+  const { data, error } = await supabase.rpc("get_phone_call_notifications", {
+    input_phone: phone,
+  });
+  if (error) throw new Error(error.message);
+  if (!Array.isArray(data) || !data.every((row) => {
+    if (!row || typeof row !== "object") return false;
+    const value = row as Record<string, unknown>;
+    return typeof value.id === "string" && typeof value.other_phone === "string" &&
+      (value.call_type === "audio" || value.call_type === "video") &&
+      (value.status === "missed" || value.status === "rejected") &&
+      typeof value.created_at === "string";
+  })) throw new Error("Invalid call notifications returned by the server.");
+  return data as PhoneCallNotification[];
+}
+
+export async function fetchPhoneUnreadNotificationCount(phone: string) {
+  if (!/^\+91\d{10}$/.test(phone)) return 0;
+  const { data, error } = await supabase.rpc("get_phone_notification_unread_count", { input_phone: phone });
+  if (error) throw new Error(error.message);
+  if (typeof data !== "number" || data < 0) throw new Error("Invalid notification count returned by the server.");
+  return data;
+}
+
+export async function markPhoneCallNotificationRead(sessionId: string, phone: string) {
+  const { error } = await supabase.rpc("mark_phone_call_notification_read", {
+    input_session_id: sessionId,
+    input_phone: phone,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export type HostCallCapabilities = { audio: boolean; video: boolean };
 export type PhoneCallState = {
   status: CallSessionStatus;

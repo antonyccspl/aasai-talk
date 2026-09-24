@@ -864,6 +864,7 @@ export function CallScreen({
 }
 export function CallsList() {
   const d = useDemo();
+  const isHost = d.hostStatus === "approved";
   const [filter, setFilter] = useState("All");
   const [menuCall, setMenuCall] = useState<string | null>(null);
   const list = d.calls.filter(
@@ -915,16 +916,20 @@ export function CallsList() {
                   </T>
                 )}
               </Pressable>
-              <IconButton
-                icon="phone"
-                label={`Audio call ${person.name}`}
-                onPress={() => go(`/calls/outgoing/${person.id}?type=audio`)}
-              />
-              <IconButton
-                icon="video"
-                label={`Video call ${person.name}`}
-                onPress={() => go(`/calls/outgoing/${person.id}?type=video`)}
-              />
+              {!isHost && (
+                <>
+                  <IconButton
+                    icon="phone"
+                    label={`Audio call ${person.name}`}
+                    onPress={() => go(`/calls/outgoing/${person.id}?type=audio`)}
+                  />
+                  <IconButton
+                    icon="video"
+                    label={`Video call ${person.name}`}
+                    onPress={() => go(`/calls/outgoing/${person.id}?type=video`)}
+                  />
+                </>
+              )}
               <IconButton
                 icon="more-vertical"
                 label={`More actions for ${person.name}`}

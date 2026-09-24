@@ -18,7 +18,14 @@ import { useDemo } from "./store";
 import { submitPhoneHostApplication } from "@/data/host-applications";
 import { useAuth } from "@/data/auth";
 import { colors as c } from "./theme";
-import { fetchHostCurrentSlabs, fetchHostDailyCallSummary, fetchHostDailyCallTime, type HostCurrentSlab, type HostDailyCallSummary } from "@/data/host-metrics";
+import { fetchHostDailyCallSummary, fetchHostDailyCallTime, type HostDailyCallSummary } from "@/data/host-metrics";
+import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
+
+const hostDate = (value: string) => {
+  const parsed = new Date(value.includes("T") ? value : `${value.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+};
 
 function DocumentUpload({
   label,
@@ -296,7 +303,6 @@ export function HostStatus() {
   const approved = d.hostStatus === "approved";
   const [refreshing, setRefreshing] = useState(false);
   const [dailyCallTime, setDailyCallTime] = useState<{ seconds: number; calls: number } | null>(null);
-  const [currentSlabs, setCurrentSlabs] = useState<HostCurrentSlab[]>([]);
   const [dailySummary, setDailySummary] = useState<HostDailyCallSummary[]>([]);
   const [dailyCallTimeError, setDailyCallTimeError] = useState("");
   const loadDailyCallTime = async () => {
@@ -305,7 +311,6 @@ export function HostStatus() {
       const result = await fetchHostDailyCallTime(auth.demoPhone);
       setDailyCallTime(result);
       setDailySummary(await fetchHostDailyCallSummary(auth.demoPhone));
-      setCurrentSlabs(await fetchHostCurrentSlabs(auth.demoPhone));
       setDailyCallTimeError("");
     } catch (error) {
       setDailyCallTimeError(error instanceof Error ? error.message : "Unable to load today's call time.");
@@ -359,21 +364,11 @@ export function HostStatus() {
           <T color={c.secondary}>
             {dailyCallTime ? `${dailyCallTime.calls} connected call${dailyCallTime.calls === 1 ? "" : "s"} today` : "Loading call activity…"}
           </T>
-          {currentSlabs.length > 0 ? (
-            <View style={{ gap: 4, marginTop: 12 }}>
-              <T bold>Current receiver slab</T>
-              {currentSlabs.map((slab) => (
-                <T key={slab.call_type} color={c.secondary}>
-                  {slab.call_type === "VIDEO" ? "Video" : "Audio"}: {slab.diamonds_per_minute} diamonds/min
-                </T>
-              ))}
-            </View>
-          ) : null}
           {dailyCallTimeError ? <Notice error>{dailyCallTimeError}</Notice> : null}
           <T bold style={{ marginTop: 14 }}>Daily history</T>
           {dailySummary.filter((item) => item.seconds || item.calls).map((item) => (
             <Row key={item.date} style={{ justifyContent: "space-between" }}>
-              <T>{item.date}</T>
+              <T>{hostDate(item.date)}</T>
               <T color={c.secondary}>
                 {Math.floor(item.seconds / 3600)}h {Math.floor((item.seconds % 3600) / 60)}m · {item.calls} call{item.calls === 1 ? "" : "s"}
               </T>
@@ -388,6 +383,9 @@ export function HostStatus() {
 
 export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
   const d = useDemo();
+  const auth = useAuth();
+  const [dashboard, setDashboard] = useState<HostDashboard | null>(null);
+  const [earningsError, setEarningsError] = useState("");
   const [method, setMethod] = useState<"upi" | "bank">("upi");
   const [amount, setAmount] = useState("");
   const [upi, setUpi] = useState("");
@@ -396,6 +394,13 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const previewMode = preview && d.hostStatus === "pending";
+  useEffect(() => {
+    if (!auth.demoPhone || d.hostStatus !== "approved") return;
+    void fetchPhoneHostDashboard(auth.demoPhone)
+      .then(setDashboard)
+      .catch((error) => setEarningsError(error instanceof Error ? error.message : "Unable to load host earnings."));
+  }, [auth.demoPhone, d.hostStatus]);
+  const availableEarnings = dashboard ? dashboard.total_earnings_paise / 100 : 0;
   if (d.hostStatus !== "approved" && !previewMode)
     return (
       <Shell title="Host earnings">
@@ -417,7 +422,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
       /^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc.toUpperCase());
     if (!Number.isInteger(requested) || requested < 100)
       return setError("Minimum withdrawal is ₹100.");
-    if (requested > d.hostEarnings)
+    if (requested > availableEarnings)
       return setError("Enter an amount within your available Host earnings.");
     if ((method === "upi" && !validUpi) || (method === "bank" && !validBank))
       return setError(
@@ -425,30 +430,14 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
           ? "Enter a valid UPI ID."
           : "Enter a valid account number and IFSC.",
       );
-    d.setHostEarnings((value) => value - requested);
-    d.setWithdrawals((items) => [
-      {
-        id: `${Date.now()}`,
-        amount: requested,
-        method: method === "upi" ? "UPI" : "Bank account",
-        status: "Pending",
-        date: new Date().toLocaleDateString("en-IN", {
-          day: "2-digit",
-          month: "short",
-        }),
-      },
-      ...items,
-    ]);
     setError("");
-    setMessage("Withdrawal request created. Its status is Pending.");
-    setAmount("");
+    setMessage("Payout processing will be enabled with the payment integration. Your live earnings are shown above.");
   };
-  const history = d.withdrawals;
   return (
     <Shell title="Host earnings">
       {previewMode && (
         <Notice>
-          ₹{d.hostEarnings} in earnings and the history below are shown while your
+          Preview data is shown while your
           application remains pending review.
         </Notice>
       )}
@@ -457,7 +446,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
           AVAILABLE HOST EARNINGS
         </T>
         <T size={30} bold>
-          ₹{d.hostEarnings}
+          {dashboard ? `₹${availableEarnings.toLocaleString("en-IN")}` : "Loading…"}
         </T>
         <T size={12} color={c.secondary}>
           Minimum withdrawal: ₹100
@@ -466,6 +455,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
       <T size={18} bold>
         Withdraw earnings
       </T>
+      {earningsError ? <Notice error>{earningsError}</Notice> : null}
       <Row>
         <Button
           title="UPI ID"
@@ -528,26 +518,8 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
       <Button
         title="Request withdrawal"
         onPress={requestWithdrawal}
-        disabled={d.hostEarnings < 100}
+        disabled={availableEarnings < 100}
       />
-      {history.length ? (
-        <Card>
-          <T bold>Withdrawal history</T>
-          {history.map((item) => (
-            <Row key={item.id} style={{ justifyContent: "space-between" }}>
-              <View>
-                <T bold>₹{item.amount}</T>
-                <T size={12} color={c.secondary}>
-                  {item.method} · {item.date}
-                </T>
-              </View>
-              <T color={c.warning} bold>
-                {item.status}
-              </T>
-            </Row>
-          ))}
-        </Card>
-      ) : null}
     </Shell>
   );
 }

@@ -7,6 +7,12 @@ export type HostDailyCallTime = {
 };
 
 export type HostDailyCallSummary = HostDailyCallTime;
+export type HostEarningSlab = {
+  min_minutes: number;
+  max_minutes: number | null;
+  audio_paise_per_minute: number;
+  video_paise_per_minute: number;
+};
 export type HostCurrentSlab = {
   id: string;
   call_type: "AUDIO" | "VIDEO";
@@ -46,6 +52,18 @@ export async function fetchHostDailyCallSummary(phone: string) {
   ))
     throw new Error("Invalid Host daily summary response.");
   return data as HostDailyCallSummary[];
+}
+
+export async function fetchHostEarningSlabs() {
+  const { data, error } = await supabase.rpc("get_host_earning_slabs");
+  if (error) throw new Error(error.message);
+  if (!Array.isArray(data) || !data.every((row) =>
+    row && typeof row === "object" && typeof (row as Record<string, unknown>).min_minutes === "number" &&
+    (((row as Record<string, unknown>).max_minutes === null) || typeof (row as Record<string, unknown>).max_minutes === "number") &&
+    typeof (row as Record<string, unknown>).audio_paise_per_minute === "number" &&
+    typeof (row as Record<string, unknown>).video_paise_per_minute === "number"
+  )) throw new Error("Invalid host earning slabs returned by the server.");
+  return data as HostEarningSlab[];
 }
 
 export async function fetchHostCurrentSlabs(phone: string) {

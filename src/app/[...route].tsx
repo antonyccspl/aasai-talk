@@ -6,7 +6,6 @@ import {
   UserProfile,
   Conversations,
   Chat,
-  Attachment,
 } from "@/ui/social";
 import {
   Auth,
@@ -61,10 +60,7 @@ export default function Route() {
   else if (root === "filters") screen = <Filters />;
   else if (root === "user") screen = <UserProfile id={action} />;
   else if (root === "messages") screen = <Conversations />;
-  else if (root === "chat")
-    screen =
-      action === "attachment" ? <Attachment id={id} /> : <Chat id={action} />;
-  else if (root === "media") screen = <Attachment id={action} viewer />;
+  else if (root === "chat") screen = <Chat id={action} />;
   else if (root === "calls")
     screen = !action ? (
       <CallsList />

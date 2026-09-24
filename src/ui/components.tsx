@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
     Animated,
     Image,
+    Keyboard,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -74,7 +75,7 @@ export function Icon({
 export function AasaiTalkMark({ size = 32 }: { size?: number }) {
   return (
     <Image
-      source={require("../../assets/images/aasai-talk-mark.png")}
+      source={require("../../assets/images/aasai-talk-logo.jpg")}
       accessibilityLabel="Aasai Talk"
       style={{ width: size, height: size, borderRadius: size * 0.24 }}
       resizeMode="contain"
@@ -137,7 +138,7 @@ export function Button({
   style?: ViewStyle;
 }) {
   const color =
-    variant === "primary" ? c.ink : variant === "danger" ? c.error : c.text;
+    variant === "primary" || variant === "danger" ? c.ink : c.text;
   return (
     <Pressable
       accessibilityRole="button"
@@ -192,7 +193,7 @@ export function IconButton({
         },
       ]}
     >
-      <Icon name={icon} color={danger ? c.error : active ? c.ink : c.text} />
+      <Icon name={icon} color={danger || active ? c.ink : c.text} />
     </Pressable>
   );
 }
@@ -275,7 +276,9 @@ export function Avatar({
         width: size,
         height: size,
         borderRadius: square ? 20 : size / 2,
-        backgroundColor: person?.color || "#285647",
+        // Directory records may contain older green accent colors. Avatars are
+        // deliberately theme-owned so every profile stays in the Aasai palette.
+        backgroundColor: c.high,
         alignItems: "center",
         justifyContent: "center",
         overflow: "hidden",
@@ -808,6 +811,7 @@ export function Shell({
   refreshing,
   onRefresh,
   skipSkeleton = false,
+  scrollToEndToken,
 }: {
   title?: string;
   tab?: string;
@@ -818,14 +822,32 @@ export function Shell({
   refreshing?: boolean;
   onRefresh?: () => void;
   skipSkeleton?: boolean;
+  /** Change this value to bring a conversation to its latest message. */
+  scrollToEndToken?: string;
 }) {
   const d = useDemo();
+  const scrollRef = useRef<ScrollView>(null);
   const isApprovedHost = d.hostStatus === "approved";
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 220);
     return () => clearTimeout(timer);
   }, []);
+  useEffect(() => {
+    if (!scrollToEndToken) return;
+    const frame = requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [scrollToEndToken]);
+  useEffect(() => {
+    // Keep a conversation's composer and newest message visible when the
+    // software keyboard reduces the available screen height.
+    if (!scrollToEndToken) return;
+    const event = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const subscription = Keyboard.addListener(event, () => {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+    });
+    return () => subscription.remove();
+  }, [scrollToEndToken]);
   const compact = useWindowDimensions().width < 400;
   const tabs: [string, IconName, string][] = [
     ["Explore", "compass", "/explore"],
@@ -842,7 +864,7 @@ export function Shell({
     <SafeAreaView style={[s.safe, { backgroundColor: c.background }]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={[s.frame, { backgroundColor: c.background }]}>
           <Row style={s.header}>
@@ -899,11 +921,27 @@ export function Shell({
                   </Pressable>
                 )}
                 {!title && (
-                  <IconButton
-                    icon="bell"
-                    label="Notifications"
-                    onPress={() => go("/notifications")}
-                  />
+                  <View>
+                    <IconButton
+                      icon="bell"
+                      label="Notifications"
+                      onPress={() => go("/notifications")}
+                    />
+                    {d.unreadNotificationCount > 0 && (
+                      <View
+                        style={{
+                          position: "absolute", top: -3, right: -3, minWidth: 17, height: 17,
+                          paddingHorizontal: 4, borderRadius: 9, backgroundColor: c.danger,
+                          alignItems: "center", justifyContent: "center",
+                        }}
+                        pointerEvents="none"
+                      >
+                        <T size={9} bold color="#fff">
+                          {d.unreadNotificationCount > 99 ? "99+" : d.unreadNotificationCount}
+                        </T>
+                      </View>
+                    )}
+                  </View>
                 )}
                 <Pressable
                   accessibilityRole="button"
@@ -942,6 +980,7 @@ export function Shell({
           )}
           {scroll ? (
             <ScrollView
+              ref={scrollRef}
               keyboardShouldPersistTaps="handled"
               refreshControl={
                 onRefresh ? (
