@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { Platform } from "react-native";
 import { supabase } from "./supabase";
 
 type AuthContextValue = {
@@ -12,12 +12,17 @@ type AuthContextValue = {
   demoProfileComplete: boolean;
   loading: boolean;
   sendOtp: (phone: string) => Promise<void>;
-  verifyOtp: (phone: string, token: string) => Promise<void>;
-  verifyDemoOtp: (phone: string, token: string) => Promise<boolean>;
+  verifyOtp: (phone: string, token: string) => Promise<boolean>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+const DEVELOPMENT_OTP = "123456";
+
+function usesDevelopmentOtp(phone: string) {
+  return __DEV__ && /^\+91\d{10}$/.test(phone);
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -103,42 +108,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const sendOtp = async (phone: string) => {
+    if (!/^\+91\d{10}$/.test(phone))
+      throw new Error("Enter a valid Indian mobile number.");
+    if (usesDevelopmentOtp(phone)) return;
     const { error } = await supabase.auth.signInWithOtp({ phone });
     if (error) throw error;
   };
 
   const verifyOtp = async (phone: string, token: string) => {
-    const { error } = await supabase.auth.verifyOtp({
-      phone,
-      token,
-      type: "sms",
+    if (usesDevelopmentOtp(phone)) {
+      if (token !== DEVELOPMENT_OTP)
+        throw new Error("Enter the development OTP 123456.");
+      if (Platform.OS === "web") {
+        globalThis.localStorage.setItem("aasai-demo-authenticated", "true");
+        globalThis.localStorage.setItem("aasai-demo-phone", phone);
+      } else {
+        await SecureStore.setItemAsync("aasai-demo-authenticated", "true");
+        await SecureStore.setItemAsync("aasai-demo-phone", phone);
+      }
+      setDemoPhone(phone);
+      setDemoProfileComplete(false);
+      setDemoAuthenticated(true);
+      return false;
+    }
+    const { data: verification, error: verificationError } =
+      await supabase.auth.verifyOtp({ phone, token, type: "sms" });
+    if (verificationError) throw verificationError;
+    if (!verification.session || verification.user?.phone !== phone)
+      throw new Error("The verification code does not match this phone number.");
+    const { data, error } = await supabase.rpc("open_phone_identity", {
+      input_phone: phone,
     });
     if (error) throw error;
-  };
-
-  const verifyDemoOtp = async (phone: string, token: string) => {
-    if (!/^\+91\d{10}$/.test(phone) || token !== "123456")
-      throw new Error("Invalid demo OTP.");
-    setDemoAuthenticated(true);
-    setDemoPhone(phone);
-    let profileComplete: unknown;
-    try {
-      const result = await supabase.rpc("open_phone_identity", {
-        input_phone: phone,
-      });
-      if (result.error) throw result.error;
-      profileComplete = result.data;
-    } catch (error) {
-      setDemoAuthenticated(false);
-      throw error;
-    }
-    const isProfileComplete = profileComplete === true;
-    if (Platform.OS === "web")
+    const isProfileComplete = data === true;
+    if (Platform.OS === "web") {
       globalThis.localStorage.setItem("aasai-demo-authenticated", "true");
-    else await SecureStore.setItemAsync("aasai-demo-authenticated", "true");
-    if (Platform.OS === "web")
       globalThis.localStorage.setItem("aasai-demo-phone", phone);
-    else await SecureStore.setItemAsync("aasai-demo-phone", phone);
+    } else {
+      await SecureStore.setItemAsync("aasai-demo-authenticated", "true");
+      await SecureStore.setItemAsync("aasai-demo-phone", phone);
+    }
+    setSession(verification.session);
+    setDemoPhone(phone);
     setDemoProfileComplete(isProfileComplete);
     setDemoAuthenticated(true);
     return isProfileComplete;
@@ -175,7 +186,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         sendOtp,
         verifyOtp,
-        verifyDemoOtp,
         signOut,
       }}
     >

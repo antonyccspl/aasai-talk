@@ -1,7 +1,8 @@
 import { Stack, router } from "expo-router";
+import { useFonts, Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold } from "@expo-google-fonts/figtree";
 import { useEffect, useRef } from "react";
 import { StatusBar } from "expo-status-bar";
-import { Animated, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Pressable, Text, View } from "react-native";
 import { DemoProvider, people, useDemo } from "@/ui/store";
 import { colors } from "@/ui/theme";
 import { SampleWorkspaceProvider } from "@/data/sample-workspace";
@@ -272,6 +273,7 @@ function ActiveCallLifecycle() {
 
 function AppNavigator() {
   const { demoPhone, loading, authenticated } = useAuth();
+  const { identityLoading } = useDemo();
   const incomingSessionRef = useRef("");
   useEffect(() => {
     if (loading || !authenticated || !demoPhone) return;
@@ -283,6 +285,24 @@ function AppNavigator() {
       );
     });
   }, [demoPhone, loading, authenticated]);
+  if (authenticated && identityLoading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 14,
+          backgroundColor: colors.background,
+        }}
+      >
+        <ActivityIndicator size="large" color={colors.mint} />
+        <Text style={{ color: colors.secondary, fontSize: 14 }}>
+          Loading your account…
+        </Text>
+      </View>
+    );
+  }
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="dark" />
@@ -300,6 +320,8 @@ function AppNavigator() {
 }
 
 export default function Layout() {
+  // Load bundled fonts without blocking navigation or authentication startup.
+  useFonts({ Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold });
   return (
     <AuthProvider>
       <SampleWorkspaceProvider>

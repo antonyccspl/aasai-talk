@@ -34,6 +34,16 @@ export const defaultFacets = {
   maxAge: "",
   maxPrice: "",
 };
+const EMPTY_PROFILE = {
+  name: "",
+  username: "",
+  bio: "",
+  languages: ["Hindi", "English"],
+  interests: ["Music", "Travel", "Late night talks"],
+  dob: "2000-06-15",
+  gender: "Female",
+  city: "Delhi",
+};
 export const COINS_PER_DIAMOND = 10;
 export const coins = (amount: number) =>
   `${new Intl.NumberFormat("en-IN").format(Math.abs(amount))} coins`;
@@ -162,9 +172,12 @@ function useDemoState() {
     aadhaarDocument: "",
     panDocument: "",
   });
-  const [hostStatus, setHostStatus] = useWorkspaceField<
+  // Identity-bound data must never be restored from the demo workspace. A
+  // workspace is intentionally persistent for UI preferences, but profile and
+  // host status belong exclusively to the currently signed-in phone account.
+  const [hostStatus, setHostStatus] = useState<
     "none" | "pending" | "approved" | "rejected"
-  >("hostStatus", "none");
+  >("none");
   const [hostEarnings, setHostEarnings] = useWorkspaceField(
     "hostEarnings",
     850,
@@ -192,26 +205,23 @@ function useDemoState() {
   ]);
   const [blocked, setBlocked] = useWorkspaceField<string[]>("blocked", []);
   const [available, setAvailable] = useWorkspaceField("available", true);
-  const [profile, setProfile] = useWorkspaceField("profile", {
-    name: "",
-    username: "",
-    bio: "",
-    languages: ["Hindi", "English"],
-    interests: ["Music", "Travel", "Late night talks"],
-    dob: "2000-06-15",
-    gender: "Female",
-    city: "Delhi",
-  });
+  const [profile, setProfile] = useState(EMPTY_PROFILE);
+  const identityKey = demoPhone || user?.id || null;
+  const [identityLoading, setIdentityLoading] = useState(Boolean(identityKey));
+  const loadedIdentityRef = useRef<string | null>(null);
 
   const refreshUserData = useCallback(async () => {
     if (!user && !demoPhone) return;
     const phoneIdentity = demoPhone || user?.phone || null;
-    const profileRequest = user
-      ? fetchOwnProfile()
-      : demoPhone
-        ? fetchDemoProfile(demoPhone)
+    // Demo phone login has priority over any stale Supabase session. Without
+    // this order, a prior session can load one person's profile while the
+    // wallet, calls, and host status use the newly entered phone number.
+    const profileRequest = demoPhone
+      ? fetchDemoProfile(demoPhone)
+      : user
+        ? fetchOwnProfile()
         : Promise.resolve(null);
-    const preferencesRequest = user
+    const preferencesRequest = user && !demoPhone
       ? fetchUserPreferences()
       : Promise.resolve(null);
     const hostStatusRequest = phoneIdentity
@@ -223,7 +233,6 @@ function useDemoState() {
         preferencesRequest,
         hostStatusRequest,
       ]);
-    if (!active) return;
     if (profileResult.status === "fulfilled" && profileResult.value) {
       setProfile(profileResult.value);
       if (profileResult.value.photo) setPhoto(profileResult.value.photo);
@@ -252,19 +261,38 @@ function useDemoState() {
     setFavorites,
     setHostStatus,
     setProfile,
+    setPhoto,
   ]);
 
   useEffect(() => {
-    if (!user && !demoPhone) return;
+    if (!identityKey) {
+      loadedIdentityRef.current = null;
+      return;
+    }
+    // Workspace hydration changes setter identities. Guard the load by the
+    // actual account key so those renders can never trigger another profile
+    // refresh / state-update cycle.
+    if (loadedIdentityRef.current === identityKey) return;
+    loadedIdentityRef.current = identityKey;
+    setIdentityLoading(true);
     let active = true;
-    void refreshUserData().catch((error) => {
-      if (active)
+    void refreshUserData()
+      .catch((error) => {
+        if (active)
         console.error("Failed to load authenticated user data:", error);
-    });
+      })
+      .finally(() => {
+        if (active) setIdentityLoading(false);
+      });
     return () => {
       active = false;
     };
-  }, [demoPhone, refreshUserData, user]);
+    // Do not depend on refreshUserData here. That callback correctly depends on
+    // workspace setters, whose identities can change when the workspace
+    // hydrates; including it would rerun this account-load effect forever.
+    // Authentication identity is the only reason this effect should run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identityKey]);
 
   const preferencesLoaded = useRef(false);
   useEffect(() => {
@@ -603,6 +631,7 @@ function useDemoState() {
     platformMetrics: platform.platformMetrics,
     refreshPlatformData: platform.refreshPlatformData,
     refreshUserData,
+    identityLoading,
     submitSafetyReport,
     submitAnnouncement,
     resolveSafetyReport,

@@ -1,3 +1,4 @@
+import { BrandGradient } from "./brand-gradient";
 import {
     fetchHostCurrentSlabs,
     type HostCurrentSlab,
@@ -92,12 +93,12 @@ export function CoinStack({ size = 28 }: { size?: number }) {
     />
   );
 }
-export function DiamondMark({ size = 14 }: { size?: number }) {
+export function DiamondMark({ size = 14, color = "#5de6e7" }: { size?: number; color?: string }) {
   return (
     <FontAwesome6
       name="gem"
       size={size}
-      color="#5de6e7"
+      color={color}
       accessibilityLabel="Diamond"
     />
   );
@@ -153,14 +154,18 @@ export function Button({
               ? c.mint
               : variant === "danger"
                 ? c.danger
-                : c.high,
+                : c.low,
+          borderWidth: variant === "secondary" ? 1.5 : 0,
+          borderColor: c.line,
+          boxShadow: variant === "primary" ? "0 8px 20px rgba(226,55,68,0.20)" : "none",
           opacity: disabled ? 0.4 : pressed ? 0.72 : 1,
         },
         style,
       ]}
     >
+      {variant === "primary" && <BrandGradient />}
       {icon && <Icon name={icon} color={color} size={20} />}
-      <T bold color={color} style={{ flexShrink: 1, textAlign: "center" }}>
+      <T bold size={16} color={color} style={{ flexShrink: 1, textAlign: "center" }}>
         {title}
       </T>
     </Pressable>
@@ -189,7 +194,9 @@ export function IconButton({
         s.iconButton,
         {
           opacity: pressed ? 0.6 : 1,
-          backgroundColor: danger ? c.danger : active ? c.mint : c.high,
+          backgroundColor: danger ? c.danger : active ? c.mint : c.low,
+          borderWidth: 1.5,
+          borderColor: c.line,
         },
       ]}
     >
@@ -214,12 +221,14 @@ export function Chip({
       style={[
         s.chip,
         {
-          backgroundColor: selected ? c.mint : c.high,
+          backgroundColor: selected ? c.text : onPress ? c.low : c.high,
+          borderWidth: onPress ? 1.5 : 0,
+          borderColor: selected ? c.text : c.line,
           minHeight: onPress ? 40 : 24,
         },
       ]}
     >
-      <T size={onPress ? 11 : 10} mono color={selected ? c.ink : c.secondary}>
+      <T size={onPress ? 13.5 : 12.5} mono color={selected ? c.ink : c.secondary}>
         {title}
       </T>
     </Pressable>
@@ -320,10 +329,10 @@ export function Badge({ text, warning }: { text: string; warning?: boolean }) {
           width: 7,
           height: 7,
           borderRadius: 4,
-          backgroundColor: warning ? c.warning : c.mint,
+          backgroundColor: warning ? c.warning : c.success,
         }}
       />
-      <T mono size={11} color={warning ? c.warning : c.mint}>
+      <T mono size={11} color={warning ? c.warning : c.success}>
         {text}
       </T>
     </Row>
@@ -368,7 +377,7 @@ export function Field({
         style={[
           s.input,
           {
-            minHeight: multiline ? 92 : 48,
+            minHeight: multiline ? 92 : 58,
             borderColor: error ? c.error : c.line,
             backgroundColor: c.surface,
             color: c.text,
@@ -405,8 +414,11 @@ export function Section({
           accessibilityLabel={action}
           accessibilityRole="button"
           style={{
-            minHeight: 48,
-            minWidth: actionIcon ? 48 : undefined,
+            minHeight: 42,
+            minWidth: actionIcon ? 42 : undefined,
+            paddingHorizontal: actionIcon ? 0 : 10,
+            borderRadius: 15,
+            backgroundColor: c.high,
             justifyContent: "center",
             alignItems: "center",
           }}
@@ -543,7 +555,9 @@ export function Wave({ large }: { large?: boolean }) {
     </Row>
   );
 }
-export function UserCard({ person }: { person: Person }) {
+export function UserCard({ person, grid = false, index = 0 }: { person: Person; grid?: boolean; index?: number }) {
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
+  const showPhoto = Boolean(person.photo && failedPhoto !== person.photo);
   const [hostSlabs, setHostSlabs] = useState<HostCurrentSlab[]>([]);
   const [slabsLoading, setSlabsLoading] = useState(false);
   const hostPhone = person.id.startsWith("phone_")
@@ -595,10 +609,32 @@ export function UserCard({ person }: { person: Person }) {
   }, [pulse]);
   const statusColor =
     person.status === "Available"
-      ? c.mint
+      ? c.success
       : person.status === "Busy"
         ? c.warning
         : c.error;
+  if (grid) {
+    const backgrounds = ["#c73543", "#6046c2", "#127e79", "#b95422"];
+    const available = person.status === "Available";
+    return <View style={{ width: "48%", flexGrow: 1, minHeight: 224, borderRadius: 26, padding: 14, overflow: "hidden", backgroundColor: backgrounds[index % backgrounds.length], justifyContent: "flex-end" }}>
+      <View pointerEvents="none" style={{ position: "absolute", width: 190, height: 190, borderRadius: 95, top: -70, right: -50, backgroundColor: "#ffffff15" }} />
+      {showPhoto ? <>
+        <Image source={{ uri: person.photo }} resizeMode="cover" accessibilityLabel={`${person.name} profile photo`} style={StyleSheet.absoluteFill} onError={() => setFailedPhoto(person.photo ?? null)} />
+        <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 112, backgroundColor: "rgba(0,0,0,0.65)" }} />
+      </> : <T bold size={58} color="#ffffff55" style={{ position: "absolute", top: 34, left: 0, right: 0, textAlign: "center" }}>{person.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</T>}
+      <View style={{ position: "absolute", top: 12, left: 12, flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, backgroundColor: "#00000047", paddingHorizontal: 10, paddingVertical: 5 }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: available ? "#5dffb0" : statusColor }} /><T size={11} bold color="#fff">{available ? "Online" : person.status}</T></View>
+      <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}`} onPress={() => go(`/user/${person.id}`)} style={{ paddingTop: 100, paddingBottom: 10 }}>
+        <T size={16.5} bold color="#fff" numberOfLines={1}>{person.name}, {person.age}</T>
+        <T size={12} color="#fff" numberOfLines={1}>{person.city} · {person.languages[0]}</T>
+      </Pressable>
+      <View style={{ flexDirection: "row", gap: 7 }}>
+        {(["audio", "video"] as const).map((type) => <Pressable key={type} accessibilityRole="button" accessibilityLabel={`${type} call with ${person.name}`} accessibilityState={{ disabled: !available }} disabled={!available} onPress={() => go(`/calls/outgoing/${person.id}?type=${type}`)} style={{ flex: 1, minHeight: 38, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor: type === "audio" ? "#fff" : "#ffffff40", opacity: available ? 1 : 0.5 }}>
+          <Icon name={type === "audio" ? "phone" : "video"} size={15} color={type === "audio" ? c.danger : "#fff"} />
+          <T size={11} bold color={type === "audio" ? c.danger : "#fff"}>{slabsLoading ? "…" : (type === "audio" ? audioRate : videoRate) === undefined ? "—" : `${type === "audio" ? audioRate : videoRate}/min`}</T>
+        </Pressable>)}
+      </View>
+    </View>;
+  }
   return (
     <Card style={{ position: "relative" }}>
       <Animated.View
@@ -642,9 +678,9 @@ export function UserCard({ person }: { person: Person }) {
         onPress={() => go(`/user/${person.id}`)}
       >
         <Row style={{ alignItems: "flex-start" }}>
-          <Avatar person={person} size={60} square />
+          <Avatar person={person} size={72} square />
           <View style={{ flex: 1, gap: 3 }}>
-            <T bold size={16}>
+            <T bold size={18}>
               {person.name}, {person.age}
             </T>
             <T size={12} color={c.secondary}>
@@ -669,17 +705,20 @@ export function UserCard({ person }: { person: Person }) {
               {
                 flex: 1,
                 paddingHorizontal: 6,
-                backgroundColor: c.high,
+                minHeight: 54,
+                borderRadius: 18,
+                backgroundColor: c.mint,
               },
             ]}
           >
+            <BrandGradient />
             <Row style={{ gap: 5, justifyContent: "center" }}>
-              <Icon name="phone" size={17} color={c.mint} />
-              <T bold size={12}>
+              <Icon name="phone" size={17} color={c.ink} />
+              <T bold size={12} color={c.ink}>
                 Audio
               </T>
-              <DiamondMark size={9} />
-              <T mono size={10} color={c.secondary}>
+              <DiamondMark size={9} color={c.ink} />
+              <T mono size={10} color={c.ink}>
                 {slabsLoading
                   ? "…"
                   : audioRate === undefined
@@ -697,17 +736,20 @@ export function UserCard({ person }: { person: Person }) {
               {
                 flex: 1,
                 paddingHorizontal: 6,
-                backgroundColor: c.high,
+                minHeight: 54,
+                borderRadius: 18,
+                backgroundColor: c.text,
               },
             ]}
           >
+            <BrandGradient dark />
             <Row style={{ gap: 5, justifyContent: "center" }}>
-              <Icon name="video" size={17} color={c.mint} />
-              <T bold size={12}>
+              <Icon name="video" size={17} color={c.ink} />
+              <T bold size={12} color={c.ink}>
                 Video
               </T>
-              <DiamondMark size={9} />
-              <T mono size={10} color={c.secondary}>
+              <DiamondMark size={9} color={c.ink} />
+              <T mono size={10} color={c.ink}>
                 {slabsLoading
                   ? "…"
                   : videoRate === undefined
@@ -867,6 +909,7 @@ export function Shell({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={[s.frame, { backgroundColor: c.background }]}>
+          <View pointerEvents="none" style={{ position: "absolute", top: -100, left: "5%", right: "5%", height: 240, borderRadius: 160, backgroundColor: c.glow, opacity: 0.6 }} />
           <Row style={s.header}>
             {title ? (
               <>
@@ -1039,7 +1082,7 @@ export function Shell({
                       </View>
                     )}
                   </View>
-                  <T mono size={10} color={tab === name ? c.mint : c.secondary}>
+                  <T mono size={11.5} color={tab === name ? c.mint : c.secondary}>
                     {name}
                   </T>
                 </Pressable>
@@ -1053,14 +1096,15 @@ export function Shell({
 }
 export const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
-  frame: { flex: 1, width: "100%", maxWidth: 560, alignSelf: "center" },
-  header: { minHeight: 60, paddingHorizontal: 16, gap: 8 },
+  frame: { flex: 1, width: "100%", maxWidth: 430, alignSelf: "center" },
+  header: { minHeight: 72, paddingHorizontal: 18, gap: 8, backgroundColor: c.background },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
-  content: { padding: 16, gap: 16 },
-  card: { backgroundColor: c.low, borderRadius: 22, padding: 16, gap: 12 },
+  content: { padding: 18, gap: 18 },
+  card: { backgroundColor: c.low, borderRadius: 28, borderWidth: 1.5, borderColor: c.line, padding: 16, gap: 14, boxShadow: "0 12px 28px rgba(120,50,30,0.09)" },
   button: {
-    minHeight: 48,
-    borderRadius: 99,
+    overflow: "hidden",
+    minHeight: 56,
+    borderRadius: 18,
     paddingHorizontal: 18,
     paddingVertical: 11,
     flexDirection: "row",
@@ -1076,6 +1120,7 @@ export const s = StyleSheet.create({
     justifyContent: "center",
   },
   chip: {
+    overflow: "hidden",
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 99,
@@ -1084,11 +1129,11 @@ export const s = StyleSheet.create({
   },
   input: {
     fontFamily: fonts.regular,
-    fontSize: 14,
+    fontSize: 16,
     color: c.text,
     backgroundColor: c.surface,
-    borderWidth: 1,
-    borderRadius: 14,
+    borderWidth: 1.5,
+    borderRadius: 18,
     padding: 13,
   },
   setting: {
@@ -1098,7 +1143,10 @@ export const s = StyleSheet.create({
     backgroundColor: c.low,
     padding: 14,
     minHeight: 60,
-    borderRadius: 18,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: c.line,
+    boxShadow: "0 6px 18px rgba(120,50,30,0.06)",
   },
   emptyIcon: {
     width: 80,
@@ -1121,17 +1169,20 @@ export const s = StyleSheet.create({
     bottom: 14,
     left: 16,
     right: 16,
-    padding: 5,
-    borderRadius: 99,
-    backgroundColor: "#202522",
+    padding: 8,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: c.line,
+    backgroundColor: c.low,
     flexDirection: "row",
     elevation: 8,
-    boxShadow: "0 12px 30px #00000055",
+    boxShadow: "0 14px 36px rgba(80,30,20,0.22)",
   },
   tab: {
+    overflow: "hidden",
     flex: 1,
-    minHeight: 52,
-    borderRadius: 99,
+    minHeight: 56,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     gap: 3,

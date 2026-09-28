@@ -1,30 +1,28 @@
-// A fixed light lavender, violet, and pink palette drawn from the Aasai Talk
-// logo. The app deliberately has one consistent appearance rather than a
-// theme switch.
+// Shared warm cream and coral design, matching the login reference.
 export const colors = {
-  background: "#faf7ff",
+  background: "#fff8f3",
   low: "#ffffff",
-  surface: "#f8f2ff",
-  high: "#eee5fa",
-  highest: "#dfcef4",
-  mint: "#d936a4",
+  surface: "#fff8f3",
+  high: "#fdece6",
+  highest: "#ffd0c7",
+  mint: "#e23744",
   ink: "#ffffff",
-  text: "#27123f",
-  secondary: "#664f7d",
-  muted: "#8a759e",
-  line: "#d9c8ed",
-  error: "#a3155a",
-  danger: "#ba185f",
+  text: "#1c1c1c",
+  secondary: "#6f6f6f",
+  muted: "#78716c",
+  line: "#f0e0d6",
+  glow: "#ffe3d6",
+  success: "#2fbf7f",
+  error: "#b42332",
+  danger: "#c92a37",
   warning: "#925f00",
-  deep: "#f0e7fa",
-  successSurface: "#f7e4f1",
-  errorSurface: "#ffe7f0",
+  deep: "#f5e8df",
+  successSurface: "#fff0e9",
+  errorSurface: "#ffe7e8",
 };
 export const fonts = {
-  // System families are available immediately on Android and iOS, so startup
-  // never waits on a font asset before showing the first route.
-  regular: "sans-serif",
-  medium: "sans-serif-medium",
-  bold: "sans-serif-medium",
-  mono: "monospace",
+  regular: "Figtree_400Regular",
+  medium: "Figtree_600SemiBold",
+  bold: "Figtree_700Bold",
+  mono: "Figtree_600SemiBold",
 };

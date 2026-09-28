@@ -1,38 +1,54 @@
-import React, { useEffect, useRef, useState } from "react";
-import { View, Platform, Pressable, TextInput } from "react-native";
+import { Welcome } from "./welcome";
+import { AuthFrame, AuthButton, AuthField, AuthText, authColors } from "./auth-design";
+import { useAuth } from "@/data/auth";
+import { fetchPhoneCallNotifications, markPhoneCallNotificationRead, type PhoneCallNotification } from "@/data/call-sessions";
+import { fetchPhoneMessageNotifications, subscribeToAllPhoneMessages, type PhoneMessageNotification } from "@/data/chat";
+import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import { Platform, Pressable, TextInput, View } from "react-native";
 import {
-  Avatar,
-  AasaiTalkMark,
-  Badge,
-  Button,
-  Card,
-  Chip,
-  Chips,
-  Empty,
-  Field,
-  go,
-  Icon,
-  Notice,
-  Row,
-  Section,
-  Setting,
-  Shell,
-  T,
+    AasaiTalkMark,
+    Avatar,
+    Badge,
+    Button,
+    Card,
+    Chip,
+    Chips,
+    Empty,
+    Field,
+    go,
+    Icon,
+    Notice,
+    Row,
+    Section,
+    Setting,
+    Shell,
+    T,
 } from "./components";
+import { PhotoPicker } from "./photo-picker";
 import { people, personFor, useDemo } from "./store";
 import { colors as c } from "./theme";
-import { PhotoPicker } from "./photo-picker";
-import { useAuth } from "@/data/auth";
-import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
-import { fetchPhoneMessageNotifications, subscribeToAllPhoneMessages, type PhoneMessageNotification } from "@/data/chat";
-import { fetchPhoneCallNotifications, markPhoneCallNotificationRead, type PhoneCallNotification } from "@/data/call-sessions";
 
 function latestEligibleBirthday() {
   const date = new Date();
   date.setFullYear(date.getFullYear() - 18);
   return date;
+}
+
+function otpErrorMessage(error: unknown) {
+  const detail = error instanceof Error ? error.message : String(error);
+  if (/provider|twilio|phone.*(disabled|enabled)|sms.*(disabled|enabled)/i.test(detail)) {
+    return "SMS sign-in is not configured yet. Enable Phone sign-in and configure Twilio in Supabase, then try again.";
+  }
+  if (/too-many-requests|quota|throttl/i.test(detail)) {
+    return "Too many code requests. Please wait a few minutes and try again.";
+  }
+  if (/invalid-phone-number/i.test(detail)) {
+    return "Enter a valid mobile number with the +91 country code.";
+  }
+  return "We could not send a verification code. Please try again.";
 }
 
 function OnboardingProgress({ step, label }: { step: number; label: string }) {
@@ -68,7 +84,7 @@ export function Auth({ mode }: { mode: string }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
-  const [resendSeconds, setResendSeconds] = useState(30);
+  const [resendSeconds, setResendSeconds] = useState(60);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (mode !== "otp" || resendSeconds <= 0) return;
@@ -83,96 +99,7 @@ export function Auth({ mode }: { mode: string }) {
   const [showDate, setShowDate] = useState(false);
   const otpInput = useRef<TextInput>(null);
   const otpPhone = params.phone || phone;
-  if (mode === "splash")
-    return (
-      <Shell immersive>
-        <View style={{ gap: 18, paddingBottom: 12 }}>
-          <View
-            style={{
-              minHeight: 260,
-              borderRadius: 32,
-              padding: 28,
-              justifyContent: "center",
-              alignItems: "center",
-              gap: 10,
-              backgroundColor: c.low,
-              borderWidth: 1,
-              borderColor: c.line,
-            }}
-          >
-            <View
-              style={{
-                width: 112,
-                height: 112,
-                borderRadius: 56,
-                backgroundColor: c.high,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <AasaiTalkMark size={64} />
-            </View>
-            <T mono size={11} color={c.mint} bold>
-              WELCOME TO AASAI TALK
-            </T>
-            <T size={32} bold>
-              Aasai Talk
-            </T>
-            <T color={c.secondary}>Meet people. Talk. Connect.</T>
-          </View>
-          <Badge text="People are talking now" />
-          {[
-            [
-              "mic",
-              "Instant 1-on-1 Audio",
-              "Connect in seconds with real voices.",
-            ],
-            ["shield", "Safe & private", "Your number stays private."],
-            [
-              "heart",
-              "Real people, real warmth",
-              "Conversations at your pace.",
-            ],
-          ].map(([icon, title, detail]) => (
-            <Card
-              key={title}
-              style={{ flexDirection: "row", alignItems: "center" }}
-            >
-              <View
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 22,
-                  backgroundColor: c.high,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Icon name={icon as never} color={c.mint} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <T bold size={16}>
-                  {title}
-                </T>
-                <T size={12} color={c.secondary}>
-                  {detail}
-                </T>
-              </View>
-            </Card>
-          ))}
-        </View>
-        <Button
-          title="Get Started"
-          icon="arrow-right"
-          onPress={() => go("/auth/login")}
-        />
-        <Button
-          title="Already have an account? Log in"
-          variant="secondary"
-          onPress={() => go("/auth/login")}
-        />
-      </Shell>
-    );
+  if (mode === "splash") return <Welcome />;
   if (mode === "create-profile") return <ProfileEdit onboarding />;
   if (mode === "permissions") return <Permissions onboarding />;
   if (mode === "photo")
@@ -353,12 +280,11 @@ export function Auth({ mode }: { mode: string }) {
           title="Continue to Aasai Talk"
           onPress={() => {
             setBusy(true);
-            void (auth.user ? saveOwnProfile(d.profile) : Promise.resolve())
-              .then(() => {
-                if (auth.user) return;
-                if (!auth.demoPhone) throw new Error("Demo phone is missing.");
-                return saveDemoProfile(auth.demoPhone, d.profile);
-              })
+            void (auth.demoPhone
+              ? saveDemoProfile(auth.demoPhone, d.profile)
+              : auth.user
+                ? saveOwnProfile(d.profile)
+                : Promise.reject(new Error("Phone session is missing.")))
               .then(() => {
                 router.replace("/explore");
               })
@@ -375,17 +301,7 @@ export function Auth({ mode }: { mode: string }) {
       </Shell>
     );
   return (
-    <Shell immersive>
-      <View style={{ paddingTop: 36, gap: 8 }}>
-        <T size={30} bold>
-          {mode === "otp" ? "Enter verification code" : "Welcome to Aasai Talk"}
-        </T>
-        <T color={c.secondary}>
-          {mode === "otp"
-            ? "Enter the six-digit code sent to your mobile number."
-            : "Enter your mobile number to continue."}
-        </T>
-      </View>
+    <AuthFrame otp={mode === "otp"} phone={otpPhone}>
       {mode === "otp" ? (
         <>
           <Pressable
@@ -402,19 +318,20 @@ export function Auth({ mode }: { mode: string }) {
               <View
                 key={index}
                 style={{
-                  width: 44,
+                  flex: 1,
+                  minWidth: 0,
                   height: 54,
                   borderRadius: 14,
-                  backgroundColor: index === code.length ? c.high : c.low,
-                  borderWidth: 1,
-                  borderColor: index === code.length ? c.mint : c.line,
+                  backgroundColor: authColors.background,
+                  borderWidth: 1.5,
+                  borderColor: index === code.length ? authColors.brand : authColors.line,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <T size={20} bold>
+                <AuthText size={20} bold>
                   {code[index] || "·"}
-                </T>
+                </AuthText>
               </View>
             ))}
           </Pressable>
@@ -432,12 +349,12 @@ export function Auth({ mode }: { mode: string }) {
             style={{ position: "absolute", opacity: 0, width: 1, height: 1 }}
           />
           {error && (
-            <T size={12} color={c.error}>
+            <AuthText size={12} color={authColors.brand}>
               {error}
-            </T>
+            </AuthText>
           )}
-          <T size={12} color={c.muted}>Demo code: 123456</T>
-          <Button
+          {__DEV__ && <AuthText size={12} color={authColors.muted}>Development code: 123456</AuthText>}
+          <AuthButton
             title={busy ? "Verifying…" : "Verify OTP"}
             disabled={busy}
             onPress={() => {
@@ -447,7 +364,7 @@ export function Auth({ mode }: { mode: string }) {
               }
               setBusy(true);
               void auth
-                .verifyDemoOtp(otpPhone, code)
+                .verifyOtp(otpPhone, code)
                 .then((profileComplete) =>
                   router.replace(
                     profileComplete ? "/explore" : "/auth/create-profile",
@@ -455,7 +372,7 @@ export function Auth({ mode }: { mode: string }) {
                 )
                 .catch((verificationError) => {
                   console.error(
-                    "Demo OTP verification failed:",
+                    "Supabase OTP verification failed:",
                     verificationError,
                   );
                   setError(
@@ -465,7 +382,7 @@ export function Auth({ mode }: { mode: string }) {
                 .finally(() => setBusy(false));
             }}
           />
-          <Button
+          <AuthButton
             title={
               resendSeconds > 0
                 ? `Resend in 00:${String(resendSeconds).padStart(2, "0")}`
@@ -477,12 +394,21 @@ export function Auth({ mode }: { mode: string }) {
             disabled={resendSeconds > 0 || busy}
             onPress={() => {
               setSent(true);
-              setResendSeconds(30);
+              setResendSeconds(60);
               setCode("");
               setError("");
+              if (!otpPhone) return;
+              setBusy(true);
+              void auth
+                .sendOtp(otpPhone)
+                .catch((sendError) => {
+                  setError(otpErrorMessage(sendError));
+                  setResendSeconds(0);
+                })
+                .finally(() => setBusy(false));
             }}
           />
-          <Button
+          <AuthButton
             title="Change phone number"
             variant="secondary"
             onPress={() => go("/auth/login")}
@@ -490,7 +416,7 @@ export function Auth({ mode }: { mode: string }) {
         </>
       ) : (
         <>
-          <Field
+          <AuthField
             label="Mobile number (+91)"
             value={phone}
             onChange={(value) => {
@@ -501,7 +427,7 @@ export function Auth({ mode }: { mode: string }) {
             placeholder="98765 43210"
             error={error}
           />
-          <Button
+          <AuthButton
             title="Continue with phone"
             icon="arrow-right"
             onPress={() => {
@@ -510,20 +436,30 @@ export function Auth({ mode }: { mode: string }) {
                 return;
               }
               const formattedPhone = `+91${phone}`;
-              setError("");
-              setResendSeconds(30);
-              router.push({
-                pathname: "/[...route]",
-                params: { route: ["auth", "otp"], phone: formattedPhone },
-              });
+              setBusy(true);
+              void auth
+                .sendOtp(formattedPhone)
+                .then(() => {
+                  setResendSeconds(60);
+                  router.push({
+                    pathname: "/[...route]",
+                    params: { route: ["auth", "otp"], phone: formattedPhone },
+                  });
+                })
+                .catch((sendError) => {
+                  setError(otpErrorMessage(sendError));
+                })
+                .finally(() => setBusy(false));
             }}
           />
-          <T size={12} color={c.muted}>
-            Your phone number stays private and is never shown to other users.
-          </T>
+          <AuthText size={12} color={authColors.muted}>
+            {__DEV__
+              ? "Development login: any valid 10-digit number, OTP 123456."
+              : "A verification code will be sent to your number."}
+          </AuthText>
         </>
       )}
-    </Shell>
+    </AuthFrame>
   );
 }
 export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {

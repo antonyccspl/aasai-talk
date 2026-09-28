@@ -206,6 +206,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
           />
         </>
       )}
+      {mode === "explore" && <View style={{ marginTop: 8, gap: 4 }}><T size={26} bold>Hi, {d.profile.name?.split(" ")[0] || "there"} 👋</T><T color={c.secondary}>Who do you want to talk to today?</T></View>}
       <Section
         title={
           favorites
@@ -218,7 +219,8 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
         actionIcon={favorites ? undefined : "sliders"}
         onPress={() => go("/filters")}
       />
-      {result.map((p) => (
+      {mode === "explore" && <Chips items={["All", "Online", "Hindi", "Tamil", "English"]} selected={d.filter === "Available" ? "Online" : d.filter} onChange={(value) => d.setFilter(value === "Online" ? "Available" : value)} />}
+      {mode === "explore" ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{result.map((p, index) => <UserCard key={p.id} person={p} grid index={index} />)}{result.length % 2 === 1 && <View style={{ width: "48%", flexGrow: 1 }} />}</View> : result.map((p) => (
         <UserCard key={p.id} person={p} />
       ))}
       {!result.length && (
