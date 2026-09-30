@@ -1,5 +1,3 @@
-import { Welcome } from "./welcome";
-import { AuthFrame, AuthButton, AuthField, AuthText, authColors } from "./auth-design";
 import { useAuth } from "@/data/auth";
 import { fetchPhoneCallNotifications, markPhoneCallNotificationRead, type PhoneCallNotification } from "@/data/call-sessions";
 import { fetchPhoneMessageNotifications, subscribeToAllPhoneMessages, type PhoneMessageNotification } from "@/data/chat";
@@ -8,8 +6,8 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, TextInput, View } from "react-native";
+import { AuthButton, authColors, AuthField, AuthFrame, AuthText } from "./auth-design";
 import {
-    AasaiTalkMark,
     Avatar,
     Badge,
     Button,
@@ -25,11 +23,12 @@ import {
     Section,
     Setting,
     Shell,
-    T,
+    T
 } from "./components";
 import { PhotoPicker } from "./photo-picker";
 import { people, personFor, useDemo } from "./store";
 import { colors as c } from "./theme";
+import { Welcome } from "./welcome";
 
 function latestEligibleBirthday() {
   const date = new Date();
@@ -37,10 +36,22 @@ function latestEligibleBirthday() {
   return date;
 }
 
+function isEligibleBirthday(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const birthday = new Date(year, month - 1, day);
+  if (birthday.getFullYear() !== year || birthday.getMonth() !== month - 1 || birthday.getDate() !== day)
+    return false;
+  return birthday <= latestEligibleBirthday();
+}
+
 function otpErrorMessage(error: unknown) {
   const detail = error instanceof Error ? error.message : String(error);
-  if (/provider|twilio|phone.*(disabled|enabled)|sms.*(disabled|enabled)/i.test(detail)) {
-    return "SMS sign-in is not configured yet. Enable Phone sign-in and configure Twilio in Supabase, then try again.";
+  if (/unauthorized-domain|captcha|app-not-authorized|firebase web app settings/i.test(detail)) {
+    return "Browser phone login needs Firebase Web App settings and this site's domain authorized in Firebase.";
+  }
+  if (/operation-not-allowed|provider.*disabled|phone.*disabled/i.test(detail)) {
+    return "Phone sign-in is not enabled in Firebase Authentication yet.";
   }
   if (/too-many-requests|quota|throttl/i.test(detail)) {
     return "Too many code requests. Please wait a few minutes and try again.";
@@ -353,7 +364,6 @@ export function Auth({ mode }: { mode: string }) {
               {error}
             </AuthText>
           )}
-          {__DEV__ && <AuthText size={12} color={authColors.muted}>Development code: 123456</AuthText>}
           <AuthButton
             title={busy ? "Verifying…" : "Verify OTP"}
             disabled={busy}
@@ -427,6 +437,12 @@ export function Auth({ mode }: { mode: string }) {
             placeholder="98765 43210"
             error={error}
           />
+          {Platform.OS === "web" && (
+            <View
+              nativeID="aasai-firebase-recaptcha"
+              style={{ minHeight: 78, alignItems: "center" }}
+            />
+          )}
           <AuthButton
             title="Continue with phone"
             icon="arrow-right"
@@ -453,9 +469,7 @@ export function Auth({ mode }: { mode: string }) {
             }}
           />
           <AuthText size={12} color={authColors.muted}>
-            {__DEV__
-              ? "Development login: any valid 10-digit number, OTP 123456."
-              : "A verification code will be sent to your number."}
+            A secure verification code will be sent to your number.
           </AuthText>
         </>
       )}
@@ -589,26 +603,36 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
         title={busy ? "Saving…" : onboarding ? "Continue" : "Save changes"}
         disabled={busy}
         onPress={() => {
-          if (!form.name.trim() || !/^[a-zA-Z0-9_]{3,20}$/.test(form.username))
-            return setError("Enter your name and a 3–20 character username.");
+          const name = form.name.trim();
+          const city = form.city.trim();
+          if (name.length < 2 || name.length > 50 || /[\r\n]/.test(name))
+            return setError("Enter a name between 2 and 50 characters.");
+          if (!/^[a-zA-Z0-9_]{3,20}$/.test(form.username))
+            return setError("Use a 3–20 character username with letters, numbers, or underscores.");
+          if (city.length < 2 || city.length > 80 || /[\r\n]/.test(city))
+            return setError("Enter a valid city.");
           if (
-            !/^\d{4}-\d{2}-\d{2}$/.test(form.dob) ||
-            Number.isNaN(Date.parse(form.dob)) ||
-            !form.languages.length
+            !isEligibleBirthday(form.dob) ||
+            !["Female", "Male"].includes(form.gender) ||
+            !form.languages.length ||
+            form.languages.length > 4 ||
+            !form.interests.length ||
+            form.interests.length > 6 ||
+            form.bio.trim().length > 500
           )
             return setError(
-              "Choose a valid date of birth and select at least one language.",
+              "Choose an eligible date of birth, gender, language, and interest. Keep your bio under 500 characters.",
             );
           setBusy(true);
           void (
             auth.user
-              ? saveOwnProfile(form)
+              ? saveOwnProfile({ ...form, name, city, bio: form.bio.trim() })
               : auth.demoPhone
-                  ? saveDemoProfile(auth.demoPhone, { ...form, photo: d.photo })
+                  ? saveDemoProfile(auth.demoPhone, { ...form, name, city, bio: form.bio.trim(), photo: d.photo })
                 : Promise.reject(new Error("Demo phone is missing."))
           )
             .then(() => {
-              d.setProfile(form);
+              d.setProfile({ ...form, name, city, bio: form.bio.trim() });
               setError("");
               setSaved(true);
               if (onboarding) go("/auth/permissions");
@@ -1383,6 +1407,10 @@ export function ServiceState({ state }: { state: string }) {
     unavailable: [
       "This content is unavailable",
       "It may have been removed or your access may have changed.",
+    ],
+    admin: [
+      "Administrator access is not configured",
+      "Administrative tools stay unavailable until server-side role verification and audit logging are enabled.",
     ],
     loading: [
       "Getting things ready",

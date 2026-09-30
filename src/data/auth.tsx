@@ -1,10 +1,18 @@
 import type { Session, User } from "@supabase/supabase-js";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithPhoneNumber,
+  signOut as firebaseSignOut,
+  type ConfirmationResult,
+} from "@react-native-firebase/auth";
 import * as SecureStore from "expo-secure-store";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { supabase } from "./supabase";
 
 type AuthContextValue = {
+  /** Supabase stays in use for app data; Firebase owns phone authentication. */
   user: User | null;
   session: Session | null;
   authenticated: boolean;
@@ -17,15 +25,40 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const authenticatedKey = "aasai-demo-authenticated";
+const phoneKey = "aasai-demo-phone";
+const profilePhoneKey = "aasai-demo-profile-phone";
 
-const DEVELOPMENT_OTP = "123456";
+function isIndianMobile(phone: string) {
+  return /^\+91\d{10}$/.test(phone);
+}
 
-function usesDevelopmentOtp(phone: string) {
-  return __DEV__ && /^\+91\d{10}$/.test(phone);
+async function saveLocalPhone(phone: string) {
+  if (Platform.OS === "web") {
+    globalThis.localStorage.setItem(authenticatedKey, "true");
+    globalThis.localStorage.setItem(phoneKey, phone);
+    return;
+  }
+  await SecureStore.setItemAsync(authenticatedKey, "true");
+  await SecureStore.setItemAsync(phoneKey, phone);
+}
+
+async function clearLocalPhone() {
+  if (Platform.OS === "web") {
+    globalThis.localStorage.removeItem(authenticatedKey);
+    globalThis.localStorage.removeItem(phoneKey);
+    globalThis.localStorage.removeItem(profilePhoneKey);
+    return;
+  }
+  await Promise.all([
+    SecureStore.deleteItemAsync(authenticatedKey),
+    SecureStore.deleteItemAsync(phoneKey),
+    SecureStore.deleteItemAsync(profilePhoneKey),
+  ]);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const confirmation = useRef<ConfirmationResult | null>(null);
   const [demoAuthenticated, setDemoAuthenticated] = useState(false);
   const [demoPhone, setDemoPhone] = useState<string | null>(null);
   const [demoProfileComplete, setDemoProfileComplete] = useState(false);
@@ -33,143 +66,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    const restore = async () => {
-      const demoStorage = Platform.OS === "web"
-        ? Promise.resolve({
-            authenticated: globalThis.localStorage.getItem("aasai-demo-authenticated"),
-            phone: globalThis.localStorage.getItem("aasai-demo-phone"),
-            profileCompletePhone: globalThis.localStorage.getItem(
-              "aasai-demo-profile-phone",
-            ),
-          })
-        : Promise.all([
-            SecureStore.getItemAsync("aasai-demo-authenticated"),
-            SecureStore.getItemAsync("aasai-demo-phone"),
-            SecureStore.getItemAsync("aasai-demo-profile-phone"),
-          ]).then(([authenticated, phone, profileCompletePhone]) => ({
-            authenticated,
-            phone,
-            profileCompletePhone,
-          }));
-      const demoValue = await demoStorage;
-      let sessionResult: Awaited<ReturnType<typeof supabase.auth.getSession>>;
-      try {
-        sessionResult = await Promise.race([
-          supabase.auth.getSession(),
-          new Promise<Awaited<ReturnType<typeof supabase.auth.getSession>>>(
-            (_, reject) =>
-              setTimeout(
-                () => reject(new Error("Session restore timed out.")),
-                8000,
-              ),
-          ),
-        ]);
-      } catch (error) {
-        console.error("Supabase session restore failed:", error);
-        sessionResult = {
-          data: { session: null },
-          error: null,
-        };
-      }
-      if (sessionResult.error)
-        console.error("Failed to restore Supabase session:", sessionResult.error);
-      if (active) {
-        setSession(sessionResult.data.session);
-        setDemoAuthenticated(demoValue.authenticated === "true");
-        setDemoPhone(demoValue.phone);
-        setDemoProfileComplete(
-          Boolean(
-            demoValue.phone &&
-            demoValue.profileCompletePhone === demoValue.phone,
-          ),
-        );
-      }
-    };
-    void restore()
-      .catch((error) => {
-        console.error("Failed to restore authentication:", error);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!active) return;
-      setSession(nextSession);
+    // Firebase Phone Authentication is native-only. The web preview remains
+    // signed out instead of falling back to another OTP provider.
+    if (Platform.OS === "web") {
       setLoading(false);
-    });
+      return () => { active = false; };
+    }
 
+    const unsubscribe = onAuthStateChanged(getAuth(), (firebaseUser) => {
+      if (!active) return;
+      if (!firebaseUser?.phoneNumber) {
+        setDemoAuthenticated(false);
+        setDemoPhone(null);
+        setDemoProfileComplete(false);
+        setLoading(false);
+        return;
+      }
+      const phone = firebaseUser.phoneNumber;
+      setDemoAuthenticated(true);
+      setDemoPhone(phone);
+      void Promise.all([
+        saveLocalPhone(phone),
+        SecureStore.getItemAsync(profilePhoneKey),
+      ])
+        .then(([, profilePhone]) => {
+          if (active) setDemoProfileComplete(profilePhone === phone);
+        })
+        .catch((error) =>
+          console.error("Failed to restore Firebase phone session:", error),
+        )
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    });
     return () => {
       active = false;
-      subscription.unsubscribe();
+      unsubscribe();
     };
   }, []);
 
   const sendOtp = async (phone: string) => {
-    if (!/^\+91\d{10}$/.test(phone))
+    if (!isIndianMobile(phone))
       throw new Error("Enter a valid Indian mobile number.");
-    if (usesDevelopmentOtp(phone)) return;
-    const { error } = await supabase.auth.signInWithOtp({ phone });
-    if (error) throw error;
+    if (Platform.OS === "web")
+      throw new Error("Firebase phone login is available in the Android app, not the web preview.");
+    confirmation.current = await signInWithPhoneNumber(getAuth(), phone);
   };
 
   const verifyOtp = async (phone: string, token: string) => {
-    if (usesDevelopmentOtp(phone)) {
-      if (token !== DEVELOPMENT_OTP)
-        throw new Error("Enter the development OTP 123456.");
-      if (Platform.OS === "web") {
-        globalThis.localStorage.setItem("aasai-demo-authenticated", "true");
-        globalThis.localStorage.setItem("aasai-demo-phone", phone);
-      } else {
-        await SecureStore.setItemAsync("aasai-demo-authenticated", "true");
-        await SecureStore.setItemAsync("aasai-demo-phone", phone);
-      }
-      setDemoPhone(phone);
-      setDemoProfileComplete(false);
-      setDemoAuthenticated(true);
-      return false;
-    }
-    const { data: verification, error: verificationError } =
-      await supabase.auth.verifyOtp({ phone, token, type: "sms" });
-    if (verificationError) throw verificationError;
-    if (!verification.session || verification.user?.phone !== phone)
+    if (!isIndianMobile(phone))
+      throw new Error("Enter a valid Indian mobile number.");
+    if (Platform.OS === "web")
+      throw new Error("Firebase phone login is available in the Android app, not the web preview.");
+    if (!confirmation.current)
+      throw new Error("Request a new verification code and try again.");
+
+    const credential = await confirmation.current.confirm(token);
+    if (credential.user.phoneNumber !== phone)
       throw new Error("The verification code does not match this phone number.");
+
+    // Supabase remains the database and call/message backend. This RPC keeps
+    // the existing phone profile, but Supabase is no longer used for OTP.
     const { data, error } = await supabase.rpc("open_phone_identity", {
       input_phone: phone,
     });
     if (error) throw error;
+
     const isProfileComplete = data === true;
-    if (Platform.OS === "web") {
-      globalThis.localStorage.setItem("aasai-demo-authenticated", "true");
-      globalThis.localStorage.setItem("aasai-demo-phone", phone);
-    } else {
-      await SecureStore.setItemAsync("aasai-demo-authenticated", "true");
-      await SecureStore.setItemAsync("aasai-demo-phone", phone);
-    }
-    setSession(verification.session);
+    await saveLocalPhone(phone);
     setDemoPhone(phone);
     setDemoProfileComplete(isProfileComplete);
     setDemoAuthenticated(true);
+    confirmation.current = null;
     return isProfileComplete;
   };
 
   const signOut = async () => {
-    if (session) {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    }
-    if (Platform.OS === "web")
-      globalThis.localStorage.removeItem("aasai-demo-authenticated");
-    else await SecureStore.deleteItemAsync("aasai-demo-authenticated");
-    if (Platform.OS === "web") {
-      globalThis.localStorage.removeItem("aasai-demo-phone");
-      globalThis.localStorage.removeItem("aasai-demo-profile-phone");
-    } else {
-      await SecureStore.deleteItemAsync("aasai-demo-phone");
-      await SecureStore.deleteItemAsync("aasai-demo-profile-phone");
-    }
+    if (Platform.OS !== "web") await firebaseSignOut(getAuth());
+    confirmation.current = null;
+    await clearLocalPhone();
     setDemoAuthenticated(false);
     setDemoPhone(null);
     setDemoProfileComplete(false);
@@ -178,9 +153,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        user: session?.user ?? null,
-        session,
-        authenticated: Boolean(session || demoAuthenticated),
+        user: null,
+        session: null,
+        authenticated: demoAuthenticated,
         demoPhone,
         demoProfileComplete,
         loading,

@@ -1,4 +1,3 @@
-import { BrandGradient } from "./brand-gradient";
 import {
     fetchHostCurrentSlabs,
     type HostCurrentSlab,
@@ -25,6 +24,7 @@ import {
     ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { BrandGradient } from "./brand-gradient";
 import { coins, duration, Person, personFor, talkTime, useDemo } from "./store";
 import { colors as c, fonts } from "./theme";
 export type IconName = React.ComponentProps<typeof Feather>["name"];
@@ -405,7 +405,7 @@ export function Section({
 }) {
   return (
     <Row style={{ justifyContent: "space-between", marginTop: 8 }}>
-      <T size={17} bold>
+      <T size={17} bold numberOfLines={2} style={{ flex: 1, flexShrink: 1 }}>
         {title}
       </T>
       {action && (
@@ -909,7 +909,6 @@ export function Shell({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={[s.frame, { backgroundColor: c.background }]}>
-          <View pointerEvents="none" style={{ position: "absolute", top: -100, left: "5%", right: "5%", height: 240, borderRadius: 160, backgroundColor: c.glow, opacity: 0.6 }} />
           <Row style={s.header}>
             {title ? (
               <>

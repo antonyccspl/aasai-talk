@@ -12,9 +12,10 @@
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#faf7ff",
-          "foregroundImage": "./assets/images/aasai-talk-logo.jpg"
+        "foregroundImage": "./assets/images/aasai-talk-logo.jpg"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -55,7 +56,9 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-secure-store"
+      "expo-secure-store",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth"
     ],
     "experiments": {
       "typedRoutes": true,

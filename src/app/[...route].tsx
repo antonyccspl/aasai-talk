@@ -19,7 +19,6 @@ import {
 import { CallScreen, CallsList, CallDetail } from "@/ui/calls";
 import { Wallet } from "@/ui/wallet";
 import { Preview } from "@/ui/preview";
-import { Admin } from "@/ui/admin";
 import { HostApplication, HostStatus, HostWithdrawals } from "@/ui/host";
 import { useAuth } from "@/data/auth";
 
@@ -86,8 +85,10 @@ export default function Route() {
   else if (root === "block" || root === "report" || root === "rate")
     screen = <Safety mode={root} id={action} />;
   else if (root === "status") screen = <ServiceState state={action} />;
-  else if (root === "admin")
-    screen = <Admin page={action || "dashboard"} id={id} />;
+  // The prototype admin UI has no server-verified administrator role. Do not
+  // expose moderation, pricing, or financial controls until an Edge Function
+  // verifies a Firebase custom claim and records an immutable audit trail.
+  else if (root === "admin") screen = <ServiceState state="admin" />;
   else if (root === "preview") screen = <Preview />;
   else screen = <ServiceState state="unavailable" />;
   return <React.Fragment key={key}>{screen}</React.Fragment>;

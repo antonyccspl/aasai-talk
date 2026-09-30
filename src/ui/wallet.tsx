@@ -19,8 +19,6 @@ import {
 } from "./components";
 import { coins, money, Transaction, useDemo } from "./store";
 import { CoinPack, fetchCoinPacks } from "../data/coin-packs";
-import { rechargePhoneWallet } from "../data/wallet";
-import { useAuth } from "../data/auth";
 import { colors as c } from "./theme";
 function TransactionItem({ item }: { item: Transaction }) {
   return (
@@ -63,7 +61,6 @@ export function Wallet({
   id?: string;
 }) {
   const d = useDemo();
-  const { demoPhone } = useAuth();
   const [coinPacks, setCoinPacks] = useState<CoinPack[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
@@ -89,10 +86,6 @@ export function Wallet({
   const [filter, setFilter] = useState("All");
   const [custom, setCustom] = useState("");
   const [error, setError] = useState("");
-  const [paymentState, setPaymentState] = useState("Pending");
-  const [rechargePending, setRechargePending] = useState(false);
-  const orderKey = id || "demo";
-  const credited = d.creditedOrders.includes(orderKey);
   const isApprovedHost = d.hostStatus === "approved";
   if (isApprovedHost)
     return (
@@ -197,83 +190,12 @@ export function Wallet({
   if (mode === "payment")
     return (
       <Shell title="Payment status">
-        <View style={{ alignItems: "center", gap: 14, padding: 18 }}>
-          <Icon
-            name={
-              paymentState === "Success"
-                ? "check-circle"
-                : paymentState === "Pending"
-                  ? "clock"
-                  : "alert-circle"
-            }
-            size={58}
-            color={paymentState === "Success" ? c.mint : c.warning}
-          />
-          <T bold size={23}>
-            {paymentState === "Pending"
-              ? "Confirming your payment"
-              : `Payment ${paymentState.toLowerCase()}`}
-          </T>
-          <T size={30} bold>
-            {coins(d.pack)}
-          </T>
-          <T color={c.secondary}>{packPrice}</T>
-          <Badge
-            text={`${paymentState} · PREVIEW`}
-            warning={paymentState !== "Success"}
-          />
-        </View>
-        <Notice>
-          Razorpay is not connected yet. Use the wallet recharge screen to add
-          test coins to your Supabase wallet.
-        </Notice>
-        <Chips
-          items={["Pending", "Success", "Failed", "Cancelled", "Refunded"]}
-          selected={paymentState}
-          onChange={setPaymentState}
+        <Empty
+          icon="shield"
+          title="Payments are not available yet"
+          message="Checkout is disabled until Razorpay orders, webhook verification, and a server-side wallet ledger are connected. No coins or money can move from this screen."
         />
-        {paymentState === "Success" && (
-          <Button
-            title={
-              credited ? "Test credit added once" : "Add test coins to Supabase wallet"
-            }
-            disabled={credited}
-            onPress={() => {
-              if (credited) return;
-              if (!demoPhone) return setError("Sign in again before adding test coins.");
-              setRechargePending(true);
-              void rechargePhoneWallet(demoPhone, d.pack, `test-payment-${orderKey}-${Date.now()}`)
-                .then((result) => {
-                  d.setCreditedOrders((v) => [...v, orderKey]);
-                  d.setBalance(result.remaining_coins);
-                  d.setTransactions((v) => [{
-                    id: `TEST-${Date.now()}`, title: "Test wallet recharge", amount: result.coins_credited,
-                    date: "Just now", kind: "Recharges", status: "Recorded in Supabase",
-                  }, ...v]);
-                })
-                .catch((rechargeError) => setError(rechargeError instanceof Error ? rechargeError.message : "Unable to add test coins."))
-                .finally(() => setRechargePending(false));
-            }}
-          />
-        )}
-        {paymentState === "Pending" && (
-          <Button
-            title="Check status"
-            variant="secondary"
-            onPress={() =>
-              setError(
-                "Razorpay and backend verification are not connected. This order remains a preview.",
-              )
-            }
-          />
-        )}
-        {error && <Notice>{error}</Notice>}
         <Button title="Back to wallet" onPress={() => go("/wallet")} />
-        <Button
-          title="Payment help"
-          variant="secondary"
-          onPress={() => go("/settings/help")}
-        />
       </Shell>
     );
   if (mode === "checkout")
@@ -284,19 +206,8 @@ export function Wallet({
           title="Continue with Razorpay"
           message={`Review your ${coins(d.pack)} recharge for ${packPrice} in the secure provider checkout when the integration is connected.`}
         />
-        <Notice>
-          Checkout is not connected. This preview does not collect payment
-          details or open a real order.
-        </Notice>
-        <Button
-          title="Preview payment result"
-          onPress={() => go("/wallet/payment/demo")}
-        />
-        <Button
-          title="Cancel checkout"
-          variant="secondary"
-          onPress={() => go("/wallet/recharge")}
-        />
+        <Notice>Checkout is disabled until a verified payment integration is available.</Notice>
+        <Button title="Back to wallet" variant="secondary" onPress={() => go("/wallet")} />
       </Shell>
     );
   if (mode === "recharge")
@@ -316,28 +227,17 @@ export function Wallet({
             detail={coins(d.balance)}
             icon="hexagon"
           />
-          <Setting title="Sample credit" detail={coins(d.pack)} icon="plus" />
+            <Setting title="Selected pack" detail={coins(d.pack)} icon="plus" />
           <T size={12} color={c.muted}>
             Any applicable fees and taxes must be confirmed by the backend
             before live checkout.
           </T>
         </Card>
-        <Button title={rechargePending ? "Adding test coins…" : `Add ${coins(d.pack)} test coins`}
-          icon="plus" disabled={rechargePending || catalogLoading || !!catalogError || !selectedPack}
-          onPress={() => {
-            if (!demoPhone) return setError("Sign in again before adding test coins.");
-            setRechargePending(true);
-            void rechargePhoneWallet(demoPhone, d.pack, `test-recharge-${d.pack}-${Date.now()}`)
-              .then((result) => {
-                d.setBalance(result.remaining_coins);
-                d.setTransactions((v) => [{ id: `TEST-${Date.now()}`, title: "Test wallet recharge", amount: result.coins_credited, date: "Just now", kind: "Recharges", status: "Recorded in Supabase" }, ...v]);
-                go("/wallet");
-              })
-              .catch((rechargeError) => setError(rechargeError instanceof Error ? rechargeError.message : "Unable to add test coins."))
-              .finally(() => setRechargePending(false));
-          }} />
+        <Notice>
+          Coin purchases are temporarily unavailable. A successful payment must be verified by a server-side Razorpay webhook before any wallet credit is created.
+        </Notice>
         <T size={11} color={c.muted} style={{ textAlign: "center" }}>
-          Test mode only — no Razorpay payment is collected.
+          No payment details are collected and no coins are added.
         </T>
         <Button
           title="Change amount"

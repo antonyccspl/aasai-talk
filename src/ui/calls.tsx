@@ -660,7 +660,11 @@ export function CallScreen({
       {video && !ringing ? (
         <Card
           style={{
-            height: 454,
+            // Adapt to compact screens instead of reserving a fixed desktop-like
+            // panel height. The frame stays comfortably tall for portrait video.
+            width: "100%",
+            minHeight: 360,
+            aspectRatio: 0.82,
             backgroundColor: "#14201c",
             borderColor: c.line,
             borderWidth: 1,

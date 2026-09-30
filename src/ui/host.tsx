@@ -386,13 +386,6 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
   const auth = useAuth();
   const [dashboard, setDashboard] = useState<HostDashboard | null>(null);
   const [earningsError, setEarningsError] = useState("");
-  const [method, setMethod] = useState<"upi" | "bank">("upi");
-  const [amount, setAmount] = useState("");
-  const [upi, setUpi] = useState("");
-  const [account, setAccount] = useState("");
-  const [ifsc, setIfsc] = useState("");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
   const previewMode = preview && d.hostStatus === "pending";
   useEffect(() => {
     if (!auth.demoPhone || d.hostStatus !== "approved") return;
@@ -414,25 +407,6 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
         />
       </Shell>
     );
-  const requestWithdrawal = () => {
-    const requested = Number(amount);
-    const validUpi = /^[a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,}$/.test(upi);
-    const validBank =
-      /^\d{9,18}$/.test(account) &&
-      /^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc.toUpperCase());
-    if (!Number.isInteger(requested) || requested < 100)
-      return setError("Minimum withdrawal is ₹100.");
-    if (requested > availableEarnings)
-      return setError("Enter an amount within your available Host earnings.");
-    if ((method === "upi" && !validUpi) || (method === "bank" && !validBank))
-      return setError(
-        method === "upi"
-          ? "Enter a valid UPI ID."
-          : "Enter a valid account number and IFSC.",
-      );
-    setError("");
-    setMessage("Payout processing will be enabled with the payment integration. Your live earnings are shown above.");
-  };
   return (
     <Shell title="Host earnings">
       {previewMode && (
@@ -452,74 +426,11 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
           Minimum withdrawal: ₹100
         </T>
       </Card>
-      <T size={18} bold>
-        Withdraw earnings
-      </T>
+      <T size={18} bold>Withdraw earnings</T>
       {earningsError ? <Notice error>{earningsError}</Notice> : null}
-      <Row>
-        <Button
-          title="UPI ID"
-          style={{ flex: 1 }}
-          variant={method === "upi" ? "primary" : "secondary"}
-          onPress={() => setMethod("upi")}
-        />
-        <Button
-          title="Bank account"
-          style={{ flex: 1 }}
-          variant={method === "bank" ? "primary" : "secondary"}
-          onPress={() => setMethod("bank")}
-        />
-      </Row>
-      <Field
-        label="Withdrawal amount"
-        numeric
-        value={amount}
-        onChange={(value) => {
-          setAmount(value);
-          setError("");
-        }}
-        placeholder="Minimum ₹100"
-        error={error}
-      />
-      {method === "upi" ? (
-        <Field
-          label="UPI ID"
-          value={upi}
-          onChange={(value) => {
-            setUpi(value);
-            setError("");
-          }}
-          placeholder="name@bank"
-        />
-      ) : (
-        <>
-          <Field
-            label="Account number"
-            numeric
-            value={account}
-            onChange={(value) => {
-              setAccount(value);
-              setError("");
-            }}
-            placeholder="Enter account number"
-          />
-          <Field
-            label="IFSC code"
-            value={ifsc}
-            onChange={(value) => {
-              setIfsc(value.toUpperCase());
-              setError("");
-            }}
-            placeholder="ABCD0123456"
-          />
-        </>
-      )}
-      {message ? <Notice>{message}</Notice> : null}
-      <Button
-        title="Request withdrawal"
-        onPress={requestWithdrawal}
-        disabled={availableEarnings < 100}
-      />
+      <Notice>
+        Payout requests are disabled until a server-side payout system verifies host KYC, locks eligible earnings, screens fraud, and records a provider payout reference. Your earnings remain visible, but no bank or UPI details are collected by this app.
+      </Notice>
     </Shell>
   );
 }

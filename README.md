@@ -32,15 +32,23 @@ The source is under `src/` and uses [Expo Router](https://docs.expo.dev/router/i
 ## Environment
 
 Copy `.env.example` to `.env.local` and provide the Supabase project URL and
-publishable key:
+publishable key. For browser phone login, also add the public configuration from
+your Firebase Console Web App:
 
 ```text
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+EXPO_PUBLIC_FIREBASE_API_KEY=...
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=your-project
+EXPO_PUBLIC_FIREBASE_APP_ID=...
 ```
 
 The mobile app must never contain a Supabase secret/service-role key.
-Configure and enable the phone provider in Supabase Auth before testing OTP.
+Enable Phone sign-in in Firebase Authentication and add each browser host to its
+Authorized domains. Use Firebase's fictional test numbers for development.
+Firebase Web App configuration is public client configuration; never add a
+Firebase service-account key or Supabase secret to the client.
 
 ## Validation
 

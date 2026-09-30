@@ -1,33 +1,33 @@
-import React, { useEffect, useState } from "react";
-import { Pressable, View, TextInput } from "react-native";
+import { useAuth } from "@/data/auth";
+import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
+import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
+import { fetchHostEarningSlabs, type HostEarningSlab } from "@/data/host-metrics";
 import { router } from "expo-router";
+import { useEffect, useState } from "react";
+import { Pressable, TextInput, View } from "react-native";
+import { useRefreshPeople } from '../data/sample-workspace';
 import {
-  Avatar,
-  Badge,
-  Button,
-  Card,
-  Chip,
-  Chips,
-  Empty,
-  Field,
-  go,
-  Icon,
-  IconButton,
-  Notice,
-  Row,
-  Section,
-  Shell,
-  T,
-  UserCard,
-  s,
+    Avatar,
+    Badge,
+    Button,
+    Card,
+    Chip,
+    Chips,
+    Empty,
+    Field,
+    go,
+    Icon,
+    IconButton,
+    Notice,
+    Row,
+    s,
+    Section,
+    Shell,
+    T,
+    UserCard,
 } from "./components";
 import { defaultFacets, people, personFor, useDemo } from "./store";
 import { colors as c } from "./theme";
-import { useRefreshPeople } from '../data/sample-workspace';
-import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
-import { useAuth } from "@/data/auth";
-import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
-import { fetchHostEarningSlabs, type HostEarningSlab } from "@/data/host-metrics";
 
 const formatCallTime = (seconds: number) => {
   const hours = Math.floor(seconds / 3600);
@@ -206,7 +206,6 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
           />
         </>
       )}
-      {mode === "explore" && <View style={{ marginTop: 8, gap: 4 }}><T size={26} bold>Hi, {d.profile.name?.split(" ")[0] || "there"} 👋</T><T color={c.secondary}>Who do you want to talk to today?</T></View>}
       <Section
         title={
           favorites
@@ -554,6 +553,10 @@ export function Chat({ id }: { id: string }) {
   }, [auth.demoPhone, otherPhone, refreshUnreadMessageCount, refreshUnreadNotificationCount, setOpenChatPhone]);
   const send = () => {
     if (!text.trim() || blocked) return;
+    if (text.trim().length > 500) {
+      setChatError("Messages can be up to 500 characters.");
+      return;
+    }
     if (!auth.demoPhone || !otherPhone) {
       setChatError("This conversation is not connected to a phone account.");
       return;
@@ -590,6 +593,7 @@ export function Chat({ id }: { id: string }) {
               value={text}
               onChangeText={(v) => d.setDrafts((x) => ({ ...x, [id]: v }))}
               multiline
+              maxLength={500}
               style={[
                 s.input,
                 {
@@ -638,28 +642,6 @@ export function Chat({ id }: { id: string }) {
         <Chip title="Today" />
       </Row>
       {chatError ? <Notice error>{chatError}</Notice> : null}
-      <Card
-        style={{
-          borderLeftWidth: 3,
-          borderLeftColor: c.mint,
-          borderRadius: 22,
-        }}
-      >
-        <Row>
-          <Icon name="phone-call" color={c.mint} />
-          <View style={{ flex: 1 }}>
-            <T bold>Audio call ended</T>
-            <T mono size={11} color={c.secondary}>
-              12 mins{d.paid ? " · ₹60 charged" : ""}
-            </T>
-          </View>
-        </Row>
-        <Button
-          title="View call"
-          variant="secondary"
-          onPress={() => go("/calls/detail/call-1")}
-        />
-      </Card>
       {(liveMessages.length ? liveMessages.map((m) => ({
         id: m.id,
         text: m.text,

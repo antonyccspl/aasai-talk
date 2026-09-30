@@ -41,7 +41,7 @@ export function AuthFrame({ children, otp, phone }: { children: React.ReactNode;
           </View>
           <View style={styles.logo}><View style={styles.logoIcon}><Text style={{ fontSize: 18 }}>📞</Text></View><AuthText size={20} bold color="#fff">Aasai Talk</AuthText></View>
           <View style={styles.bubbles} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            {[{ emoji: "😄", left: "6%", top: 18, size: 64, color: "#ffe1a8" }, { emoji: "🧑‍🎤", left: "32%", top: 0, size: 78, color: "#c9f2df" }, { emoji: "👩‍🦱", left: "64%", top: 22, size: 64, color: "#ffd0d6" }, { emoji: "🎧", left: "85%", top: -6, size: 52, color: "#d8dcff" }].map((a) => <View key={a.emoji} style={[styles.avatar, { left: a.left as `${number}%`, top: a.top, width: a.size, height: a.size, backgroundColor: a.color }]}><Text style={{ fontSize: a.size * 0.48 }}>{a.emoji}</Text></View>)}
+            {[{ emoji: "😄", left: "6%", top: 18, size: 64, color: "#ffe1a8" }, { emoji: "🧑‍🎤", left: "32%", top: 0, size: 78, color: "#c9f2df" }, { emoji: "👩‍🦱", left: "64%", top: 22, size: 64, color: "#ffd0d6" }, { emoji: "🎧", left: "82%", top: -6, size: 52, color: "#d8dcff" }].map((a) => <View key={a.emoji} style={[styles.avatar, { left: a.left as `${number}%`, top: a.top, width: a.size, height: a.size, backgroundColor: a.color }]}><Text style={{ fontSize: Math.min(a.size * 0.42, 32) }}>{a.emoji}</Text></View>)}
             <View style={styles.pill}><View style={styles.dot} /><AuthText size={12} bold>A new friendship starts here</AuthText></View>
           </View>
           <Text style={{ color: "#fff", fontSize: 30, lineHeight: 35, letterSpacing: -0.9, marginTop: 18, marginBottom: 8, fontFamily: ready ? "Figtree_800ExtraBold" : undefined, fontWeight: ready ? undefined : "800" }}>Talk. Laugh.{"\n"}Make a new friend.</Text>
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   logo: { flexDirection: "row", alignItems: "center", gap: 8 },
   logoIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   bubbles: { height: 120, marginTop: 22, marginBottom: 6 },
-  avatar: { position: "absolute", borderRadius: 99, borderWidth: 3, borderColor: "#ffffffeb", alignItems: "center", justifyContent: "center", elevation: 5 },
+  avatar: { position: "absolute", borderRadius: 99, borderWidth: 3, borderColor: "#ffffffeb", alignItems: "center", justifyContent: "center", overflow: "hidden", elevation: 5 },
   pill: { position: "absolute", bottom: -6, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingVertical: 8, paddingHorizontal: 14, borderRadius: 99, elevation: 5 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#3ecf8e" },
   card: { marginTop: -58, marginHorizontal: 18, backgroundColor: "#fff", borderRadius: 28, paddingHorizontal: 18, paddingTop: 22, paddingBottom: 20, gap: 14, boxShadow: "0 10px 30px rgba(226,55,68,0.14)" },

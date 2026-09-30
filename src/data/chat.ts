@@ -15,6 +15,8 @@ export type PhoneConversation = {
   last_created_at: string;
 };
 
+export const MAX_MESSAGE_LENGTH = 500;
+
 export function isValidPhoneNumber(phone: string) {
   return /^\+91\d{10}$/.test(phone);
 }
@@ -102,10 +104,14 @@ export async function sendPhoneMessage(
   if (!isValidPhoneNumber(phone) || !isValidPhoneNumber(otherPhone)) {
     throw new Error("Invalid phone");
   }
+  const sanitizedText = text.trim();
+  if (!sanitizedText || sanitizedText.length > MAX_MESSAGE_LENGTH) {
+    throw new Error(`Messages must be between 1 and ${MAX_MESSAGE_LENGTH} characters.`);
+  }
   const { data, error } = await supabase.rpc("send_phone_message", {
     input_sender_phone: phone,
     input_recipient_phone: otherPhone,
-    input_text: text,
+    input_text: sanitizedText,
   });
   if (error) throw new Error(error.message);
   if (!data || typeof data !== "object") throw new Error("Message was not saved.");
