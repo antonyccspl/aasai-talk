@@ -6,5 +6,5 @@
       "source": "/(.*)",
       "destination": "/"
     }
-  ]
+  ] 
 }
