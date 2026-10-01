@@ -47,19 +47,35 @@ function isEligibleBirthday(value: string) {
 
 function otpErrorMessage(error: unknown) {
   const detail = error instanceof Error ? error.message : String(error);
-  if (/unauthorized-domain|captcha|app-not-authorized|firebase web app settings/i.test(detail)) {
-    return "Browser phone login needs Firebase Web App settings and this site's domain authorized in Firebase.";
+  const code =
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof error.code === "string"
+      ? error.code.toLowerCase()
+      : "";
+  const providerError = `${code} ${detail}`.toLowerCase();
+  if (/unauthorized-domain|app-not-authorized|auth\/invalid-tenant-id|firebase web app settings/i.test(providerError)) {
+    return "This website is not authorized for Firebase phone sign-in. Add its hostname under Firebase Authentication > Settings > Authorized domains.";
   }
-  if (/operation-not-allowed|provider.*disabled|phone.*disabled/i.test(detail)) {
+  if (/captcha|invalid-app-credential|missing-app-credential/i.test(providerError)) {
+    return "Firebase could not verify this browser. Refresh the page, complete reCAPTCHA, and try again.";
+  }
+  if (/operation-not-allowed|provider.*disabled|phone.*disabled/i.test(providerError)) {
     return "Phone sign-in is not enabled in Firebase Authentication yet.";
   }
-  if (/too-many-requests|quota|throttl/i.test(detail)) {
-    return "Too many code requests. Please wait a few minutes and try again.";
+  if (/too-many-requests|quota-exceeded|throttl/i.test(providerError)) {
+    return "Firebase is temporarily limiting SMS requests. Wait for the cooldown, or use a configured Firebase test number.";
   }
-  if (/invalid-phone-number/i.test(detail)) {
+  if (/invalid-phone-number/i.test(providerError)) {
     return "Enter a valid mobile number with the +91 country code.";
   }
-  return "We could not send a verification code. Please try again.";
+  if (/network-request-failed|network error/i.test(providerError)) {
+    return "Could not reach Firebase. Check your connection and try again.";
+  }
+  return __DEV__ && code
+    ? `Could not send a verification code (Firebase: ${code}).`
+    : "We could not send a verification code. Please try again.";
 }
 
 function OnboardingProgress({ step, label }: { step: number; label: string }) {
