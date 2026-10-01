@@ -25,7 +25,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandGradient } from "./brand-gradient";
-import { coins, duration, Person, personFor, talkTime, useDemo } from "./store";
+import {
+    coins,
+    duration,
+    getEffectivePresenceStatus,
+    Person,
+    personFor,
+    talkTime,
+    useDemo,
+} from "./store";
 import { colors as c, fonts } from "./theme";
 export type IconName = React.ComponentProps<typeof Feather>["name"];
 export const go = (path: string) => router.push(path as never);
@@ -556,6 +564,7 @@ export function Wave({ large }: { large?: boolean }) {
   );
 }
 export function UserCard({ person, grid = false, index = 0 }: { person: Person; grid?: boolean; index?: number }) {
+  const d = useDemo();
   const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
   const showPhoto = Boolean(person.photo && failedPhoto !== person.photo);
   const [hostSlabs, setHostSlabs] = useState<HostCurrentSlab[]>([]);
@@ -589,6 +598,10 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
     (row) => row.call_type === "VIDEO",
   )?.diamonds_per_minute;
   const pulse = useRef(new Animated.Value(0.3)).current;
+  const effectiveStatus = getEffectivePresenceStatus(person, {
+    active: d.active,
+    available: person.status !== "Offline" || d.available,
+  });
   useEffect(() => {
     const animation = Animated.loop(
       Animated.sequence([
@@ -608,21 +621,21 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
     return () => animation.stop();
   }, [pulse]);
   const statusColor =
-    person.status === "Available"
+    effectiveStatus === "Available"
       ? c.success
-      : person.status === "Busy"
+      : effectiveStatus === "Busy"
         ? c.warning
         : c.error;
   if (grid) {
     const backgrounds = ["#c73543", "#6046c2", "#127e79", "#b95422"];
-    const available = person.status === "Available";
+    const available = effectiveStatus === "Available";
     return <View style={{ width: "48%", flexGrow: 1, minHeight: 224, borderRadius: 26, padding: 14, overflow: "hidden", backgroundColor: backgrounds[index % backgrounds.length], justifyContent: "flex-end" }}>
       <View pointerEvents="none" style={{ position: "absolute", width: 190, height: 190, borderRadius: 95, top: -70, right: -50, backgroundColor: "#ffffff15" }} />
       {showPhoto ? <>
         <Image source={{ uri: person.photo }} resizeMode="cover" accessibilityLabel={`${person.name} profile photo`} style={StyleSheet.absoluteFill} onError={() => setFailedPhoto(person.photo ?? null)} />
         <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 112, backgroundColor: "rgba(0,0,0,0.65)" }} />
       </> : <T bold size={58} color="#ffffff55" style={{ position: "absolute", top: 34, left: 0, right: 0, textAlign: "center" }}>{person.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</T>}
-      <View style={{ position: "absolute", top: 12, left: 12, flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, backgroundColor: "#00000047", paddingHorizontal: 10, paddingVertical: 5 }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: available ? "#5dffb0" : statusColor }} /><T size={11} bold color="#fff">{available ? "Online" : person.status}</T></View>
+      <View style={{ position: "absolute", top: 12, left: 12, flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, backgroundColor: "#00000047", paddingHorizontal: 10, paddingVertical: 5 }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: available ? "#5dffb0" : statusColor }} /><T size={11} bold color="#fff">{available ? "Online" : effectiveStatus === "Busy" ? "Busy" : "Offline"}</T></View>
       <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}`} onPress={() => go(`/user/${person.id}`)} style={{ paddingTop: 100, paddingBottom: 10 }}>
         <T size={16.5} bold color="#fff" numberOfLines={1}>{person.name}, {person.age}</T>
         <T size={12} color="#fff" numberOfLines={1}>{person.city} · {person.languages[0]}</T>
@@ -638,7 +651,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
   return (
     <Card style={{ position: "relative" }}>
       <Animated.View
-        accessibilityLabel={`${person.status} presence`}
+        accessibilityLabel={`${effectiveStatus} presence`}
         style={{
           position: "absolute",
           right: 12,
@@ -694,7 +707,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
           <Chip key={x} title={x} />
         ))}
       </Row>
-      {person.status === "Available" ? (
+      {effectiveStatus === "Available" ? (
         <Row>
           <Pressable
             accessibilityRole="button"
@@ -774,12 +787,12 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
         <Row>
           <View style={[s.button, { flex: 1, backgroundColor: c.high }]}>
             <Icon
-              name={person.status === "Busy" ? "phone-off" : "slash"}
+              name={effectiveStatus === "Busy" ? "phone-off" : "slash"}
               size={18}
               color={statusColor}
             />
             <T bold color={statusColor}>
-              {person.status === "Busy" ? "Busy on another call" : "Offline"}
+              {effectiveStatus === "Busy" ? "Busy on another call" : "Offline"}
             </T>
           </View>
           <Pressable

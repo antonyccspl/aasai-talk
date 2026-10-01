@@ -13,6 +13,10 @@ export type PhoneConversation = {
   other_phone: string;
   last_text: string;
   last_created_at: string;
+  other_username?: string | null;
+  other_display_name?: string | null;
+  other_avatar_url?: string | null;
+  other_is_host?: boolean;
 };
 
 export const MAX_MESSAGE_LENGTH = 500;
@@ -57,7 +61,11 @@ export async function fetchPhoneConversations(phone: string) {
     row && typeof row === "object" &&
     typeof row.other_phone === "string" &&
     typeof row.last_text === "string" &&
-    typeof row.last_created_at === "string"
+    typeof row.last_created_at === "string" &&
+    (row.other_username === undefined || row.other_username === null || typeof row.other_username === "string") &&
+    (row.other_display_name === undefined || row.other_display_name === null || typeof row.other_display_name === "string") &&
+    (row.other_avatar_url === undefined || row.other_avatar_url === null || typeof row.other_avatar_url === "string") &&
+    (row.other_is_host === undefined || typeof row.other_is_host === "boolean")
   ))
     throw new Error("Invalid conversations returned by the server.");
   return data as PhoneConversation[];
@@ -118,14 +126,12 @@ export async function sendPhoneMessage(
   const row = data as Record<string, unknown>;
   if (
     !isMessage(row.message) ||
-    row.coins_charged !== 1 ||
+    (row.coins_charged !== 0 && row.coins_charged !== 1) ||
     typeof row.remaining_coins !== "number"
   )
     throw new Error("Invalid message billing response.");
   return { message: row.message, remainingCoins: row.remaining_coins };
 }
-
-let channelCounter = 0;
 
 export function subscribeToPhoneMessages(
   phone: string,
@@ -133,26 +139,27 @@ export function subscribeToPhoneMessages(
   onMessage: (message: PhoneMessage) => void,
 ) {
   let active = true;
-  const suffix = ++channelCounter;
-  const channel = supabase
-    .channel(`phone-chat-${phone.replace(/\D/g, "")}-${otherPhone.replace(/\D/g, "")}-${suffix}`)
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "phone_messages" },
-      (payload) => {
-        if (!active || !isMessage(payload.new)) return;
-        const message = payload.new;
-        if (
-          (message.sender_phone === phone && message.recipient_phone === otherPhone) ||
-          (message.sender_phone === otherPhone && message.recipient_phone === phone)
-        )
-          onMessage(message);
-      },
-    )
-    .subscribe();
+  let initialized = false;
+  const seen = new Set<string>();
+  const poll = async () => {
+    try {
+      const messages = await fetchPhoneMessages(phone, otherPhone);
+      if (!active) return;
+      for (const message of messages) {
+        if (seen.has(message.id)) continue;
+        seen.add(message.id);
+        if (initialized) onMessage(message);
+      }
+      initialized = true;
+    } catch (error) {
+      if (active) console.warn("Chat refresh failed:", error);
+    }
+  };
+  void poll();
+  const timer = setInterval(() => void poll(), 2500);
   return () => {
     active = false;
-    void supabase.removeChannel(channel);
+    clearInterval(timer);
   };
 }
 
@@ -161,23 +168,30 @@ export function subscribeToAllPhoneMessages(
   onMessage: (message: PhoneMessage) => void,
 ) {
   let active = true;
-  const suffix = ++channelCounter;
-  const channel = supabase
-    .channel(`phone-inbox-${phone.replace(/\D/g, "")}-${suffix}`)
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "phone_messages" },
-      (payload) => {
-        if (active && isMessage(payload.new)) {
-          const message = payload.new;
-          if (message.sender_phone === phone || message.recipient_phone === phone)
-            onMessage(message);
-        }
-      },
-    )
-    .subscribe();
+  let initialized = false;
+  const seen = new Set<string>();
+  const poll = async () => {
+    try {
+      const notifications = await fetchPhoneMessageNotifications(phone);
+      if (!active) return;
+      for (const notification of notifications) {
+        if (seen.has(notification.id)) continue;
+        seen.add(notification.id);
+        if (initialized)
+          onMessage({
+            ...notification,
+            recipient_phone: phone,
+          });
+      }
+      initialized = true;
+    } catch (error) {
+      if (active) console.warn("Inbox refresh failed:", error);
+    }
+  };
+  void poll();
+  const timer = setInterval(() => void poll(), 3000);
   return () => {
     active = false;
-    void supabase.removeChannel(channel);
+    clearInterval(timer);
   };
 }

@@ -16,6 +16,7 @@ export type HostApplicationInput = {
   video: boolean;
   audioRate: string;
   videoRate: string;
+  photo?: string;
   aadhaarDocument: string;
   panDocument: string;
 };
@@ -24,10 +25,26 @@ export async function submitPhoneHostApplication(
   phone: string,
   application: HostApplicationInput,
 ) {
+  let photo = application.photo;
+  if (photo && !/^https?:\/\//i.test(photo)) {
+    const response = await fetch(photo);
+    if (!response.ok) throw new Error("The Host photo could not be read.");
+    const blob = await response.blob();
+    const path = `${phone.replace(/\D/g, "")}-host.jpg`;
+    const { error: uploadError } = await supabase.storage
+      .from("host-photos")
+      .upload(path, blob, {
+        contentType: blob.type || "image/jpeg",
+        upsert: true,
+      });
+    if (uploadError) throw uploadError;
+    photo = supabase.storage.from("host-photos").getPublicUrl(path).data.publicUrl;
+  }
   const fixedRateApplication = {
     ...application,
     audioRate: "2",
     videoRate: "5",
+    ...(photo ? { photo } : {}),
   };
   const { data, error } = await supabase.rpc("submit_phone_host_application", {
     input_phone: phone,

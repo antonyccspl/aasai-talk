@@ -1,25 +1,24 @@
-import React, { useEffect, useState } from "react";
-import { View } from "react-native";
-import { router } from "expo-router";
+import { useAuth } from "@/data/auth";
+import { submitPhoneHostApplication } from "@/data/host-applications";
+import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
+import { fetchHostDailyCallSummary, fetchHostDailyCallTime, type HostDailyCallSummary } from "@/data/host-metrics";
 import * as DocumentPicker from "expo-document-picker";
+import { router } from "expo-router";
+import { useEffect, useState } from "react";
 import {
-  Button,
-  Card,
-  Chip,
-  Field,
-  Notice,
-  Row,
-  Setting,
-  Shell,
-  T,
+    Button,
+    Card,
+    Chip,
+    Field,
+    Notice,
+    Row,
+    Setting,
+    Shell,
+    T,
 } from "./components";
 import { PhotoPicker } from "./photo-picker";
 import { useDemo } from "./store";
-import { submitPhoneHostApplication } from "@/data/host-applications";
-import { useAuth } from "@/data/auth";
 import { colors as c } from "./theme";
-import { fetchHostDailyCallSummary, fetchHostDailyCallTime, type HostDailyCallSummary } from "@/data/host-metrics";
-import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
 
 const hostDate = (value: string) => {
   const parsed = new Date(value.includes("T") ? value : `${value.slice(0, 10)}T00:00:00`);
@@ -256,7 +255,10 @@ export function HostApplication() {
                 setError("Your phone session is missing. Please sign in again.");
                 return;
               }
-              void submitPhoneHostApplication(auth.demoPhone, form)
+              void submitPhoneHostApplication(auth.demoPhone, {
+                ...form,
+                photo: d.photo || undefined,
+              })
                 .then(() => {
                   d.setHostStatus("pending");
                   router.replace("/host/status");

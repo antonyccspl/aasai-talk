@@ -7,11 +7,15 @@ import React, {
     useState,
 } from "react";
 import { useAuth } from "../data/auth";
-import { CallSlab, fetchCallSlabs } from "../data/call-slabs";
 import { fetchPhoneUnreadNotificationCount } from "../data/call-sessions";
+import { CallSlab, fetchCallSlabs } from "../data/call-slabs";
 import { fetchPhoneUnreadMessageCount, subscribeToAllPhoneMessages } from "../data/chat";
-import { DirectoryPerson } from "../data/directory";
+import {
+    derivePresenceStatus,
+    DirectoryPerson,
+} from "../data/directory";
 import { fetchPhoneHostApplicationStatus } from "../data/host-applications";
+import { fetchPhoneBlocks, submitPhoneSafetyReport } from "../data/phone-safety";
 import { fetchDemoProfile, fetchOwnProfile } from "../data/profile";
 import {
     usePlatformContext,
@@ -87,7 +91,7 @@ export type Transaction = {
 };
 
 function useDemoState() {
-  const { user, demoPhone } = useAuth();
+  const { user, demoPhone, getIdentityToken } = useAuth();
   const platform = usePlatformContext();
   const [ratings, setRatings] = useWorkspaceField<
     { person: string; stars: number; review: string; date: string }[]
@@ -204,6 +208,22 @@ function useDemoState() {
     "kavya",
   ]);
   const [blocked, setBlocked] = useWorkspaceField<string[]>("blocked", []);
+  useEffect(() => {
+    if (!demoPhone) return;
+    let active = true;
+    void getIdentityToken()
+      .then(fetchPhoneBlocks)
+      .then((phones) => {
+        if (active)
+          setBlocked(phones.map((phone) => `phone_${phone.replace(/\D/g, "")}`));
+      })
+      .catch((error) => {
+        if (active) console.warn("Unable to load phone block list:", error);
+      });
+    return () => {
+      active = false;
+    };
+  }, [demoPhone, getIdentityToken, setBlocked]);
   const [available, setAvailable] = useWorkspaceField("available", true);
   const [profile, setProfile] = useState(EMPTY_PROFILE);
   const identityKey = demoPhone || user?.id || null;
@@ -474,25 +494,18 @@ function useDemoState() {
     reason: string,
     details: string,
   ) => {
-    const payload = {
-      reporter_name: profile.name || "Anonymous User",
-      reported_user_id: reportedUserId,
-      reported_user_name: reportedUserName,
+    const digits = reportedUserId.startsWith("phone_")
+      ? reportedUserId.slice("phone_".length)
+      : "";
+    const targetPhone = digits ? `+${digits}` : "";
+    if (!targetPhone || !demoPhone)
+      throw new Error("This profile cannot be reported from the current account.");
+    await submitPhoneSafetyReport(
+      await getIdentityToken(),
+      targetPhone,
       reason,
       details,
-      status: "Open",
-    };
-    const response = await fetch(`${supabaseUrl}/rest/v1/safety_reports`, {
-      method: "POST",
-      headers: {
-        apikey: supabasePublishableKey,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok)
-      throw new Error(`Safety report request failed (${response.status}).`);
+    );
     setReports((v) => [`${reason} · ${reportedUserName}`, ...v]);
     void platform.refreshPlatformData();
   };
@@ -652,7 +665,32 @@ export function useDemo() {
 }
 
 export function personFor(id?: string) {
-  return people.find((p) => p.id === id) || people[0];
+  const match = people.find((person) => person.id === id);
+  if (match) return match;
+  return {
+    id: id || "unknown",
+    name: id?.startsWith("phone_") ? "Caller" : "Person unavailable",
+    age: 0,
+    gender: "",
+    city: "",
+    languages: [],
+    interests: [],
+    bio: "",
+    status: derivePresenceStatus({ baseStatus: "Offline", available: false }),
+    color: "#e23744",
+  } satisfies Person;
+}
+
+export function getEffectivePresenceStatus(
+  person: Pick<Person, "id" | "status">,
+  { active, available }: { active?: { person?: string } | null; available?: boolean } = {},
+): Person["status"] {
+  return derivePresenceStatus({
+    baseStatus: person.status,
+    activeCallPersonId: active?.person,
+    currentPersonId: person.id,
+    available: available ?? true,
+  });
 }
 
 export const money = (amount: number) => `₹${amount.toLocaleString("en-IN")}`;

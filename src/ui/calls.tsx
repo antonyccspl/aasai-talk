@@ -1,57 +1,60 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Pressable, Vibration, View } from "react-native";
-import { router } from "expo-router";
+import { useAuth } from "@/data/auth";
 import {
-  Avatar,
-  Badge,
-  Button,
-  Card,
-  Chips,
-  Empty,
-  go,
-  Icon,
-  IconButton,
-  Notice,
-  Row,
-  Section,
-  Setting,
-  Shell,
-  T,
-  Wave,
+    acceptPhoneCallVideoUpgrade,
+    fetchPhoneCallSummary,
+    fetchPhoneHostCallCapabilities,
+    requestPhoneCallVideoUpgrade,
+    settlePhoneCall,
+    startPhoneCall,
+    subscribeToPhoneCall,
+    updatePhoneCall,
+} from "@/data/call-sessions";
+import { startCallSound, stopCallSound } from "@/data/call-sounds";
+import { fetchHostCurrentSlabs } from "@/data/host-metrics";
+import { router } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AppState, Pressable, Vibration, View } from "react-native";
+import {
+    Avatar,
+    Badge,
+    Button,
+    Card,
+    Chips,
+    Empty,
+    go,
+    IconButton,
+    Notice,
+    Row,
+    Section,
+    Setting,
+    Shell,
+    T,
+    Wave
 } from "./components";
 import { coins, duration, people, personFor, talkTime, useDemo } from "./store";
 import { colors as c } from "./theme";
-import {
-  startPhoneCall,
-  fetchPhoneCallSummary,
-  fetchPhoneHostCallCapabilities,
-  acceptPhoneCallVideoUpgrade,
-  requestPhoneCallVideoUpgrade,
-  updatePhoneCall,
-  settlePhoneCall,
-  subscribeToPhoneCall,
-} from "@/data/call-sessions";
-import { useAuth } from "@/data/auth";
 import { ZegoMedia } from "./zego-media";
-import { startCallSound, stopCallSound } from "@/data/call-sounds";
-import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 
 export function CallScreen({
   mode,
   id,
   type = "audio",
   sessionId = "",
+  participantName,
 }: {
   mode: string;
   id: string;
   type?: string;
   sessionId?: string;
+  participantName?: string;
 }) {
   const d = useDemo();
   const auth = useAuth();
   const p = people.find((person) => person.id === id) ?? {
     id,
-    name: "Caller",
+    name: mode === "incoming" && participantName
+      ? `@${participantName.replace(/^@/, "")}`
+      : "Caller",
     status: "Available" as const,
     photo: undefined,
     color: c.mint,
@@ -987,13 +990,22 @@ export function CallDetail({
 }) {
   const d = useDemo();
   const auth = useAuth();
-  const call =
+  const hostViewer = d.hostStatus === "approved";
+  const localCall =
     d.calls.find((x) => x.id === id) ||
-    d.calls.find((x) => x.person === id) ||
-    d.calls[0];
+    d.calls.find((x) => x.person === id);
+  const call = localCall ?? {
+    id,
+    person: id,
+    type: "audio" as const,
+    status: status || "Ended",
+    seconds: 0,
+    incoming: hostViewer,
+  };
   const [summary, setSummary] = useState<Awaited<
     ReturnType<typeof fetchPhoneCallSummary>
   > | null>(null);
+  const [summaryError, setSummaryError] = useState("");
   const p = personFor(call.person);
   const sessionId = /^[0-9a-f-]{36}$/.test(call.id) ? call.id : "";
   useEffect(() => {
@@ -1001,9 +1013,15 @@ export function CallDetail({
     let active = true;
     void fetchPhoneCallSummary(sessionId, auth.demoPhone)
       .then((value) => {
-        if (active) setSummary(value);
+        if (active) {
+          setSummary(value);
+          setSummaryError("");
+        }
       })
-      .catch((error) => console.error("Failed to load call summary:", error));
+      .catch((error) => {
+        console.error("Failed to load call summary:", error);
+        if (active) setSummaryError("Call details could not be loaded. Pull to refresh and try again.");
+      });
     if (!call.incoming) {
       void d.refreshWalletBalance().catch((error) =>
         console.error("Failed to refresh the caller wallet for the receipt:", error),
@@ -1016,20 +1034,33 @@ export function CallDetail({
   const displaySeconds = summary?.duration_seconds ?? call.seconds;
   const displayCoins = summary?.coins_charged ?? call.chargedCoins;
   const displayStatus = summary?.status ?? status ?? call.status;
+  const counterpartName = hostViewer
+    ? summary?.counterpart_username
+      ? `@${summary.counterpart_username}`
+      : "Caller"
+    : summary?.counterpart_is_host
+      ? summary.counterpart_display_name || p.name
+      : p.name;
+  const counterpart = {
+    ...p,
+    name: counterpartName,
+    photo: summary?.counterpart_avatar_url ?? p.photo,
+  };
   const canCallAgain =
     d.profile.gender === "Male" && d.hostStatus !== "approved";
   return (
     <Shell title={result ? "Call summary" : "Call details"}>
       <View style={{ alignItems: "center", gap: 12, padding: 14 }}>
-        <Avatar person={p} size={84} />
+        <Avatar person={counterpart} size={84} />
         <T size={23} bold>
-          {result ? `Call ${displayStatus.toLowerCase()}` : p.name}
+          {result ? `Call ${displayStatus.toLowerCase()}` : counterpartName}
         </T>
         <T color={c.secondary}>
-          {p.name} · {call.type} call
+          {counterpartName} · {summary?.call_type ?? call.type} call
         </T>
         <Badge text={displayStatus} />
       </View>
+      {summaryError ? <Notice error>{summaryError}</Notice> : null}
       <Card>
         <Setting
           title="Duration"
@@ -1063,14 +1094,14 @@ export function CallDetail({
       <Button
         title="Send a message"
         icon="message-circle"
-        onPress={() => go(`/chat/${p.id}`)}
+        onPress={() => go(hostViewer ? "/messages" : `/chat/${p.id}`)}
       />
       {canCallAgain && (
         <Button
           title="Call again"
           variant="secondary"
           icon="phone"
-          onPress={() => go(`/calls/outgoing/${p.id}?type=${call.type}`)}
+          onPress={() => go(`/calls/outgoing/${p.id}?type=${summary?.call_type ?? call.type}`)}
         />
       )}
       <Button

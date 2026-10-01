@@ -1,13 +1,13 @@
-import type { Session, User } from "@supabase/supabase-js";
 import {
-  getAuth,
-  onAuthStateChanged,
-  signInWithPhoneNumber,
-  signOut as firebaseSignOut,
-  type ConfirmationResult,
+    signOut as firebaseSignOut,
+    getAuth,
+    onAuthStateChanged,
+    signInWithPhoneNumber,
+    type ConfirmationResult,
 } from "@react-native-firebase/auth";
+import type { Session, User } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { supabase } from "./supabase";
 
@@ -19,6 +19,7 @@ type AuthContextValue = {
   demoPhone: string | null;
   demoProfileComplete: boolean;
   loading: boolean;
+  getIdentityToken: () => Promise<string>;
   sendOtp: (phone: string) => Promise<void>;
   verifyOtp: (phone: string, token: string) => Promise<boolean>;
   signOut: () => Promise<void>;
@@ -150,6 +151,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setDemoProfileComplete(false);
   };
 
+  const getIdentityToken = useCallback(async () => {
+    const firebaseUser = getAuth().currentUser;
+    if (!firebaseUser) throw new Error("You must be signed in to continue.");
+    return firebaseUser.getIdToken();
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -159,6 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         demoPhone,
         demoProfileComplete,
         loading,
+        getIdentityToken,
         sendOtp,
         verifyOtp,
         signOut,

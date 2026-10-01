@@ -1,7 +1,7 @@
+import { Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold, useFonts } from "@expo-google-fonts/figtree";
 import React, { createContext, useContext, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFonts, Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold } from "@expo-google-fonts/figtree";
 
 export const authColors = { background: "#fff8f3", ink: "#1c1c1c", muted: "#6b6b6b", line: "#eadfd6", brand: "#e23744" };
 const FontReady = createContext(false);
@@ -10,9 +10,14 @@ export function AuthText({ children, size = 14, bold = false, color = authColors
   return <Text style={{ color, fontSize: size, lineHeight: size * 1.4, fontFamily: ready ? (bold ? "Figtree_700Bold" : "Figtree_400Regular") : undefined, fontWeight: ready ? undefined : bold ? "700" : "400" }}>{children}</Text>;
 }
 
-export function AuthButton({ title, onPress, disabled, variant }: { title: string; onPress: () => void; disabled?: boolean; variant?: "secondary"; icon?: string }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.button, variant === "secondary" && styles.secondary, { opacity: disabled ? 0.5 : pressed ? 0.8 : 1 }]}>
-    <AuthText size={variant === "secondary" ? 15 : 17} bold color={variant === "secondary" ? authColors.brand : "#fff"}>{title}</AuthText>
+export function AuthButton({ title, onPress, disabled, loading, variant }: { title: string; onPress: () => void; disabled?: boolean; loading?: boolean; variant?: "secondary"; icon?: string }) {
+  const unavailable = disabled || loading;
+  const color = variant === "secondary" ? authColors.brand : "#fff";
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!unavailable, busy: !!loading }} disabled={unavailable} onPress={onPress} style={({ pressed }) => [styles.button, variant === "secondary" && styles.secondary, { opacity: unavailable ? 0.5 : pressed ? 0.8 : 1 }]}>
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
+      {loading && <ActivityIndicator size="small" color={color} />}
+      <AuthText size={variant === "secondary" ? 15 : 17} bold color={color}>{title}</AuthText>
+    </View>
   </Pressable>;
 }
 

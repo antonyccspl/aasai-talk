@@ -6,6 +6,7 @@ export type ZegoCallToken = {
   roomId: string;
   token: string;
   expiresAt: number;
+  webServerUrl?: string;
 };
 
 export async function fetchZegoCallToken(
@@ -59,5 +60,8 @@ export async function fetchZegoCallToken(
     roomId: data.room_id,
     token: data.token,
     expiresAt: data.expires_at,
+    ...(typeof data.web_server_url === "string" && data.web_server_url
+      ? { webServerUrl: data.web_server_url }
+      : {}),
   };
 }

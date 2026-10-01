@@ -1,26 +1,26 @@
-import React from "react";
-import { useLocalSearchParams, Redirect, router } from "expo-router";
-import {
-  Discovery,
-  Filters,
-  UserProfile,
-  Conversations,
-  Chat,
-} from "@/ui/social";
-import {
-  Auth,
-  Profile,
-  ProfileEdit,
-  Settings,
-  Safety,
-  Notifications,
-  ServiceState,
-} from "@/ui/account";
-import { CallScreen, CallsList, CallDetail } from "@/ui/calls";
-import { Wallet } from "@/ui/wallet";
-import { Preview } from "@/ui/preview";
-import { HostApplication, HostStatus, HostWithdrawals } from "@/ui/host";
 import { useAuth } from "@/data/auth";
+import {
+    Auth,
+    Notifications,
+    Profile,
+    ProfileEdit,
+    Safety,
+    ServiceState,
+    Settings,
+} from "@/ui/account";
+import { CallDetail, CallScreen, CallsList } from "@/ui/calls";
+import { HostApplication, HostStatus, HostWithdrawals } from "@/ui/host";
+import { Preview } from "@/ui/preview";
+import {
+    Chat,
+    Conversations,
+    Discovery,
+    Filters,
+    UserProfile,
+} from "@/ui/social";
+import { Wallet } from "@/ui/wallet";
+import { Redirect, useLocalSearchParams } from "expo-router";
+import React from "react";
 
 export default function Route() {
   const { loading, authenticated, demoPhone } = useAuth();
@@ -29,6 +29,7 @@ export default function Route() {
     type?: string;
     status?: string;
     session?: string;
+    name?: string;
   }>();
   const parts = Array.isArray(params.route)
     ? params.route
@@ -66,7 +67,7 @@ export default function Route() {
     ) : action === "detail" || action === "result" ? (
       <CallDetail id={id} result={action === "result"} status={params.status} />
     ) : (
-      <CallScreen mode={action} id={id} type={params.type} sessionId={params.session} />
+      <CallScreen mode={action} id={id} type={params.type} sessionId={params.session} participantName={params.name} />
     );
   else if (root === "wallet")
     screen = <Wallet mode={action || "wallet"} id={id} />;

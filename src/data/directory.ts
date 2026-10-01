@@ -14,6 +14,41 @@ export type DirectoryPerson = {
   color: string;
 };
 
+export type DirectoryStatus = DirectoryPerson['status'];
+
+export function normalizePresenceStatus(
+  value: unknown,
+  fallback: DirectoryStatus = 'Offline',
+): DirectoryStatus {
+  return value === 'Available' || value === 'Busy' || value === 'Offline'
+    ? value
+    : fallback;
+}
+
+export function derivePresenceStatus({
+  baseStatus,
+  activeCallPersonId,
+  currentPersonId,
+  available = true,
+}: {
+  baseStatus?: string | null;
+  activeCallPersonId?: string | null;
+  currentPersonId?: string | null;
+  available?: boolean;
+}): DirectoryStatus {
+  const normalized = normalizePresenceStatus(baseStatus);
+
+  if (activeCallPersonId && currentPersonId && activeCallPersonId === currentPersonId) {
+    return 'Busy';
+  }
+
+  if (!available) {
+    return 'Offline';
+  }
+
+  return normalized;
+}
+
 type DirectoryRow = {
   id: string; display_name: string; age: number; gender: string; city: string;
   languages: string[]; interests: string[]; bio: string; availability: DirectoryPerson['status'];
@@ -38,6 +73,6 @@ export async function fetchDirectoryProfiles(signal?: AbortSignal): Promise<Dire
     (row.avatar_url === null || typeof row.avatar_url === 'string')
   )) throw new Error('Invalid people directory.');
   return rows.map(row => ({ id: row.id, name: row.display_name, age: row.age, gender: row.gender, city: row.city,
-    languages: row.languages, interests: row.interests, bio: row.bio, status: row.availability,
+    languages: row.languages, interests: row.interests, bio: row.bio, status: normalizePresenceStatus(row.availability),
     photo: row.avatar_url ?? undefined, color: row.accent_color }));
 }

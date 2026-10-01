@@ -73,10 +73,29 @@ female Host and returns a unique room ID. The `update_phone_call` RPC records
 the lifecycle and duration. The client wrappers are in
 `src/data/call-sessions.ts`.
 
-The current call screen uses this server lifecycle but still displays the
-prototype media UI. ZEGOCLOUD integration is the next step. Its App Sign must
-be kept in a server-side token function; it must not be added to
-`.env.local` as an `EXPO_PUBLIC_` value or shipped in the client.
+The native call screen uses the React Native ZEGOCLOUD SDK. Browser calls use
+`zego-express-engine-webrtc`; set `ZEGO_WEB_SERVER_URL` as a Supabase Edge
+Function secret to the WebRTC server address for the same ZEGO project as
+`ZEGO_APP_ID`. Keep the ServerSecret/AppSign in Edge Function Secrets only; do
+not add it to `.env.local` as an `EXPO_PUBLIC_` value or ship it in the client.
+
+Phone block, report, and account-deletion requests use the `phone-safety` Edge
+Function. Before deploying it, link the Supabase project, set
+`FIREBASE_PROJECT_ID` as an Edge Function secret, apply the migrations, and
+deploy the functions:
+
+```bash
+npx supabase link --project-ref your-project-ref
+npx supabase secrets set FIREBASE_PROJECT_ID=your-firebase-project-id
+npx supabase db push
+npx supabase functions deploy phone-safety
+npx supabase functions deploy zego-token
+```
+
+The function verifies Firebase ID tokens. Its service-role key remains a
+Supabase-managed server secret and must never be added to the client or Vercel
+`EXPO_PUBLIC_` variables. Account deletion currently records a server request;
+automatic data erasure still requires a scheduled server-side processor.
 
 ### Other setup steps
 

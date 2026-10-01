@@ -119,7 +119,7 @@ function HostDashboardHome() {
       </Row>
       <Section title="Recent activity" action="View calls" onPress={() => go("/calls")} />
       {dashboard?.recent_calls.map((call) => {
-        const contact = people.find((person) => person.id === `phone_${call.caller_phone.replace("+", "")}`);
+        const contactName = call.caller_username ? `@${call.caller_username}` : "Caller";
         const label = call.status === "ended" ? `${call.call_type === "video" ? "Video" : "Audio"} call completed` : call.status === "missed" ? `Missed ${call.call_type} call` : "Call declined";
         return (
           <Pressable key={call.id} onPress={() => go(`/calls/detail/${call.id}`)} style={{ backgroundColor: c.low, padding: 16, borderRadius: 18 }}>
@@ -127,7 +127,7 @@ function HostDashboardHome() {
               <Icon name={call.call_type === "video" ? "video" : "phone"} color={c.mint} />
               <View style={{ flex: 1, gap: 2 }}>
                 <T bold>{label}</T>
-                <T size={12} color={c.secondary}>{contact?.name || "Caller"} · {new Date(call.created_at).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</T>
+                <T size={12} color={c.secondary}>{contactName} · {new Date(call.created_at).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</T>
               </View>
               {call.status === "ended" && <T mono size={11} color={c.muted}>{formatCallTime(call.duration_seconds)}</T>}
             </Row>
@@ -339,6 +339,7 @@ export function UserProfile({ id }: { id: string }) {
   const p = personFor(id);
   const d = useDemo();
   const blocked = d.blocked.includes(id);
+  const isApprovedHost = d.hostStatus === "approved";
   return (
     <Shell title="Meet someone new">
       <View style={{ alignItems: "center", gap: 16, paddingVertical: 15 }}>
@@ -367,7 +368,7 @@ export function UserProfile({ id }: { id: string }) {
       </Card>
       {!blocked && (
         <>
-          <Row>
+          {!isApprovedHost && <Row>
             <Button
               title="Audio call"
               icon="phone"
@@ -381,8 +382,8 @@ export function UserProfile({ id }: { id: string }) {
               style={{ flex: 1 }}
               onPress={() => go(`/calls/outgoing/${id}?type=video`)}
             />
-          </Row>
-          {d.paid && (
+          </Row>}
+          {d.paid && !isApprovedHost && (
             <T mono size={11} color={c.muted}>
               Audio {d.callSlabs.find(row => row.call_type === 'AUDIO')?.diamonds_per_minute ?? '—'} diamonds/min · Video {d.callSlabs.find(row => row.call_type === 'VIDEO')?.diamonds_per_minute ?? '—'} diamonds/min
             </T>
@@ -424,8 +425,9 @@ export function UserProfile({ id }: { id: string }) {
 }
 export function Conversations() {
   const auth = useAuth();
+  const d = useDemo();
   const [query, setQuery] = useState("");
-  const [conversations, setConversations] = useState<{ otherPhone: string; text: string; time: string }[]>([]);
+  const [conversations, setConversations] = useState<{ otherPhone: string; text: string; time: string; username?: string | null; displayName?: string | null; avatarUrl?: string | null; isHost?: boolean }[]>([]);
   const loadConversations = async () => {
     if (!auth.demoPhone) return;
     const rows = await fetchPhoneConversations(auth.demoPhone);
@@ -433,6 +435,10 @@ export function Conversations() {
       otherPhone: row.other_phone,
       text: row.last_text,
       time: new Date(row.last_created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      username: row.other_username,
+      displayName: row.other_display_name,
+      avatarUrl: row.other_avatar_url,
+      isHost: row.other_is_host,
     })));
   };
   useEffect(() => {
@@ -447,7 +453,11 @@ export function Conversations() {
       conversation,
       person: people.find((item) => item.id === `phone_${conversation.otherPhone.replace("+", "")}`) ?? {
         id: `phone_${conversation.otherPhone.replace("+", "")}`,
-        name: "Conversation",
+        name: d.hostStatus === "approved"
+          ? conversation.username ? `@${conversation.username}` : "Caller"
+          : conversation.isHost
+            ? conversation.displayName || "Host"
+            : conversation.username ? `@${conversation.username}` : "Conversation",
         age: 0,
         gender: "",
         city: "",
@@ -456,6 +466,7 @@ export function Conversations() {
         bio: "",
         status: "Available" as const,
         color: c.mint,
+        ...(d.hostStatus === "approved" ? {} : conversation.avatarUrl ? { photo: conversation.avatarUrl } : {}),
       },
     }))
     .filter((item) => item.person.name.toLowerCase().includes(query.toLowerCase()));
@@ -515,11 +526,36 @@ export function Chat({ id }: { id: string }) {
   const { refreshUnreadMessageCount, refreshUnreadNotificationCount, setOpenChatPhone } = d;
   const auth = useAuth();
   const p = personFor(id);
+  const isApprovedHost = d.hostStatus === "approved";
+  const [hostCallerUsername, setHostCallerUsername] = useState("");
+  const chatPerson = isApprovedHost
+    ? {
+        ...p,
+        name: hostCallerUsername ? `@${hostCallerUsername}` : "Caller",
+        photo: undefined,
+      }
+    : p;
   const [liveMessages, setLiveMessages] = useState<PhoneMessage[]>([]);
   const [chatError, setChatError] = useState("");
   const blocked = d.blocked.includes(id);
   const text = d.drafts[id] || "";
   const otherPhone = id.startsWith("phone_") ? `+${id.slice("phone_".length)}` : "";
+  useEffect(() => {
+    if (!isApprovedHost || !auth.demoPhone || !otherPhone) {
+      setHostCallerUsername("");
+      return;
+    }
+    let active = true;
+    void fetchPhoneConversations(auth.demoPhone)
+      .then((rows) => {
+        if (active)
+          setHostCallerUsername(
+            rows.find((row) => row.other_phone === otherPhone)?.other_username || "",
+          );
+      })
+      .catch((error) => console.warn("Unable to load caller username:", error));
+    return () => { active = false; };
+  }, [auth.demoPhone, isApprovedHost, otherPhone]);
   useEffect(() => {
     if (!auth.demoPhone || !otherPhone) return;
     let active = true;
@@ -616,27 +652,31 @@ export function Chat({ id }: { id: string }) {
       }
     >
       <Row>
-        <Avatar person={p} size={44} />
+        <Avatar person={chatPerson} size={44} />
         <View style={{ flex: 1 }}>
-          <Pressable onPress={() => go(`/user/${id}`)}>
+          {isApprovedHost ? (
             <T bold size={17}>
-              {p.name}
+              {hostCallerUsername ? `@${hostCallerUsername}` : "Caller"}
             </T>
-          </Pressable>
+          ) : (
+            <Pressable onPress={() => go(`/user/${id}`)}>
+              <T bold size={17}>{p.name}</T>
+            </Pressable>
+          )}
           <T mono size={10} color={c.mint}>
             {blocked ? "BLOCKED" : p.status.toUpperCase()}
           </T>
         </View>
-        <IconButton
+        {!isApprovedHost && !blocked && <IconButton
           icon="phone"
           label="Audio call"
           onPress={() => go(`/calls/outgoing/${id}?type=audio`)}
-        />
-        <IconButton
+        />}
+        {!isApprovedHost && !blocked && <IconButton
           icon="video"
           label="Video call"
           onPress={() => go(`/calls/outgoing/${id}?type=video`)}
-        />
+        />}
       </Row>
       <Row style={{ justifyContent: "center" }}>
         <Chip title="Today" />

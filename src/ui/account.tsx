@@ -1,6 +1,11 @@
 import { useAuth } from "@/data/auth";
 import { fetchPhoneCallNotifications, markPhoneCallNotificationRead, type PhoneCallNotification } from "@/data/call-sessions";
 import { fetchPhoneMessageNotifications, subscribeToAllPhoneMessages, type PhoneMessageNotification } from "@/data/chat";
+import {
+    requestPhoneAccountDeletion,
+    setPhoneBlock,
+    type PhoneDeletionReason,
+} from "@/data/phone-safety";
 import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
@@ -383,6 +388,7 @@ export function Auth({ mode }: { mode: string }) {
           <AuthButton
             title={busy ? "Verifying…" : "Verify OTP"}
             disabled={busy}
+            loading={busy}
             onPress={() => {
               if (code.length !== 6 || !otpPhone) {
                 setError("Enter the six-digit verification code.");
@@ -418,6 +424,7 @@ export function Auth({ mode }: { mode: string }) {
             }
             variant="secondary"
             disabled={resendSeconds > 0 || busy}
+            loading={busy}
             onPress={() => {
               setSent(true);
               setResendSeconds(60);
@@ -460,7 +467,9 @@ export function Auth({ mode }: { mode: string }) {
             />
           )}
           <AuthButton
-            title="Continue with phone"
+            title={busy ? "Sending code…" : "Continue with phone"}
+            disabled={busy}
+            loading={busy}
             icon="arrow-right"
             onPress={() => {
               if (!/^\d{10}$/.test(phone)) {
@@ -801,6 +810,7 @@ export function Settings({
   const [question, setQuestion] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [otherDeleteReason, setOtherDeleteReason] = useState("");
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const refreshAccountData = async () => {
     setRefreshing(true);
@@ -1003,7 +1013,7 @@ export function Settings({
           message={
             mode === "logout"
               ? "You can return to your conversations after signing in."
-              : "Your account will be scheduled for deletion. Your profile, conversations and personal data will be cleared after 15 days."
+              : "Submit a deletion request for review. Your account remains active until the request is processed."
           }
         />
         {d.active && (
@@ -1039,9 +1049,9 @@ export function Settings({
               />
             )}
             <Notice>
-              After you submit, your account enters a 15-day deletion period.
-              Your profile, conversations and personal data will be cleared at
-              the end of that period.
+              The request is stored on the server with a 15-day review window.
+              Automatic data erasure is not configured yet, so this request
+              does not delete your account by itself.
             </Notice>
             <Field
               label="Type DELETE to confirm"
@@ -1056,6 +1066,7 @@ export function Settings({
           variant="danger"
           disabled={
             !!d.active ||
+            deleteSubmitting ||
             (mode === "delete-account" &&
               (confirmation !== "DELETE" ||
                 !deleteReason ||
@@ -1075,14 +1086,31 @@ export function Settings({
                   setMessage("We could not log you out. Please try again.");
                 });
             } else {
-              d.setDeletionRequest({
-                reason: deleteReason,
-                details: otherDeleteReason.trim(),
-                requestedAt: new Date().toISOString(),
-              });
-              setMessage(
-                "Your deletion request is saved. The intended retention period is 15 days; automatic deletion is not enabled in this sample environment.",
-              );
+              setDeleteSubmitting(true);
+              void auth
+                .getIdentityToken()
+                .then((idToken) =>
+                  requestPhoneAccountDeletion(
+                    idToken,
+                    deleteReason as PhoneDeletionReason,
+                    otherDeleteReason.trim(),
+                  ),
+                )
+                .then((scheduledFor) => {
+                  d.setDeletionRequest({
+                    reason: deleteReason,
+                    details: otherDeleteReason.trim(),
+                    requestedAt: new Date().toISOString(),
+                  });
+                  setMessage(
+                    `Your deletion request was recorded for review after ${new Date(scheduledFor).toLocaleDateString()}. Your account has not been deleted; automatic erasure is not configured yet.`,
+                  );
+                })
+                .catch((error) => {
+                  console.error("Failed to submit account deletion request:", error);
+                  setMessage("We could not submit your deletion request. Please try again.");
+                })
+                .finally(() => setDeleteSubmitting(false));
             }
           }}
         />
@@ -1152,12 +1180,15 @@ export function Settings({
 }
 export function Safety({ id, mode }: { id: string; mode: string }) {
   const d = useDemo();
+  const auth = useAuth();
   const p = personFor(id);
   const [reason, setReason] = useState("");
   const [description, setDescription] = useState("");
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [blockError, setBlockError] = useState("");
+  const [blockSubmitting, setBlockSubmitting] = useState(false);
   const [stars, setStars] = useState(0);
   const blocked = d.blocked.includes(id);
   if (mode === "block")
@@ -1168,20 +1199,42 @@ export function Safety({ id, mode }: { id: string; mode: string }) {
           title={`${blocked ? "Unblock" : "Block"} ${p.name}?`}
           message={
             blocked
-              ? "They will become eligible for future chats and calls in this preview."
-              : "They will be removed from your discovery results. Chat and call actions with them will be disabled in this preview."
+              ? "They will be eligible for discovery, chat, and calls again."
+              : "They will be removed from discovery, and the server will prevent chats and calls between you."
           }
         />
         <Button
           title={blocked ? "Unblock" : "Block person"}
           variant={blocked ? "primary" : "danger"}
+          disabled={blockSubmitting}
           onPress={() => {
-            d.setBlocked((v) =>
-              blocked ? v.filter((x) => x !== id) : [...v, id],
-            );
-            router.replace(`/user/${id}` as never);
+            const digits = id.startsWith("phone_")
+              ? id.slice("phone_".length)
+              : "";
+            const targetPhone = digits ? `+${digits}` : "";
+            setBlockSubmitting(true);
+            setBlockError("");
+            void (async () => {
+              if (targetPhone && auth.demoPhone) {
+                await setPhoneBlock(
+                  await auth.getIdentityToken(),
+                  targetPhone,
+                  !blocked,
+                );
+              }
+              d.setBlocked((values) =>
+                blocked ? values.filter((value) => value !== id) : [...values, id],
+              );
+              router.replace(`/user/${id}` as never);
+            })()
+              .catch((error) => {
+                console.error("Unable to update phone block:", error);
+                setBlockError(error instanceof Error ? error.message : "Unable to update your block list.");
+              })
+              .finally(() => setBlockSubmitting(false));
           }}
         />
+        {blockError ? <Notice error>{blockError}</Notice> : null}
         <Button
           title="Cancel"
           variant="secondary"
@@ -1239,7 +1292,7 @@ export function Safety({ id, mode }: { id: string; mode: string }) {
           <Empty
             icon="check-circle"
             title="Your concern has been noted"
-            message="Your report has been added to this workspace for review."
+            message="Your report has been submitted to the server for review."
           />
           <Button
             title="Block this person too"

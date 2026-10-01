@@ -10,7 +10,7 @@ export type HostDashboard = {
   missed_calls: number;
   recent_calls: {
     id: string;
-    caller_phone: string;
+    caller_username?: string;
     call_type: "audio" | "video";
     status: "ended" | "missed" | "rejected";
     duration_seconds: number;
@@ -29,7 +29,8 @@ export async function fetchPhoneHostDashboard(phone: string) {
   if (!row.recent_calls.every((item) => {
     if (!item || typeof item !== "object") return false;
     const call = item as Record<string, unknown>;
-    return typeof call.id === "string" && typeof call.caller_phone === "string" &&
+    return typeof call.id === "string" &&
+      (call.caller_username === undefined || call.caller_username === null || typeof call.caller_username === "string") &&
       (call.call_type === "audio" || call.call_type === "video") &&
       ["ended", "missed", "rejected"].includes(String(call.status)) &&
       typeof call.duration_seconds === "number" && typeof call.created_at === "string";

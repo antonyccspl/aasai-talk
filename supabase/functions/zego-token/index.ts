@@ -151,7 +151,14 @@ Deno.serve(async (request) => {
       session.room_id,
     );
     return Response.json(
-      { app_id: Number(Deno.env.get("ZEGO_APP_ID")), user_id: userId, room_id: session.room_id, token, expires_at: Math.floor(Date.now() / 1000) + 3600 },
+      {
+        app_id: Number(Deno.env.get("ZEGO_APP_ID")),
+        user_id: userId,
+        room_id: session.room_id,
+        token,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        web_server_url: Deno.env.get("ZEGO_WEB_SERVER_URL") || null,
+      },
       { headers: { ...corsHeaders, "Cache-Control": "no-store" } },
     );
   } catch (error) {

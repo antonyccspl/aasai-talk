@@ -1,21 +1,21 @@
-import { Stack, router } from "expo-router";
-import { useFonts, Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold } from "@expo-google-fonts/figtree";
-import { useEffect, useRef } from "react";
-import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, Animated, Pressable, Text, View } from "react-native";
-import { DemoProvider, people, useDemo } from "@/ui/store";
-import { colors } from "@/ui/theme";
-import { SampleWorkspaceProvider } from "@/data/sample-workspace";
 import { AuthProvider, useAuth } from "@/data/auth";
 import {
-  chargePhoneCallMinute,
-  settlePhoneCall,
-  subscribeToIncomingCalls,
-  subscribeToPhoneCallState,
-  updatePhoneCall,
+    chargePhoneCallMinute,
+    settlePhoneCall,
+    subscribeToIncomingCalls,
+    subscribeToPhoneCallState,
+    updatePhoneCall,
 } from "@/data/call-sessions";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
+import { SampleWorkspaceProvider } from "@/data/sample-workspace";
 import { fetchPhoneWalletBalance } from "@/data/wallet";
+import { DemoProvider, people, useDemo } from "@/ui/store";
+import { colors } from "@/ui/theme";
+import { Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold, useFonts } from "@expo-google-fonts/figtree";
+import { Stack, router } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useRef } from "react";
+import { ActivityIndicator, Animated, Pressable, Text, View } from "react-native";
 
 const phoneCallId = (value: string) => /^[0-9a-f-]{36}$/.test(value);
 
@@ -281,7 +281,7 @@ function AppNavigator() {
       if (incomingSessionRef.current === call.id) return;
       incomingSessionRef.current = call.id;
       router.replace(
-        `/calls/incoming/phone_${call.caller_phone.replace(/^\+/, "")}?type=${call.call_type}&session=${call.id}` as never,
+        `/calls/incoming/phone_${call.caller_phone.replace(/^\+/, "")}?type=${call.call_type}&session=${call.id}&name=${encodeURIComponent(call.caller_username || "Caller")}` as never,
       );
     });
   }, [demoPhone, loading, authenticated]);

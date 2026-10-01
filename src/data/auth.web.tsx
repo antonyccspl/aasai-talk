@@ -12,7 +12,7 @@ import {
     signInWithPhoneNumber,
     type ConfirmationResult,
 } from "firebase/auth";
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
 
 type AuthContextValue = {
@@ -22,6 +22,7 @@ type AuthContextValue = {
   demoPhone: string | null;
   demoProfileComplete: boolean;
   loading: boolean;
+  getIdentityToken: () => Promise<string>;
   sendOtp: (phone: string) => Promise<void>;
   verifyOtp: (phone: string, token: string) => Promise<boolean>;
   signOut: () => Promise<void>;
@@ -193,6 +194,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setDemoProfileComplete(false);
   };
 
+  const getIdentityToken = useCallback(async () => {
+    const firebaseUser = getFirebaseAuth().currentUser;
+    if (!firebaseUser) throw new Error("You must be signed in to continue.");
+    return firebaseUser.getIdToken();
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -202,6 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         demoPhone,
         demoProfileComplete,
         loading,
+        getIdentityToken,
         sendOtp,
         verifyOtp,
         signOut,

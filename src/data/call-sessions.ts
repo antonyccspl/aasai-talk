@@ -18,6 +18,10 @@ export type PhoneCallSummary = {
   duration_seconds: number;
   coins_charged: number;
   connected: boolean;
+  counterpart_username?: string;
+  counterpart_display_name?: string | null;
+  counterpart_avatar_url?: string | null;
+  counterpart_is_host?: boolean;
 };
 
 export type PhoneCallNotification = {
@@ -197,7 +201,11 @@ export async function fetchPhoneCallSummary(sessionId: string, phone: string) {
     typeof row.coins_charged !== "number" ||
     !Number.isSafeInteger(row.coins_charged) ||
     row.coins_charged < 0 ||
-    typeof row.connected !== "boolean"
+    typeof row.connected !== "boolean" ||
+    (row.counterpart_username !== undefined && typeof row.counterpart_username !== "string") ||
+    (row.counterpart_display_name !== undefined && row.counterpart_display_name !== null && typeof row.counterpart_display_name !== "string") ||
+    (row.counterpart_avatar_url !== undefined && row.counterpart_avatar_url !== null && typeof row.counterpart_avatar_url !== "string") ||
+    (row.counterpart_is_host !== undefined && typeof row.counterpart_is_host !== "boolean")
   )
     throw new Error("Invalid call summary.");
   return row as PhoneCallSummary;
@@ -371,6 +379,7 @@ export function subscribeToIncomingCalls(
   onCall: (call: {
     id: string;
     caller_phone: string;
+    caller_username?: string;
     call_type: CallType;
     room_id: string;
   }) => void,
@@ -385,6 +394,7 @@ export function subscribeToIncomingCalls(
       typeof row.id !== "string" ||
       row.id === lastCallId ||
       typeof row.caller_phone !== "string" ||
+      (row.caller_username !== undefined && typeof row.caller_username !== "string") ||
       typeof row.room_id !== "string" ||
       (row.call_type !== "audio" && row.call_type !== "video")
     )
@@ -393,6 +403,7 @@ export function subscribeToIncomingCalls(
     onCall({
       id: row.id,
       caller_phone: row.caller_phone,
+      ...(typeof row.caller_username === "string" ? { caller_username: row.caller_username } : {}),
       call_type: row.call_type,
       room_id: row.room_id,
     });
