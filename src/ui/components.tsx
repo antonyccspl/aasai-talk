@@ -1053,8 +1053,9 @@ export function Shell({
             </Pressable>
           )}
           {scroll ? (
-            <ScrollView
+              <ScrollView
               ref={scrollRef}
+                style={{ flex: 1, minHeight: 0 }}
               keyboardShouldPersistTaps="handled"
               refreshControl={
                 onRefresh ? (
@@ -1068,7 +1069,7 @@ export function Shell({
               }
               contentContainerStyle={[
                 s.content,
-                { paddingBottom: tab ? 112 : 28 },
+                { flexGrow: 1, paddingBottom: tab ? 112 : 28 },
               ]}
             >
               {loading && !skipSkeleton ? <PageSkeleton /> : safeChildren}
@@ -1137,8 +1138,8 @@ export function Shell({
   );
 }
 export const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: c.background },
-  frame: { flex: 1, width: "100%", maxWidth: 430, alignSelf: "center" },
+  safe: { flex: 1, minHeight: 0, backgroundColor: c.background },
+  frame: { flex: 1, minHeight: 0, width: "100%", maxWidth: 430, alignSelf: "center" },
   header: { minHeight: 72, paddingHorizontal: 18, gap: 8, backgroundColor: c.background },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   content: { padding: 18, gap: 18 },
