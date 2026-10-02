@@ -48,7 +48,7 @@ type PlatformContextValue = {
   appConfig: AppConfig | null;
   safetyReports: SafetyReport[];
   platformMetrics: Record<string, PlatformMetric>;
-  refreshPeople: () => Promise<void>;
+  refreshPeople: () => Promise<DirectoryPerson[]>;
   refreshPlatformData: () => Promise<void>;
   change: (key: string, update: React.SetStateAction<any>) => void;
 };
@@ -344,9 +344,13 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
 
   const refreshPeople = useCallback(async () => {
     try {
-      setPeople(await fetchDirectoryProfiles());
-    } catch {
+      const directory = await fetchDirectoryProfiles();
+      setPeople(directory);
+      setError("");
+      return directory;
+    } catch (error) {
       setError('Unable to refresh people. Pull down to try again.');
+      throw error;
     }
   }, []);
 

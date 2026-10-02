@@ -1,5 +1,4 @@
 import { useAuth } from "@/data/auth";
-import { fetchDirectoryProfiles } from "@/data/directory";
 import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
 import { fetchHostEarningSlabs, type HostEarningSlab } from "@/data/host-metrics";
@@ -197,19 +196,13 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
       return;
     let mounted = true;
     let loading = false;
-    const refreshDirectory = async () => {
+    const refreshDirectoryPresence = async () => {
       if (!mounted || loading) return;
       loading = true;
       try {
-        await refreshPeople();
-      } finally {
-        loading = false;
-      }
-    };
-    void refreshDirectory();
-    const checkForNewlyAvailablePeople = async () => {
-      try {
-        const directory = await fetchDirectoryProfiles();
+        // This updates every visible status (available, busy, and offline),
+        // not just new people. It keeps separate browser sessions in sync.
+        const directory = await refreshPeople();
         if (!mounted) return;
         const availableNow = new Set(
           directory
@@ -228,11 +221,13 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
           useNativeDriver: true,
         }).start();
       } catch (error) {
-        console.warn("Unable to check for newly available people:", error);
+        console.warn("Unable to refresh people presence:", error);
+      } finally {
+        loading = false;
       }
     };
-    void checkForNewlyAvailablePeople();
-    const interval = setInterval(() => void checkForNewlyAvailablePeople(), 15000);
+    void refreshDirectoryPresence();
+    const interval = setInterval(() => void refreshDirectoryPresence(), 5000);
     return () => {
       mounted = false;
       clearInterval(interval);
@@ -242,8 +237,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
     setRefreshing(true);
     try {
       d.refreshSlabs();
-      await refreshPeople();
-      const directory = await fetchDirectoryProfiles();
+      const directory = await refreshPeople();
       knownAvailableRef.current = new Set(
         directory
           .filter((person) => person.status === "Available")
@@ -313,23 +307,47 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
             accessibilityLabel="Refresh to see newly available people"
             onPress={refreshPeopleList}
             style={{
-              backgroundColor: c.mint,
-              borderRadius: 18,
-              paddingHorizontal: 16,
-              paddingVertical: 12,
-              boxShadow: "0 10px 22px rgba(226,55,68,0.24)",
+              backgroundColor: c.low,
+              borderColor: c.line,
+              borderWidth: 1.5,
+              borderRadius: 20,
+              padding: 12,
+              boxShadow: "0 10px 22px rgba(120,50,30,0.10)",
             }}
           >
             <Row style={{ justifyContent: "space-between" }}>
-              <View style={{ flex: 1, gap: 1 }}>
-                <T bold size={14} color="#ffffff">
-                  {newlyAvailableCount === 1
-                    ? "Someone new is available"
-                    : `${newlyAvailableCount} people are now available`}
+              <Row style={{ flex: 1 }}>
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: c.high,
+                  }}
+                >
+                  <Icon name="heart" color={c.mint} size={18} />
+                </View>
+                <View style={{ flex: 1, gap: 1 }}>
+                  <T bold size={14}>
+                    Fresh faces are ready to chat
+                  </T>
+                  <T size={12} color={c.secondary}>Tap to see who’s online</T>
+                </View>
+              </Row>
+              <View
+                style={{
+                  backgroundColor: c.mint,
+                  borderRadius: 14,
+                  paddingHorizontal: 11,
+                  paddingVertical: 8,
+                }}
+              >
+                <T bold size={12} color="#ffffff">
+                  Show
                 </T>
-                <T size={12} color="#ffffff">Tap to refresh your list</T>
               </View>
-              <Icon name="refresh-cw" color="#ffffff" size={19} />
             </Row>
           </Pressable>
         </Animated.View>
