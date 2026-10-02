@@ -7,6 +7,7 @@ import {
     updatePhoneCall,
 } from "@/data/call-sessions";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
+import { sendHostPresenceHeartbeat } from "@/data/host-presence";
 import { SampleWorkspaceProvider } from "@/data/sample-workspace";
 import { fetchPhoneWalletBalance } from "@/data/wallet";
 import { DemoProvider, people, useDemo } from "@/ui/store";
@@ -15,7 +16,7 @@ import { Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800Ex
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef } from "react";
-import { ActivityIndicator, Animated, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Animated, AppState, Pressable, Text, View } from "react-native";
 
 const phoneCallId = (value: string) => /^[0-9a-f-]{36}$/.test(value);
 
@@ -271,6 +272,45 @@ function ActiveCallLifecycle() {
   return null;
 }
 
+function HostPresenceLifecycle() {
+  const { demoPhone, getIdentityToken } = useAuth();
+  const { hostStatus } = useDemo();
+
+  useEffect(() => {
+    if (!demoPhone || hostStatus !== "approved") return;
+    let mounted = true;
+    let heartbeatPending = false;
+    const heartbeat = async () => {
+      if (
+        !mounted ||
+        heartbeatPending ||
+        AppState.currentState === "background" ||
+        AppState.currentState === "inactive"
+      ) return;
+      heartbeatPending = true;
+      try {
+        await sendHostPresenceHeartbeat(await getIdentityToken());
+      } catch (error) {
+        if (mounted) console.warn("Unable to refresh Host presence:", error);
+      } finally {
+        heartbeatPending = false;
+      }
+    };
+    void heartbeat();
+    const interval = setInterval(() => void heartbeat(), 20000);
+    const listener = AppState.addEventListener("change", (state) => {
+      if (state === "active") void heartbeat();
+    });
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+      listener.remove();
+    };
+  }, [demoPhone, getIdentityToken, hostStatus]);
+
+  return null;
+}
+
 function AppNavigator() {
   const { demoPhone, loading, authenticated } = useAuth();
   const { identityLoading } = useDemo();
@@ -307,6 +347,7 @@ function AppNavigator() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="dark" />
       <ActiveCallLifecycle />
+      <HostPresenceLifecycle />
       <Stack
         screenOptions={{
           headerShown: false,

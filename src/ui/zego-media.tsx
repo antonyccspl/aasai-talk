@@ -1,18 +1,18 @@
+import { fetchZegoCallToken } from "@/data/zego";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  findNodeHandle,
-  Platform,
-  PermissionsAndroid,
-  StyleSheet,
-  View,
-  type View as ViewType,
+    findNodeHandle,
+    PermissionsAndroid,
+    Platform,
+    StyleSheet,
+    View,
+    type View as ViewType,
 } from "react-native";
-import type ZegoExpressEngine from "zego-express-engine-reactnative/lib/ZegoExpressEngine";
 import type {
-  ZegoPublishChannel,
-  ZegoView,
+    ZegoPublishChannel,
+    ZegoView,
 } from "zego-express-engine-reactnative/lib/ZegoExpressDefines";
-import { fetchZegoCallToken } from "@/data/zego";
+import type ZegoExpressEngine from "zego-express-engine-reactnative/lib/ZegoExpressEngine";
 
 type Props = {
   sessionId: string;
@@ -56,6 +56,7 @@ export function ZegoMedia({
   const roomRef = useRef("");
   const publishedRef = useRef(false);
   const remoteStreamRef = useRef("");
+  const audioRouteQueue = useRef(Promise.resolve());
   const [remoteStream, setRemoteStream] = useState(false);
   const [textureView, setTextureView] = useState<React.ComponentType | null>(null);
   const callbacks = useRef({ onStatus, onError });
@@ -146,7 +147,6 @@ export function ZegoMedia({
         await activeEngine.muteMicrophone(controls.current.muted);
         await activeEngine.muteSpeaker(false);
         await activeEngine.setCaptureVolume(100);
-        await activeEngine.setAudioRouteToSpeaker(controls.current.speaker);
         await activeEngine.mutePublishStreamAudio(controls.current.muted, undefined);
         await activeEngine.enableCamera(video && controls.current.camera, undefined);
         if (video) await activeEngine.useFrontCamera(controls.current.front, undefined);
@@ -196,6 +196,16 @@ export function ZegoMedia({
           onError?.(`Media room login failed (${login.errorCode}).`);
           return;
         }
+        const initialRoute = audioRouteQueue.current.then(async () => {
+          if (engineRef.current !== activeEngine) return;
+          await activeEngine.setAudioRouteToSpeaker(controls.current.speaker);
+          if (__DEV__)
+            console.info("[RTC] audio route", await activeEngine.getAudioRouteType());
+        }).catch((error) => {
+          console.warn("[RTC] unable to set initial audio route", error);
+        });
+        audioRouteQueue.current = initialRoute;
+        await initialRoute;
         onStatus?.("Starting microphone and speaker…");
         const channel: ZegoPublishChannel | undefined = undefined;
         if (video) {
@@ -238,7 +248,16 @@ export function ZegoMedia({
 
   useEffect(() => {
     const engine = engineRef.current;
-    if (engine) void engine.setAudioRouteToSpeaker(speaker);
+    if (!engine) return;
+    const operation = audioRouteQueue.current.then(async () => {
+      if (engineRef.current !== engine) return;
+      await engine.setAudioRouteToSpeaker(speaker);
+      if (__DEV__)
+        console.info("[RTC] audio route", await engine.getAudioRouteType());
+    });
+    audioRouteQueue.current = operation.catch((error) => {
+      console.warn("[RTC] unable to change audio route", error);
+    });
   }, [speaker]);
 
   useEffect(() => {

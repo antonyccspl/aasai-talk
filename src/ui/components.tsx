@@ -626,6 +626,12 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
       : effectiveStatus === "Busy"
         ? c.warning
         : c.error;
+  const presenceLabel =
+    effectiveStatus === "Available"
+      ? "Online"
+      : effectiveStatus === "Busy"
+        ? "Busy on another call"
+        : "Offline";
   if (grid) {
     const backgrounds = ["#c73543", "#6046c2", "#127e79", "#b95422"];
     const available = effectiveStatus === "Available";
@@ -702,6 +708,10 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
           </View>
         </Row>
       </Pressable>
+      <Row style={{ gap: 6 }}>
+        <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: statusColor }} />
+        <T mono size={10} color={statusColor}>{presenceLabel}</T>
+      </Row>
       <Row style={{ flexWrap: "wrap", gap: 6 }}>
         {person.interests.map((x) => (
           <Chip key={x} title={x} />
@@ -903,7 +913,12 @@ export function Shell({
     });
     return () => subscription.remove();
   }, [scrollToEndToken]);
-  const compact = useWindowDimensions().width < 400;
+  const viewportWidth = useWindowDimensions().width;
+  const compact = viewportWidth < 400;
+  const wideWebLayout = Platform.OS === "web" && viewportWidth >= 768;
+  const frameMaxWidth = Platform.OS === "web"
+    ? Math.min(960, Math.max(430, viewportWidth - 48))
+    : 430;
   const tabs: [string, IconName, string][] = [
     ["Explore", "compass", "/explore"],
     ["Calls", "phone", "/calls"],
@@ -921,7 +936,7 @@ export function Shell({
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={[s.frame, { backgroundColor: c.background }]}>
+        <View style={[s.frame, { backgroundColor: c.background, maxWidth: frameMaxWidth }]}>
           <Row style={s.header}>
             {title ? (
               <>
@@ -1069,7 +1084,18 @@ export function Shell({
             </View>
           )}
           {tab && (
-            <View style={[s.dock, { backgroundColor: c.low }]}>
+            <View
+              style={[
+                s.dock,
+                { backgroundColor: c.low },
+                wideWebLayout && {
+                  left: "50%",
+                  right: undefined,
+                  width: 560,
+                  transform: [{ translateX: -280 }],
+                },
+              ]}
+            >
               {tabs.map(([name, icon, path]) => (
                 <Pressable
                   key={name}

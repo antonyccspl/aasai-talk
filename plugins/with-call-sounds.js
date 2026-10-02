@@ -1,5 +1,6 @@
-const { withMainApplication, withDangerousMod } = require('expo/config-plugins');
+const { IOSConfig, withMainApplication, withDangerousMod } = require('expo/config-plugins');
 const fs = require('node:fs/promises');
+const fsSync = require('node:fs');
 const path = require('node:path');
 
 module.exports = function withCallSounds(config) {
@@ -14,6 +15,16 @@ module.exports = function withCallSounds(config) {
     }
     return value;
   });
+    config = IOSConfig.XcodeProjectFile.withBuildSourceFile(config, {
+      filePath: 'CallSoundsModule.swift',
+      contents: fsSync.readFileSync(path.join(__dirname, '../native/CallSoundsModule.swift'), 'utf8'),
+      overwrite: true,
+    });
+    config = IOSConfig.XcodeProjectFile.withBuildSourceFile(config, {
+      filePath: 'CallSoundsBridge.m',
+      contents: fsSync.readFileSync(path.join(__dirname, '../native/CallSoundsBridge.m'), 'utf8'),
+      overwrite: true,
+    });
   return withDangerousMod(config, ['android', async value => {
     const packageName = value.android?.package;
     if (!packageName) throw new Error('Android package is required for call sounds');

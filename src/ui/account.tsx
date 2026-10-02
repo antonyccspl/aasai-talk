@@ -676,6 +676,8 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
 }
 export function Profile() {
   const d = useDemo();
+  const approvedHost = d.hostStatus === "approved";
+  const inCall = d.active?.status === "Connected" || d.active?.status === "Ringing";
   return (
     <Shell title="My profile">
       <View style={{ alignItems: "center", gap: 10, padding: 14 }}>
@@ -686,13 +688,15 @@ export function Profile() {
         <T color={c.muted}>@{d.profile.username}</T>
         <Badge
           text={
-            d.active
-              ? "Busy · in a call"
-              : d.available
-                ? "Available for a conversation"
-                : "Unavailable"
+            approvedHost
+              ? inCall ? "Busy on another call" : "Online"
+              : d.active
+                ? "Busy · in a call"
+                : d.available
+                  ? "Available for a conversation"
+                  : "Unavailable"
           }
-          warning={!!d.active || !d.available}
+          warning={approvedHost ? inCall : !!d.active || !d.available}
         />
       </View>
       <Card>
@@ -709,10 +713,10 @@ export function Profile() {
           onPress={() => go("/profile/edit")}
         />
       </Card>
-      {d.profile.gender === "Female" && d.hostStatus === "approved" && (
+      {approvedHost && (
         <Setting
-          title="Availability"
-          detail="Choose when to connect"
+          title="Presence status"
+          detail="Automatic from app activity and calls"
           icon="radio"
           onPress={() => go("/profile/availability")}
         />
@@ -830,29 +834,17 @@ export function Settings({
     d.hostStatus === "approved"
   )
     return (
-      <Shell title="Your availability">
-        <T size={24} bold>
-          Connect on your terms.
-        </T>
-        <Setting
-          title="Available for calls"
-          detail={
-            d.active
-              ? "Busy while your call is active"
-              : "Let people know you are ready to talk"
-          }
-          value={d.available}
-          onToggle={(v) =>
-            d.active
-              ? setMessage(
-                  "End your current call before changing availability.",
-                )
-              : d.setAvailable(v)
-          }
-          icon="radio"
-        />
-        {message && <Notice>{message}</Notice>}
-        <Notice>Changes update your availability.</Notice>
+      <Shell title="Presence status">
+        <Card>
+          <T size={22} bold>Presence is automatic</T>
+          <Badge
+            text={d.active?.status === "Connected" || d.active?.status === "Ringing" ? "Busy on another call" : "Online"}
+            warning={d.active?.status === "Connected" || d.active?.status === "Ringing"}
+          />
+          <T color={c.secondary}>
+            You appear Online while Aasai Talk is open, Busy while a call is ringing or connected, and Offline after the app has not checked in for a short time.
+          </T>
+        </Card>
       </Shell>
     );
   if (mode === "privacy" || mode === "notifications") {

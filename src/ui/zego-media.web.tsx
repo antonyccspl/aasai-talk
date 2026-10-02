@@ -25,6 +25,7 @@ export function ZegoMedia({
   muted,
   camera,
   front,
+  speaker,
   videoPlaceholder,
   onStatus,
   onError,
@@ -38,8 +39,9 @@ export function ZegoMedia({
   const roomIdRef = useRef("");
   const [remoteStream, setRemoteStream] = useState(false);
   const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
-  const controlsRef = useRef({ muted, camera, front });
-  controlsRef.current = { muted, camera, front };
+  const controlsRef = useRef({ muted, camera, front, speaker });
+  controlsRef.current = { muted, camera, front, speaker };
+  const audioRouteQueue = useRef(Promise.resolve());
   const callbacksRef = useRef({ onStatus, onError });
   callbacksRef.current = { onStatus, onError };
 
@@ -221,6 +223,42 @@ export function ZegoMedia({
       }).catch(() => undefined);
   }, [front]);
 
+  useEffect(() => {
+    const engine = engineRef.current;
+    const element = video ? remoteVideoRef.current : remoteAudioRef.current;
+    if (!remoteStream || !engine || !element) return;
+    let active = true;
+    const operation = audioRouteQueue.current.then(async () => {
+      if (!active || engineRef.current !== engine) return;
+      const outputs = await engine.getSpeakers();
+      const privateOutput = outputs.find(({ deviceName }) =>
+        /earpiece|handset|receiver|communications?|headphones?|headset|bluetooth/i.test(deviceName),
+      );
+      const speakerOutput = outputs.find(({ deviceName }) =>
+        /built.?in.*speaker|speakerphone|loudspeaker/i.test(deviceName),
+      );
+      const output = speaker
+        ? speakerOutput ?? outputs.find(({ deviceID }) => deviceID === "default")
+        : privateOutput;
+      if (!output) {
+        callbacksRef.current.onStatus?.(
+          "This browser does not expose a private audio output; using the current route.",
+        );
+        return;
+      }
+      const routed = await engine.useAudioOutputDevice(element, output.deviceID);
+      if (active && !routed)
+        callbacksRef.current.onStatus?.("The browser could not change the audio output.");
+    }).catch((error) => {
+      if (active) {
+        console.warn("[RTC] unable to change browser audio output", error);
+        callbacksRef.current.onStatus?.("The browser could not change the audio output.");
+      }
+    });
+    audioRouteQueue.current = operation;
+    return () => { active = false; };
+  }, [remoteStream, speaker, video]);
+
   const enableRemoteAudio = () => {
     const element = video ? remoteVideoRef.current : remoteAudioRef.current;
     if (!element) return;
@@ -231,7 +269,9 @@ export function ZegoMedia({
   };
 
   return (
-    <View style={{ width: "100%", height: "100%", minHeight: 220, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: "#14201c", overflow: "hidden" }}>
+    <View style={video
+      ? { width: "100%", height: "100%", minHeight: 220, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: "#14201c", overflow: "hidden" }
+      : { width: "100%", height: audioPlaybackBlocked ? 64 : 1, minHeight: audioPlaybackBlocked ? 64 : 1, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", overflow: "visible" }}>
       {video ? (
         <>
           <video
@@ -249,12 +289,7 @@ export function ZegoMedia({
           />
         </>
       ) : (
-        <>
-          <audio ref={remoteAudioRef} autoPlay />
-          <View style={{ width: 76, height: 76, borderRadius: 40, backgroundColor: "#26352f", alignItems: "center", justifyContent: "center" }}>
-            <Text style={{ color: "#fff", fontSize: 28 }}>♪</Text>
-          </View>
-        </>
+        <audio ref={remoteAudioRef} autoPlay />
       )}
       {!remoteStream && videoPlaceholder ? (
         <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", backgroundColor: "#14201c" }}>

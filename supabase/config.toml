@@ -7,6 +7,9 @@ project_id = "Talkative"
 [functions.phone-safety]
 verify_jwt = false
 
+[functions.host-presence]
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.

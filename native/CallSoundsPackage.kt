@@ -69,12 +69,23 @@ class CallSoundsModule(private val context: ReactApplicationContext) : ReactCont
             stopInternal(); promise.resolve(false); return@post
           }
           val uri = RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_RINGTONE)
-          if (uri == null) { stopInternal(); promise.resolve(false); return@post }
-          ringtone = RingtoneManager.getRingtone(context, uri)
-          ringtone?.audioAttributes = attrs
-          if (Build.VERSION.SDK_INT >= 28) ringtone?.isLooping = true
-          ringtone?.play()
-          if (Build.VERSION.SDK_INT < 28) {
+          if (uri != null) {
+            ringtone = RingtoneManager.getRingtone(context, uri)
+            ringtone?.audioAttributes = attrs
+            if (Build.VERSION.SDK_INT >= 28) ringtone?.isLooping = true
+            ringtone?.play()
+          }
+          if (ringtone == null) {
+            tone = ToneGenerator(AudioManager.STREAM_RING, 80)
+            val fallback = object : Runnable {
+              override fun run() {
+                if (owner != key) return
+                tone?.startTone(ToneGenerator.TONE_SUP_RINGTONE, 1200)
+                handler.postDelayed(this, 3500)
+              }
+            }
+            handler.post(fallback)
+          } else if (Build.VERSION.SDK_INT < 28) {
             val repeat = object : Runnable {
               override fun run() {
                 if (owner != key) return

@@ -13,7 +13,7 @@ import { startCallSound, stopCallSound } from "@/data/call-sounds";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Pressable, Vibration, View } from "react-native";
+import { AppState, Pressable, useWindowDimensions, Vibration, View } from "react-native";
 import {
     Avatar,
     Badge,
@@ -50,6 +50,7 @@ export function CallScreen({
 }) {
   const d = useDemo();
   const auth = useAuth();
+  const { height: viewportHeight } = useWindowDimensions();
   const p = people.find((person) => person.id === id) ?? {
     id,
     name: mode === "incoming" && participantName
@@ -69,6 +70,8 @@ export function CallScreen({
   const activeForThisCall =
     d.active?.person === id && (!sessionId || d.active.id === sessionId);
   const video = activeForThisCall ? d.active?.type === "video" : requestedVideo;
+  const callAvatarSize = Math.round(Math.min(136, Math.max(104, viewportHeight * 0.18)));
+  const videoStageHeight = Math.round(Math.max(240, Math.min(420, viewportHeight - 360)));
   const incoming = mode === "incoming";
   const availableSeconds = d.active?.availableSeconds;
   const remainingTalkSeconds = Math.max(
@@ -571,9 +574,13 @@ export function CallScreen({
               <IconButton
                 label="Change audio route"
                 icon={route === "Speaker" ? "volume-2" : "headphones"}
-                onPress={() =>
-                  setRoute(route === "Speaker" ? "Earpiece" : "Speaker")
-                }
+                onPress={() => {
+                  const next = route !== "Speaker";
+                  setRoute(next ? "Speaker" : "Earpiece");
+                  d.setActive((current) =>
+                    current ? { ...current, speaker: next } : current,
+                  );
+                }}
               />
               <IconButton
                 label={
@@ -666,8 +673,7 @@ export function CallScreen({
             // Adapt to compact screens instead of reserving a fixed desktop-like
             // panel height. The frame stays comfortably tall for portrait video.
             width: "100%",
-            minHeight: 360,
-            aspectRatio: 0.82,
+            height: videoStageHeight,
             backgroundColor: "#14201c",
             borderColor: c.line,
             borderWidth: 1,
@@ -702,7 +708,7 @@ export function CallScreen({
                       backgroundColor: c.successSurface,
                     }}
                   >
-                    <Avatar person={p} size={86} />
+                    <Avatar person={p} size={callAvatarSize * 0.68} />
                   </View>
                   <T bold size={21}>
                     {p.name}
@@ -787,9 +793,11 @@ export function CallScreen({
       ) : (
         <View
           style={{
+            position: "relative",
+            width: "100%",
             alignItems: "center",
-            gap: 16,
-            paddingVertical: 30,
+            gap: ringing ? 10 : 12,
+            paddingVertical: ringing ? 16 : 12,
             paddingHorizontal: 20,
             backgroundColor: c.surface,
             borderRadius: 28,
@@ -812,36 +820,38 @@ export function CallScreen({
           )}
           <View
             style={{
-              padding: 16,
-              borderRadius: 160,
+              padding: ringing ? 10 : 12,
+              borderRadius: 140,
               backgroundColor: c.successSurface,
             }}
           >
             <View
               style={{
-                padding: 16,
-                borderRadius: 140,
+                padding: 10,
+                borderRadius: 120,
                 backgroundColor: c.high,
               }}
             >
-              <Avatar person={p} size={156} />
+              <Avatar person={p} size={ringing ? callAvatarSize : callAvatarSize * 0.9} />
             </View>
           </View>
-          <T size={24} bold>
+          <T size={ringing ? 21 : 20} bold numberOfLines={1}>
             {p.name}
           </T>
-          <T color={c.mint}>
+          <T size={13} color={c.mint} numberOfLines={1}>
             {ringing
               ? `${video ? "Video" : "Audio"} call · ${state.toLowerCase()}`
               : muted
                 ? "Your microphone is muted"
                 : state === "Connected"
-                  ? mediaStatus
+                  ? mediaStatus === "Connected"
+                    ? "Secure media is connected."
+                    : mediaStatus
                   : state}
           </T>
         </View>
       )}
-      {!ringing && <Wave large />}
+      {!ringing && !video && <Wave />}
       {soundError ? <Notice error>{soundError}</Notice> : null}
       {blocked || conflict ? (
         <Notice error>
@@ -857,15 +867,6 @@ export function CallScreen({
           message instead.
         </Notice>
       ) : null}
-      {!ringing && (
-        <>
-          <T size={12} color={c.muted} style={{ textAlign: "center" }}>
-            {mediaStatus === "Connected"
-              ? "Secure media is connected."
-              : mediaStatus}
-          </T>
-        </>
-      )}
     </Shell>
   );
 }

@@ -342,13 +342,13 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
 
   const retry = () => (workspace ? void flush() : setAttempt((value) => value + 1));
 
-  const refreshPeople = async () => {
+  const refreshPeople = useCallback(async () => {
     try {
       setPeople(await fetchDirectoryProfiles());
     } catch {
       setError('Unable to refresh people. Pull down to try again.');
     }
-  };
+  }, []);
 
   const refreshPlatformData = async () => {
     try {

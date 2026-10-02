@@ -4,7 +4,7 @@ import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboa
 import { fetchHostEarningSlabs, type HostEarningSlab } from "@/data/host-metrics";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, TextInput, View } from "react-native";
+import { Pressable, TextInput, useWindowDimensions, View } from "react-native";
 import { useRefreshPeople } from '../data/sample-workspace';
 import {
     Avatar,
@@ -184,10 +184,32 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
   const d = useDemo();
   const refreshPeople = useRefreshPeople();
   const isHost = d.hostStatus === "approved";
-  if (isHost && mode === "explore") return <HostDashboardHome />;
+  const wideLayout = useWindowDimensions().width >= 768;
   const [refreshing, setRefreshing] = useState(false);
   const searching = mode === "search";
   const favorites = mode === "favorites";
+  useEffect(() => {
+    if ((mode !== "search" && mode !== "explore" && mode !== "favorites") || (isHost && mode === "explore"))
+      return;
+    let mounted = true;
+    let loading = false;
+    const refreshDirectory = async () => {
+      if (!mounted || loading) return;
+      loading = true;
+      try {
+        await refreshPeople();
+      } finally {
+        loading = false;
+      }
+    };
+    void refreshDirectory();
+    const interval = setInterval(() => void refreshDirectory(), 15000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [isHost, mode, refreshPeople]);
+  if (isHost && mode === "explore") return <HostDashboardHome />;
   const result = d.people.filter(
     (p) =>
       !d.blocked.includes(p.id) &&
@@ -259,9 +281,20 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
         onPress={() => go("/filters")}
       />
       {mode === "explore" && <Chips items={["All", "Online", "Hindi", "Tamil", "English"]} selected={d.filter === "Available" ? "Online" : d.filter} onChange={(value) => d.setFilter(value === "Online" ? "Available" : value)} />}
-      {mode === "explore" ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{result.map((p, index) => <UserCard key={p.id} person={p} grid index={index} />)}{result.length % 2 === 1 && <View style={{ width: "48%", flexGrow: 1 }} />}</View> : result.map((p) => (
-        <UserCard key={p.id} person={p} />
-      ))}
+      {mode === "explore" ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+          {result.map((p, index) => <UserCard key={p.id} person={p} grid index={index} />)}
+          {result.length % 2 === 1 && <View style={{ width: "48%", flexGrow: 1 }} />}
+        </View>
+      ) : wideLayout ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "stretch", gap: 12 }}>
+          {result.map((p) => (
+            <View key={p.id} style={{ width: "48%", flexGrow: 1, minWidth: 0 }}>
+              <UserCard person={p} />
+            </View>
+          ))}
+        </View>
+      ) : result.map((p) => <UserCard key={p.id} person={p} />)}
       {!result.length && (
         <Empty
           title={favorites ? "Keep good company close" : "No people found"}
