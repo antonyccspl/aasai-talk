@@ -350,7 +350,7 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
     }
   }, []);
 
-  const refreshPlatformData = async () => {
+  const refreshPlatformData = useCallback(async () => {
     try {
       const [ann, notifs, pols, reps, mets] = await Promise.all([
         fetchAnnouncements().catch(() => []),
@@ -370,7 +370,7 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
     } catch {
       // Keep existing data on background refresh failure
     }
-  };
+  }, []);
 
   if (!workspace)
     return (

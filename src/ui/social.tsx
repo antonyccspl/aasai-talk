@@ -1,10 +1,11 @@
 import { useAuth } from "@/data/auth";
+import { fetchDirectoryProfiles } from "@/data/directory";
 import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
 import { fetchHostEarningSlabs, type HostEarningSlab } from "@/data/host-metrics";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { Platform, Pressable, TextInput, useWindowDimensions, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Animated, Platform, Pressable, TextInput, useWindowDimensions, View } from "react-native";
 import { useRefreshPeople } from '../data/sample-workspace';
 import {
     Avatar,
@@ -186,6 +187,9 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
   const isHost = d.hostStatus === "approved";
   const wideLayout = useWindowDimensions().width >= 768;
   const [refreshing, setRefreshing] = useState(false);
+  const [newlyAvailableCount, setNewlyAvailableCount] = useState(0);
+  const knownAvailableRef = useRef<Set<string> | null>(null);
+  const availabilityNoticeY = useRef(new Animated.Value(-72)).current;
   const searching = mode === "search";
   const favorites = mode === "favorites";
   useEffect(() => {
@@ -203,12 +207,58 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
       }
     };
     void refreshDirectory();
-    const interval = setInterval(() => void refreshDirectory(), 15000);
+    const checkForNewlyAvailablePeople = async () => {
+      try {
+        const directory = await fetchDirectoryProfiles();
+        if (!mounted) return;
+        const availableNow = new Set(
+          directory
+            .filter((person) => person.status === "Available")
+            .map((person) => person.id),
+        );
+        const known = knownAvailableRef.current;
+        knownAvailableRef.current = availableNow;
+        if (!known) return;
+        const additions = [...availableNow].filter((id) => !known.has(id));
+        if (!additions.length) return;
+        setNewlyAvailableCount(additions.length);
+        Animated.timing(availabilityNoticeY, {
+          toValue: 0,
+          duration: 260,
+          useNativeDriver: true,
+        }).start();
+      } catch (error) {
+        console.warn("Unable to check for newly available people:", error);
+      }
+    };
+    void checkForNewlyAvailablePeople();
+    const interval = setInterval(() => void checkForNewlyAvailablePeople(), 15000);
     return () => {
       mounted = false;
       clearInterval(interval);
     };
-  }, [isHost, mode, refreshPeople]);
+  }, [availabilityNoticeY, isHost, mode, refreshPeople]);
+  const refreshPeopleList = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      d.refreshSlabs();
+      await refreshPeople();
+      const directory = await fetchDirectoryProfiles();
+      knownAvailableRef.current = new Set(
+        directory
+          .filter((person) => person.status === "Available")
+          .map((person) => person.id),
+      );
+      setNewlyAvailableCount(0);
+      Animated.timing(availabilityNoticeY, {
+        toValue: -72,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [availabilityNoticeY, d, refreshPeople]);
   if (isHost && mode === "explore") return <HostDashboardHome />;
   const result = d.people.filter(
     (p) =>
@@ -243,15 +293,47 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
       refreshing={refreshing}
       onRefresh={
         mode === "explore"
-          ? async () => {
-              setRefreshing(true);
-              d.refreshSlabs();
-              try { await refreshPeople(); } finally { setRefreshing(false); }
-            }
+          ? refreshPeopleList
           : undefined
       }
     >
       <>
+      {newlyAvailableCount > 0 && (
+        <Animated.View
+          style={{
+            transform: [{ translateY: availabilityNoticeY }],
+            opacity: availabilityNoticeY.interpolate({
+              inputRange: [-72, 0],
+              outputRange: [0, 1],
+            }),
+          }}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Refresh to see newly available people"
+            onPress={refreshPeopleList}
+            style={{
+              backgroundColor: c.mint,
+              borderRadius: 18,
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              boxShadow: "0 10px 22px rgba(226,55,68,0.24)",
+            }}
+          >
+            <Row style={{ justifyContent: "space-between" }}>
+              <View style={{ flex: 1, gap: 1 }}>
+                <T bold size={14} color="#ffffff">
+                  {newlyAvailableCount === 1
+                    ? "Someone new is available"
+                    : `${newlyAvailableCount} people are now available`}
+                </T>
+                <T size={12} color="#ffffff">Tap to refresh your list</T>
+              </View>
+              <Icon name="refresh-cw" color="#ffffff" size={19} />
+            </Row>
+          </Pressable>
+        </Animated.View>
+      )}
       {searching && (
         <>
           <Field
@@ -316,6 +398,36 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
     </Shell>
   );
 }
+type FilterOption = { label: string; value: string };
+
+function FilterGroup({
+  title,
+  options,
+  selected,
+  onChange,
+}: {
+  title: string;
+  options: FilterOption[];
+  selected: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Card style={{ gap: 12 }}>
+      <T size={16} bold>{title}</T>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {options.map((option) => (
+          <Chip
+            key={option.value}
+            title={option.label}
+            selected={selected === option.value}
+            onPress={() => onChange(option.value)}
+          />
+        ))}
+      </View>
+    </Card>
+  );
+}
+
 export function Filters() {
   const d = useDemo();
   const [draft, setDraft] = useState(d.facets);
@@ -323,88 +435,103 @@ export function Filters() {
   const choose = (key: keyof typeof draft, value: string) =>
     setDraft((x) => ({ ...x, [key]: value }));
   return (
-    <Shell title="Find your people">
-      <T size={24} bold>
-        A little more in common.
-      </T>
-      <T color={c.secondary}>Combine filters to find your next conversation.</T>
-      <Section title="Availability" />
-      <Chips
-        items={["All", "Available", "Busy", "Offline"]}
+    <Shell title="Filters">
+      <View style={{ gap: 6 }}>
+        <T size={24} bold>Find your people</T>
+        <T color={c.secondary}>Choose what matters to you, then view matching people.</T>
+      </View>
+      <FilterGroup
+        title="Availability"
+        options={[
+          { label: "All", value: "All" },
+          { label: "Online", value: "Available" },
+          { label: "Busy", value: "Busy" },
+          { label: "Offline", value: "Offline" },
+        ]}
         selected={draft.availability}
         onChange={(v) => choose("availability", v)}
       />
-      <Section title="Language" />
-      <Chips
-        items={["All", "Hindi", "English", "Kannada", "Tamil"]}
+      <FilterGroup
+        title="Language"
+        options={["All", "Hindi", "English", "Kannada", "Tamil"].map((value) => ({ label: value, value }))}
         selected={draft.language}
         onChange={(v) => choose("language", v)}
       />
-      <Section title="Gender" />
-      <Chips
-        items={["All", "Woman", "Man"]}
+      <FilterGroup
+        title="Looking for"
+        options={[
+          { label: "Everyone", value: "All" },
+          { label: "Women", value: "Female" },
+          { label: "Men", value: "Male" },
+        ]}
         selected={draft.gender}
         onChange={(v) => choose("gender", v)}
       />
-      <Section title="Age range" />
-      <Row>
-        <View style={{ flex: 1 }}>
-          <Field
-            label="Minimum age"
-            numeric
-            value={draft.minAge}
-            onChange={(v) => choose("minAge", v)}
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Field
-            label="Maximum age"
-            numeric
-            value={draft.maxAge}
-            onChange={(v) => choose("maxAge", v)}
-          />
-        </View>
-      </Row>
-      <Section title="Interests" />
-      <Chips
-        items={["All", "Music", "Poetry", "Travel", "Books", "Coffee"]}
+      <Card style={{ gap: 12 }}>
+        <T size={16} bold>Age range</T>
+        <Row style={{ alignItems: "flex-start" }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Field
+              label="Minimum age"
+              numeric
+              value={draft.minAge}
+              onChange={(v) => choose("minAge", v)}
+            />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Field
+              label="Maximum age"
+              numeric
+              value={draft.maxAge}
+              onChange={(v) => choose("maxAge", v)}
+            />
+          </View>
+        </Row>
+      </Card>
+      <FilterGroup
+        title="Interests"
+        options={["All", "Music", "Poetry", "Travel", "Books", "Coffee"].map((value) => ({ label: value, value }))}
         selected={draft.interest}
         onChange={(v) => choose("interest", v)}
       />
       {d.paid && (
-        <Field
-          label="Maximum audio price / minute (₹)"
-          numeric
-          value={draft.maxPrice}
-          onChange={(v) => choose("maxPrice", v)}
-        />
+        <Card>
+          <Field
+            label="Maximum audio price per minute (₹)"
+            numeric
+            value={draft.maxPrice}
+            onChange={(v) => choose("maxPrice", v)}
+          />
+        </Card>
       )}
       {error && <Notice error>{error}</Notice>}
-      <Button
-        title="Show results"
-        onPress={() => {
-          if (
-            (draft.minAge &&
-              (!Number.isFinite(Number(draft.minAge)) ||
-                Number(draft.minAge) < 0)) ||
-            (draft.maxAge && Number(draft.maxAge) < Number(draft.minAge || 0))
-          )
-            return setError(
-              "Enter a valid age range, with maximum age at least the minimum.",
-            );
-          d.setFacets(draft);
-          d.setFilter("All");
-          router.replace("/search" as never);
-        }}
-      />
-      <Button
-        title="Reset filters"
-        variant="secondary"
-        onPress={() => {
-          setDraft(defaultFacets);
-          setError("");
-        }}
-      />
+      <View style={{ gap: 10, paddingTop: 2 }}>
+        <Button
+          title="Show results"
+          onPress={() => {
+            if (
+              (draft.minAge &&
+                (!Number.isFinite(Number(draft.minAge)) ||
+                  Number(draft.minAge) < 0)) ||
+              (draft.maxAge && Number(draft.maxAge) < Number(draft.minAge || 0))
+            )
+              return setError(
+                "Enter a valid age range, with maximum age at least the minimum.",
+              );
+            d.setFacets(draft);
+            d.setFilter("All");
+            router.replace("/search" as never);
+          }}
+        />
+        <Button
+          title="Reset filters"
+          variant="secondary"
+          onPress={() => {
+            setDraft(defaultFacets);
+            setError("");
+          }}
+        />
+      </View>
     </Shell>
   );
 }

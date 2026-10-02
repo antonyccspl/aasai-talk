@@ -10,7 +10,6 @@ import {
 } from "@/ui/account";
 import { CallDetail, CallScreen, CallsList } from "@/ui/calls";
 import { HostApplication, HostStatus, HostWithdrawals } from "@/ui/host";
-import { Preview } from "@/ui/preview";
 import {
     Chat,
     Conversations,
@@ -30,6 +29,7 @@ export default function Route() {
     status?: string;
     session?: string;
     name?: string;
+    tried?: string;
   }>();
   const parts = Array.isArray(params.route)
     ? params.route
@@ -67,7 +67,7 @@ export default function Route() {
     ) : action === "detail" || action === "result" ? (
       <CallDetail id={id} result={action === "result"} status={params.status} />
     ) : (
-      <CallScreen mode={action} id={id} type={params.type} sessionId={params.session} participantName={params.name} />
+      <CallScreen mode={action} id={id} type={params.type} sessionId={params.session} participantName={params.name} attemptedIds={params.tried} />
     );
   else if (root === "wallet")
     screen = <Wallet mode={action || "wallet"} id={id} />;
@@ -90,7 +90,7 @@ export default function Route() {
   // expose moderation, pricing, or financial controls until an Edge Function
   // verifies a Firebase custom claim and records an immutable audit trail.
   else if (root === "admin") screen = <ServiceState state="admin" />;
-  else if (root === "preview") screen = <Preview />;
+  else if (root === "preview") screen = <ServiceState state="unavailable" />;
   else screen = <ServiceState state="unavailable" />;
   return <React.Fragment key={key}>{screen}</React.Fragment>;
 }

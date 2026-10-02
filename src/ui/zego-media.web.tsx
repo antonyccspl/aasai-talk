@@ -39,9 +39,8 @@ export function ZegoMedia({
   const roomIdRef = useRef("");
   const [remoteStream, setRemoteStream] = useState(false);
   const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
-  const controlsRef = useRef({ muted, camera, front, speaker });
-  controlsRef.current = { muted, camera, front, speaker };
-  const audioRouteQueue = useRef(Promise.resolve());
+  const controlsRef = useRef({ muted, camera, front });
+  controlsRef.current = { muted, camera, front };
   const callbacksRef = useRef({ onStatus, onError });
   callbacksRef.current = { onStatus, onError };
 
@@ -223,40 +222,22 @@ export function ZegoMedia({
       }).catch(() => undefined);
   }, [front]);
 
+  // Browsers deliberately restrict changing output hardware from a web page.
+  // Trying to choose a speaker/earpiece here produced a misleading error on
+  // otherwise healthy calls. The selected browser/OS output is used instead.
+  // On web, this control still has a real, predictable effect: it enables or
+  // mutes the remote participant's audio. Native keeps true speaker routing.
   useEffect(() => {
-    const engine = engineRef.current;
     const element = video ? remoteVideoRef.current : remoteAudioRef.current;
-    if (!remoteStream || !engine || !element) return;
-    let active = true;
-    const operation = audioRouteQueue.current.then(async () => {
-      if (!active || engineRef.current !== engine) return;
-      const outputs = await engine.getSpeakers();
-      const privateOutput = outputs.find(({ deviceName }) =>
-        /earpiece|handset|receiver|communications?|headphones?|headset|bluetooth/i.test(deviceName),
-      );
-      const speakerOutput = outputs.find(({ deviceName }) =>
-        /built.?in.*speaker|speakerphone|loudspeaker/i.test(deviceName),
-      );
-      const output = speaker
-        ? speakerOutput ?? outputs.find(({ deviceID }) => deviceID === "default")
-        : privateOutput;
-      if (!output) {
-        callbacksRef.current.onStatus?.(
-          "This browser does not expose a private audio output; using the current route.",
-        );
-        return;
-      }
-      const routed = await engine.useAudioOutputDevice(element, output.deviceID);
-      if (active && !routed)
-        callbacksRef.current.onStatus?.("The browser could not change the audio output.");
-    }).catch((error) => {
-      if (active) {
-        console.warn("[RTC] unable to change browser audio output", error);
-        callbacksRef.current.onStatus?.("The browser could not change the audio output.");
-      }
-    });
-    audioRouteQueue.current = operation;
-    return () => { active = false; };
+    if (!remoteStream || !element) return;
+    element.muted = !speaker;
+    if (!speaker) {
+      setAudioPlaybackBlocked(false);
+      return;
+    }
+    void element.play()
+      .then(() => setAudioPlaybackBlocked(false))
+      .catch(() => setAudioPlaybackBlocked(true));
   }, [remoteStream, speaker, video]);
 
   const enableRemoteAudio = () => {

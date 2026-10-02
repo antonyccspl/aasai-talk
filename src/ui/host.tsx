@@ -411,12 +411,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
     );
   return (
     <Shell title="Host earnings">
-      {previewMode && (
-        <Notice>
-          Preview data is shown while your
-          application remains pending review.
-        </Notice>
-      )}
+      {previewMode && <Notice>Your application is pending review.</Notice>}
       <Card>
         <T size={12} color={c.secondary}>
           AVAILABLE HOST EARNINGS
@@ -431,7 +426,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
       <T size={18} bold>Withdraw earnings</T>
       {earningsError ? <Notice error>{earningsError}</Notice> : null}
       <Notice>
-        Payout requests are disabled until a server-side payout system verifies host KYC, locks eligible earnings, screens fraud, and records a provider payout reference. Your earnings remain visible, but no bank or UPI details are collected by this app.
+        Withdrawals are not available yet. Your eligible earnings remain visible here.
       </Notice>
     </Shell>
   );

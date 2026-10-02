@@ -2,6 +2,7 @@ import { useAuth } from "@/data/auth";
 import {
     acceptPhoneCallVideoUpgrade,
     fetchPhoneCallSummary,
+    fetchPhoneCallState,
     fetchPhoneHostCallCapabilities,
     requestPhoneCallVideoUpgrade,
     settlePhoneCall,
@@ -9,12 +10,12 @@ import {
     subscribeToPhoneCall,
     updatePhoneCall,
 } from "@/data/call-sessions";
-import { startCallSound, stopCallSound } from "@/data/call-sounds";
+import { startCallSound, stopAllCallSounds, stopCallSound } from "@/data/call-sounds";
 import { fetchDirectoryProfiles, type DirectoryStatus } from "@/data/directory";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Pressable, useWindowDimensions, Vibration, View } from "react-native";
+import { AppState, Platform, Pressable, useWindowDimensions, Vibration, View } from "react-native";
 import {
     Avatar,
     Badge,
@@ -42,12 +43,15 @@ export function CallScreen({
   type = "audio",
   sessionId = "",
   participantName,
+  attemptedIds = "",
 }: {
   mode: string;
   id: string;
   type?: string;
   sessionId?: string;
   participantName?: string;
+  /** Comma-separated directory IDs already invited in this automatic request. */
+  attemptedIds?: string;
 }) {
   const d = useDemo();
   const auth = useAuth();
@@ -86,6 +90,7 @@ export function CallScreen({
   const [state, setState] = useState(
     incoming ? "Incoming" : outgoing ? "Ringing" : "Connected",
   );
+  const ringing = state === "Incoming" || state === "Ringing";
   const [muted, setMuted] = useState(false);
   const [camera, setCamera] = useState(true);
   const [front, setFront] = useState(true);
@@ -97,6 +102,7 @@ export function CallScreen({
         : "Earpiece",
   );
   const soundKey = useRef(`call-sound-${Date.now()}-${Math.random()}`).current;
+  const fallbackRef = useRef(false);
   const [soundError, setSoundError] = useState("");
   const [foreground, setForeground] = useState(
     AppState.currentState === "active",
@@ -118,6 +124,12 @@ export function CallScreen({
   const mediaSessionId = /^[0-9a-f-]{36}$/.test(activeCallId)
     ? activeCallId
     : "";
+  const attemptedSet = new Set(
+    attemptedIds
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
   const activePhone = auth.demoPhone;
   const setActiveCall = d.setActive;
   const incomingCall = d.active?.incoming;
@@ -142,6 +154,7 @@ export function CallScreen({
   );
   const onMediaError = useCallback(
     (message: string) => {
+      void stopAllCallSounds();
       setCallError(message);
       setMediaStatus("Media unavailable");
       if (mediaSessionId && activePhone) {
@@ -188,6 +201,7 @@ export function CallScreen({
       !actionPending &&
       !closedRef.current &&
       !callError &&
+      ringing &&
       (incoming ? !!sessionId : outgoing && d.active?.status === "Ringing");
     let disposed = false;
     if (shouldRing) {
@@ -216,6 +230,7 @@ export function CallScreen({
     actionPending,
     callError,
     route,
+    ringing,
     soundKey,
   ]);
   useEffect(() => {
@@ -242,7 +257,7 @@ export function CallScreen({
     if (closedRef.current) return;
     closedRef.current = true;
     Vibration.cancel();
-    await stopCallSound(soundKey);
+    await Promise.all([stopCallSound(soundKey), stopAllCallSounds()]);
     setActionPending(true);
     const activeSessionId =
       sessionId ||
@@ -415,7 +430,10 @@ export function CallScreen({
         }
       }
       if (incoming && sessionId) {
-        await stopCallSound(soundKey);
+        await Promise.all([stopCallSound(soundKey), stopAllCallSounds()]);
+        // Stop the sound state before the asynchronous server update finishes.
+        // Otherwise the browser effect can restart the ringtone in that gap.
+        setState("Connected");
         await updatePhoneCall(sessionId, auth.demoPhone, "connected");
         session = {
           id: sessionId,
@@ -471,6 +489,63 @@ export function CallScreen({
         `/calls/${video ? "video" : "audio"}/${id}?session=${session.id}&type=${video ? "video" : "audio"}` as never,
       );
   }
+  const continueWithAnotherAvailablePerson = useCallback(async () => {
+    if (fallbackRef.current || closedRef.current || !outgoing) return;
+    fallbackRef.current = true;
+    Vibration.cancel();
+    await Promise.all([stopCallSound(soundKey), stopAllCallSounds()]);
+    try {
+      const directory = await fetchDirectoryProfiles();
+      const eligible = directory.filter(
+        (person) =>
+          person.id !== id &&
+          person.status === "Available" &&
+          !d.blocked.includes(person.id) &&
+          !attemptedSet.has(person.id),
+      );
+      // The public directory intentionally does not expose private host
+      // settings. Check only the requested media capability before redirecting
+      // a caller, so a video request is never sent to an audio-only person.
+      const shuffled = [...eligible].sort(() => Math.random() - 0.5);
+      let next = null as (typeof eligible)[number] | null;
+      for (const candidate of shuffled) {
+        const candidatePhone = candidate.id.startsWith("phone_")
+          ? `+${candidate.id.slice("phone_".length)}`
+          : "";
+        if (!candidatePhone) continue;
+        try {
+          const capability = await fetchPhoneHostCallCapabilities(candidatePhone);
+          if (video ? capability.video : capability.audio) {
+            next = candidate;
+            break;
+          }
+        } catch {
+          // A profile can change while the list is open. Skip it and continue
+          // looking instead of exposing an internal capability error.
+        }
+      }
+      if (!next) {
+        closedRef.current = true;
+        d.finishCall("Missed");
+        router.replace(`/calls/result/${id}?status=Missed` as never);
+        return;
+      }
+
+      closedRef.current = true;
+      d.finishCall("Missed");
+      const tried = [...attemptedSet, id].join(",");
+      router.replace(
+        `/calls/outgoing/${next.id}?type=${video ? "video" : "audio"}&tried=${encodeURIComponent(tried)}` as never,
+      );
+    } catch (error) {
+      fallbackRef.current = false;
+      setCallError(
+        error instanceof Error
+          ? error.message
+          : "We could not find another available person.",
+      );
+    }
+  }, [attemptedIds, d, id, outgoing, soundKey, video]);
   useEffect(() => {
     if (!outgoing || sessionId || hostUnavailable || connectingRef.current) return;
     connectingRef.current = true;
@@ -478,6 +553,31 @@ export function CallScreen({
       connectingRef.current = false;
     });
   }, [outgoing, sessionId, id, type, hostUnavailable]);
+  useEffect(() => {
+    const activeId = sessionId || mediaSessionId;
+    const callerPhone = auth.demoPhone;
+    if (
+      !outgoing ||
+      !activeId ||
+      !callerPhone ||
+      state !== "Ringing" ||
+      closedRef.current
+    )
+      return;
+    const timeout = setTimeout(() => {
+      void (async () => {
+        try {
+          await updatePhoneCall(activeId, callerPhone, "missed");
+          const latest = await fetchPhoneCallState(activeId, callerPhone);
+          if (latest.status === "missed")
+            await continueWithAnotherAvailablePerson();
+        } catch (error) {
+          console.warn("Unable to continue the unanswered call:", error);
+        }
+      })();
+    }, 30_000);
+    return () => clearTimeout(timeout);
+  }, [auth.demoPhone, continueWithAnotherAvailablePerson, mediaSessionId, outgoing, sessionId, state]);
   useEffect(() => {
     const activeId =
       sessionId ||
@@ -493,18 +593,19 @@ export function CallScreen({
         router.replace(
           `/calls/${video ? "video" : "audio"}/${id}?session=${activeId}&type=${video ? "video" : "audio"}` as never,
         );
+      } else if (status === "missed" && outgoing) {
+        void continueWithAnotherAvailablePerson();
       } else if (status !== "ringing" && status !== "connected") {
         if (closedRef.current) return;
         closedRef.current = true;
         Vibration.cancel();
-        void stopCallSound(soundKey);
+        void Promise.all([stopCallSound(soundKey), stopAllCallSounds()]);
         setCallError(`Call ${status}.`);
         d.finishCall(status);
         router.replace(`/calls/result/${id}?status=${status}` as never);
       }
     });
-  }, [outgoing, sessionId, d.active?.id, id, video, auth.demoPhone]);
-  const ringing = outgoing || incoming;
+  }, [outgoing, sessionId, d.active?.id, id, video, auth.demoPhone, continueWithAnotherAvailablePerson]);
   if (!ringing && (blocked || conflict))
     return (
       <Shell title="Call unavailable">
@@ -597,8 +698,15 @@ export function CallScreen({
                 onPress={() => setMuted(!muted)}
               />
               <IconButton
-                label="Change audio route"
+                label={
+                  Platform.OS === "web"
+                    ? route === "Speaker"
+                      ? "Turn speaker off"
+                      : "Turn speaker on"
+                    : "Change audio route"
+                }
                 icon={route === "Speaker" ? "volume-2" : "headphones"}
+                active={route === "Speaker"}
                 onPress={() => {
                   const next = route !== "Speaker";
                   setRoute(next ? "Speaker" : "Earpiece");
@@ -641,7 +749,13 @@ export function CallScreen({
             </Row>
             <Row style={{ justifyContent: "space-around" }}>
               <T size={11}>Microphone</T>
-              <T size={11}>{route}</T>
+              <T size={11}>
+                {Platform.OS === "web"
+                  ? route === "Speaker"
+                    ? "Speaker on"
+                    : "Speaker off"
+                  : route}
+              </T>
               <T size={11}>
                 {video ? "Camera" : canSwitchToVideo ? "Video" : "Chat"}
               </T>
@@ -759,9 +873,6 @@ export function CallScreen({
               zIndex: 3,
               top: 16,
               left: 16,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
             }}
           >
             <View
@@ -786,20 +897,6 @@ export function CallScreen({
                 </T>
               </Row>
             </View>
-            <View
-              style={{
-                backgroundColor: "rgba(8,13,11,0.74)",
-                borderRadius: 99,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-              }}
-            >
-              <T mono size={10} color={c.text}>
-                {d.active?.incoming
-                  ? duration(d.active?.seconds ?? 0)
-                  : talkTime(remainingTalkSeconds)}
-              </T>
-            </View>
           </View>
           <View
             style={{
@@ -808,13 +905,18 @@ export function CallScreen({
               left: 16,
               right: 124,
               bottom: 16,
-              gap: 2,
+              gap: 3,
+              alignSelf: "flex-start",
+              backgroundColor: "rgba(8,13,11,0.78)",
+              borderRadius: 16,
+              paddingHorizontal: 13,
+              paddingVertical: 10,
             }}
           >
-            <T bold size={18} numberOfLines={1}>
+            <T bold size={18} color="#ffffff" numberOfLines={1}>
               {p.name}
             </T>
-            <T size={12} color={c.mint} numberOfLines={1}>
+            <T size={12} color="#7ce0ae" numberOfLines={1}>
               {mediaStatus}
             </T>
           </View>

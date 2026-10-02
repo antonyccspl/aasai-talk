@@ -82,7 +82,6 @@ async function startBrowserCallSound(key: string, incoming: boolean) {
     throw error;
   }
   if (browserSounds.get(key) !== sound) {
-    await context.close().catch(() => undefined);
     return false;
   }
 
@@ -114,4 +113,14 @@ export async function startCallSound(key: string, incoming: boolean, speaker: bo
 export async function stopCallSound(key: string) {
   if (Platform.OS === "web") return stopBrowserCallSound(key);
   await native?.stop(key);
+}
+
+/**
+ * A browser call can be replaced by another route before its component has
+ * finished unmounting. Clear every browser tone so an old ring cannot survive
+ * an accepted or ended call.
+ */
+export async function stopAllCallSounds() {
+  if (Platform.OS !== "web") return;
+  await Promise.all([...browserSounds.keys()].map((key) => stopBrowserCallSound(key)));
 }

@@ -328,7 +328,7 @@ values
       "maintenance_mode": false,
       "maintenance_message": "Talkative is currently undergoing scheduled maintenance. We will be back shortly.",
       "minimum_app_version": "1.0.0",
-      "support_email": "support@talkative.app",
+      "support_email": "support@aasaitalk.app",
       "support_phone": "+91 98765 43210",
       "new_user_bonus_coins": 100,
       "audio_rate_diamonds_per_min": 2,

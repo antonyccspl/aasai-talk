@@ -105,9 +105,7 @@ export function Wallet({
         <Empty
           icon="credit-card"
           title="Paid calls are disabled"
-          message="You can enable the paid-call UI in the screen library."
-          action="Screen library"
-          onPress={() => go("/preview")}
+          message="Paid calls are currently unavailable."
         />
       </Shell>
     );
@@ -127,12 +125,10 @@ export function Wallet({
                 {tx.title}
               </T>
               <Setting title="Date" detail={tx.date} icon="calendar" />
-              <Setting title="Reference" detail={tx.id} icon="hash" />
               <Setting title="Type" detail={tx.kind} icon="file-text" />
             </Card>
             <Notice>
-              Sample ledger entry. No live Razorpay payment or receipt exists
-              for this preview.
+              Receipt details are not available for this transaction.
             </Notice>
             <Button
               title="Payment help"
@@ -143,7 +139,7 @@ export function Wallet({
         ) : (
           <Empty
             title="Transaction unavailable"
-            message="This reference was not found in the demo ledger."
+            message="This transaction could not be found."
           />
         )}
       </Shell>
@@ -193,7 +189,7 @@ export function Wallet({
         <Empty
           icon="shield"
           title="Payments are not available yet"
-          message="Checkout is disabled until Razorpay orders, webhook verification, and a server-side wallet ledger are connected. No coins or money can move from this screen."
+          message="Coin purchases are not available yet."
         />
         <Button title="Back to wallet" onPress={() => go("/wallet")} />
       </Shell>
@@ -234,7 +230,7 @@ export function Wallet({
           </T>
         </Card>
         <Notice>
-          Coin purchases are temporarily unavailable. A successful payment must be verified by a server-side Razorpay webhook before any wallet credit is created.
+          Coin purchases are temporarily unavailable. Please check back soon.
         </Notice>
         <T size={11} color={c.muted} style={{ textAlign: "center" }}>
           No payment details are collected and no coins are added.
@@ -258,7 +254,7 @@ export function Wallet({
                 <T size={12} color={c.secondary}>
                   {isApprovedHost
                     ? `₹${d.hostEarnings} available to withdraw`
-                    : "View illustrative earnings while verification is pending."}
+                    : "Your earnings will be available after Host approval."}
                 </T>
               </View>
             </Row>
@@ -266,14 +262,14 @@ export function Wallet({
               title={
                 isApprovedHost
                   ? "Withdraw earnings"
-                  : "View Host earnings"
+                  : "View application status"
               }
               variant="secondary"
               onPress={() =>
                 go(
                   isApprovedHost
                     ? "/host/withdraw"
-                    : "/host/withdraw-preview",
+                    : "/host/status",
                 )
               }
             />

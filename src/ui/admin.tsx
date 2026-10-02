@@ -582,7 +582,7 @@ export function Admin({
         />
         <Setting
           title="Support Email"
-          detail={d.appConfig?.support_email || "support@talkative.app"}
+          detail={d.appConfig?.support_email || "support@aasaitalk.app"}
           icon="mail"
         />
         <Setting

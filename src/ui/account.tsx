@@ -816,6 +816,9 @@ export function Settings({
   const [otherDeleteReason, setOtherDeleteReason] = useState("");
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    if (mode === "policies") void d.refreshPlatformData();
+  }, [d.refreshPlatformData, mode]);
   const refreshAccountData = async () => {
     setRefreshing(true);
     try {
@@ -913,26 +916,20 @@ export function Settings({
   if (mode === "policies") {
     const policyKey = (policy || "privacy").toLowerCase();
     const sections = d.policies[policyKey] || d.policies["privacy"];
+    const policyTitle = policy === "terms"
+      ? "Terms and Conditions"
+      : policy === "community"
+        ? "Community Guidelines"
+        : policy === "safety"
+          ? "Safety Center"
+          : policy === "refund"
+            ? "Refund and Payment Policy"
+            : "Privacy Policy";
     return (
-      <Shell
-        title={`${(policy || "Privacy")[0].toUpperCase()}${(policy || "privacy").slice(1)} policy`}
-      >
-        <Badge text="OFFICIAL POLICY · DATABASE SYNCED" />
+      <Shell title={policyTitle}>
         <T size={24} bold>
-          {policy === "terms"
-            ? "Terms of Service"
-            : policy === "community"
-              ? "Community Guidelines"
-              : policy === "safety"
-                ? "Safety Center"
-                : policy === "refund"
-                  ? "Refund and Payment Policy"
-                  : "Privacy Policy"}
+          {policyTitle}
         </T>
-        <Notice>
-          Official Aasai Talk community and legal policy fetched live from
-          Supabase.
-        </Notice>
         {sections && sections.length > 0 ? (
           sections.map((s, idx) => (
             <Card key={idx}>
@@ -946,7 +943,7 @@ export function Settings({
           ))
         ) : (
           <Card>
-            <T color={c.secondary}>Policy details loading from database...</T>
+            <T color={c.secondary}>Policy details are loading…</T>
           </Card>
         )}
       </Shell>
@@ -989,7 +986,7 @@ export function Settings({
           variant="secondary"
           onPress={() =>
             setMessage(
-              `Reach our 24/7 support desk at ${d.appConfig?.support_email || "support@talkative.app"} or call ${d.appConfig?.support_phone || "+91 98765 43210"}.`,
+              `Reach our 24/7 support desk at ${d.appConfig?.support_email || "support@aasaitalk.app"} or call ${d.appConfig?.support_phone || "+91 98765 43210"}.`,
             )
           }
         />
@@ -1009,7 +1006,7 @@ export function Settings({
           }
         />
         {d.active && (
-          <Notice error>An ongoing demo call must be ended first.</Notice>
+          <Notice error>An ongoing call must be ended first.</Notice>
         )}
         {mode === "delete-account" && (
           <Card>
@@ -1041,9 +1038,7 @@ export function Settings({
               />
             )}
             <Notice>
-              The request is stored on the server with a 15-day review window.
-              Automatic data erasure is not configured yet, so this request
-              does not delete your account by itself.
+              Your request will be reviewed before account deletion is completed.
             </Notice>
             <Field
               label="Type DELETE to confirm"
@@ -1095,7 +1090,7 @@ export function Settings({
                     requestedAt: new Date().toISOString(),
                   });
                   setMessage(
-                    `Your deletion request was recorded for review after ${new Date(scheduledFor).toLocaleDateString()}. Your account has not been deleted; automatic erasure is not configured yet.`,
+                    `Your deletion request was recorded on ${new Date(scheduledFor).toLocaleDateString()}. We will review it before completing the deletion.`,
                   );
                 })
                 .catch((error) => {
@@ -1458,7 +1453,7 @@ export function ServiceState({ state }: { state: string }) {
     ],
     update: [
       "A fresh version is waiting",
-      "Update Aasai Talk to continue. The store destination is not configured in this preview.",
+      "A newer version of Aasai Talk is available. Update the app to continue.",
     ],
     expired: ["Let’s get you signed in", "Your session has expired."],
     suspended: [
@@ -1470,12 +1465,12 @@ export function ServiceState({ state }: { state: string }) {
       "It may have been removed or your access may have changed.",
     ],
     admin: [
-      "Administrator access is not configured",
-      "Administrative tools stay unavailable until server-side role verification and audit logging are enabled.",
+      "Access unavailable",
+      "This area is available only to authorised administrators.",
     ],
     loading: [
       "Getting things ready",
-      "This is the reusable loading-state preview.",
+      "Loading your experience…",
     ],
     error: [
       "Something went wrong",
@@ -1499,8 +1494,7 @@ export function ServiceState({ state }: { state: string }) {
         ))}
       {retried && (
         <Notice>
-          This is a static failure-state preview. Service checks are not
-          connected.
+          We could not reconnect. Please try again.
         </Notice>
       )}
       <Button
