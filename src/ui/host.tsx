@@ -245,14 +245,13 @@ export function HostApplication() {
           <T>{form.languages.join(", ")}</T>
           <T>{form.interests.join(", ")}</T>
           <T color={c.secondary}>
-            Your applicable diamond rate is calculated from your consolidated
-            call time each day.
+            Your earnings depend on the time you spend in calls each day.
           </T>
           <Button
             title="Submit"
             onPress={() => {
               if (!auth.demoPhone) {
-                setError("Your phone session is missing. Please sign in again.");
+                setError("Please sign in again before submitting your application.");
                 return;
               }
               void submitPhoneHostApplication(auth.demoPhone, {

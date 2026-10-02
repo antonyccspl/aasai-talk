@@ -76,7 +76,7 @@ export function ZegoMedia({
     };
     const zego = getZegoModule();
     if (!zego) {
-      onStatus?.("Native RTC is available in a development build.");
+      onStatus?.("Call service is unavailable in this app build.");
       return;
     }
     setTextureView(() => zego.ZegoTextureView);
@@ -92,10 +92,10 @@ export function ZegoMedia({
             throw new Error(video ? "Allow microphone and camera access to join this call." : "Allow microphone access to join this call.");
           if (disposed) return;
         }
-        onStatus?.(video ? "Preparing microphone and camera…" : "Preparing microphone and speaker…");
+        onStatus?.(video ? "Getting your camera ready…" : "Getting your microphone ready…");
         const auth = await fetchZegoCallToken(sessionId, phone);
         if (disposed) return;
-        onStatus?.("Joining secure media room…");
+        onStatus?.("Connecting…");
         const profile = new zego.ZegoEngineProfile(
           auth.appId,
           "",
@@ -109,13 +109,13 @@ export function ZegoMedia({
         const activeEngine = engine;
         let publishing = false;
         let playing = false;
-        const reportConnection = () => onStatus(publishing && playing ? "Connected" : "Waiting for two-way media…");
+        const reportConnection = () => onStatus(publishing && playing ? "Connected" : "Waiting for the other participant…");
         activeEngine.on("publisherStateUpdate", (_stream, state, errorCode) => {
           if (disposed) return;
           console.info("[RTC] publisher state", state, "code", errorCode);
           publishing = state === zego.ZegoPublisherState.Publishing;
           if (errorCode && state === zego.ZegoPublisherState.NoPublish)
-            onError(`Microphone publishing failed (${errorCode}).`);
+            onError("Microphone could not start.");
           else reportConnection();
         });
         activeEngine.on("playerStateUpdate", (_stream, state, errorCode) => {
@@ -123,7 +123,7 @@ export function ZegoMedia({
           console.info("[RTC] playback state", state, "code", errorCode);
           playing = state === zego.ZegoPlayerState.Playing;
           if (errorCode && state === zego.ZegoPlayerState.NoPlay)
-            onError(`Incoming audio playback failed (${errorCode}).`);
+            onError("Call sound could not start.");
           else reportConnection();
         });
         if (__DEV__) {
@@ -178,7 +178,7 @@ export function ZegoMedia({
               setRemoteStream(false);
             }
           }
-          } catch (error) { onError(error instanceof Error ? error.message : "Unable to play remote media."); }
+          } catch { onError("The other participant’s sound could not start."); }
         });
         activeEngine.on("roomStateChanged", (_room, reason, errorCode) => {
           if (reason === zego.ZegoRoomStateChangedReason.Logined)
@@ -186,14 +186,14 @@ export function ZegoMedia({
           if (reason === zego.ZegoRoomStateChangedReason.Reconnecting)
             onStatus?.("Reconnecting");
           if (reason === zego.ZegoRoomStateChangedReason.LoginFailed)
-            onError?.(`Media room could not connect (${errorCode}).`);
+            onError?.("The call could not connect.");
         });
         const user = new zego.ZegoUser(auth.userId, auth.userId);
         const config = new zego.ZegoRoomConfig(2, true, auth.token);
         const login = await activeEngine.loginRoom(auth.roomId, user, config);
         if (disposed) return;
         if (login.errorCode) {
-          onError?.(`Media room login failed (${login.errorCode}).`);
+          onError?.("The call could not connect.");
           return;
         }
         const initialRoute = audioRouteQueue.current.then(async () => {
@@ -206,7 +206,7 @@ export function ZegoMedia({
         });
         audioRouteQueue.current = initialRoute;
         await initialRoute;
-        onStatus?.("Starting microphone and speaker…");
+        onStatus?.("Joining call…");
         const channel: ZegoPublishChannel | undefined = undefined;
         if (video) {
           const tag = findNodeHandle(localRef.current);

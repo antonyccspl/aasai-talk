@@ -55,7 +55,7 @@ class CallMediaBoundary extends Component<
 
   componentDidCatch(error: unknown) {
     console.error("[Call media] render failure", error);
-    this.props.onFailure("Call media could not start. Please check your microphone and camera permissions.");
+    this.props.onFailure("Your call could not start. Check your microphone and camera permissions, then try again.");
   }
 
   render() {
@@ -88,7 +88,7 @@ class CallScreenBoundary extends Component<{ children: ReactNode }, { failed: bo
   render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <Shell title="Call connection">
+      <Shell title="Your call">
         <Notice error>
           We could not open this call. Please return to calls and try again.
         </Notice>
@@ -170,7 +170,7 @@ function CallScreenContent({
   );
   const [callError, setCallError] = useState("");
   const [hostUnavailable, setHostUnavailable] = useState<DirectoryStatus | null>(null);
-  const [mediaStatus, setMediaStatus] = useState("Starting media…");
+  const [mediaStatus, setMediaStatus] = useState("Getting your call ready…");
   const connectingRef = useRef(false);
   const actionRef = useRef(false);
   const closedRef = useRef(false);
@@ -216,8 +216,13 @@ function CallScreenContent({
   const onMediaError = useCallback(
     (message: string) => {
       void stopAllCallSounds();
-      setCallError(message);
-      setMediaStatus("Media unavailable");
+      const friendlyMessage = /microphone|camera|permission/i.test(message)
+        ? "Please allow microphone and camera access, then try the call again."
+        : /audio|sound/i.test(message)
+          ? "Sound needs permission before this call can continue. Please allow it and try again."
+          : "We couldn’t connect your call. Please try again.";
+      setCallError(friendlyMessage);
+      setMediaStatus("Call unavailable");
       if (mediaSessionId && activePhone) {
         void updatePhoneCall(mediaSessionId, activePhone, "ended")
           .then(() =>
@@ -831,7 +836,7 @@ function CallScreenContent({
       <Row style={{ justifyContent: "space-between", alignItems: "center" }}>
         <View style={{ gap: 4 }}>
           <T mono size={11} color={c.mint} bold>
-            {video ? "VIDEO CONNECTION" : "AUDIO CONNECTION"}
+            {video ? "VIDEO CALL" : "AUDIO CALL"}
           </T>
           <T size={13} color={c.secondary}>
             {hostUnavailable
@@ -861,7 +866,7 @@ function CallScreenContent({
         <Card style={{ gap: 10 }}>
           <T bold>Switch this call to video?</T>
           <T size={12} color={c.secondary}>
-            The next billed minute will use the Host’s video-call rate.
+            Video calls may use a different number of coins. You can continue or stay on audio.
           </T>
           <Button
             title={actionPending ? "Accepting video…" : "Accept video"}
@@ -872,8 +877,9 @@ function CallScreenContent({
         </Card>
       )}
       {video && !ringing ? (
-        <Card
-          style={{
+        <View style={{ width: "100%", gap: 10 }}>
+          <Card
+            style={{
             // Adapt to compact screens instead of reserving a fixed desktop-like
             // panel height. The frame stays comfortably tall for portrait video.
             width: "100%",
@@ -965,29 +971,41 @@ function CallScreenContent({
               </Row>
             </View>
           </View>
+          </Card>
           <View
             style={{
-              position: "absolute",
-              zIndex: 3,
-              left: 16,
-              right: 124,
-              bottom: 16,
-              gap: 3,
-              alignSelf: "flex-start",
-              backgroundColor: "rgba(8,13,11,0.78)",
-              borderRadius: 16,
-              paddingHorizontal: 13,
+              minHeight: 58,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              paddingHorizontal: 14,
               paddingVertical: 10,
+              borderRadius: 18,
+              backgroundColor: c.low,
+              borderWidth: 1,
+              borderColor: c.line,
             }}
           >
-            <T bold size={18} color="#ffffff" numberOfLines={1}>
-              {p.name}
-            </T>
-            <T size={12} color="#7ce0ae" numberOfLines={1}>
-              {mediaStatus}
-            </T>
+            <View
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 15,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: c.successSurface,
+              }}
+            >
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.success }} />
+            </View>
+            <View style={{ flex: 1, gap: 1, minWidth: 0 }}>
+              <T bold size={14} numberOfLines={1}>{p.name}</T>
+              <T size={12} color={c.secondary} numberOfLines={1}>
+                {mediaStatus === "Connected" ? "Connected" : mediaStatus}
+              </T>
+            </View>
           </View>
-        </Card>
+        </View>
       ) : (
         <View
           style={{
@@ -1047,7 +1065,7 @@ function CallScreenContent({
                 ? "Your microphone is muted"
                 : state === "Connected"
                   ? mediaStatus === "Connected"
-                    ? "Secure media is connected."
+                    ? "You’re connected."
                     : mediaStatus
                   : state}
           </T>
@@ -1323,7 +1341,7 @@ export function CallDetail({
               summary
                 ? `${displayCoins ?? 0} coins spent`
                 : displaySeconds
-                  ? "Loading server receipt…"
+                  ? "Loading call details…"
                   : "0 coins · not connected"
             }
             icon="credit-card"

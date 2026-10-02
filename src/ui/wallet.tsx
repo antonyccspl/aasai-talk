@@ -149,7 +149,7 @@ export function Wallet({
         <Empty
           icon="shield"
           title="Wallet unavailable for Hosts"
-          message="Host accounts do not purchase coins. Host earnings and withdrawals are available from the Host workspace."
+          message="Host accounts do not purchase coins. Your earnings and withdrawals are available in the Host area."
           action="Open Host status"
           onPress={() => go("/host/status")}
         />
@@ -184,7 +184,7 @@ export function Wallet({
               <Setting title="Type" detail={tx.kind} icon="file-text" />
             </Card>
             <Notice>
-              Receipt details are not available for this transaction.
+              More details are not available for this activity.
             </Notice>
             <Button
               title="Payment help"
@@ -253,13 +253,13 @@ export function Wallet({
     );
   if (mode === "checkout")
     return (
-      <Shell title="Razorpay checkout">
+      <Shell title="Payment">
         <Empty
           icon="shield"
-          title="Continue with Razorpay"
-          message={`Review your ${coins(d.pack)} recharge for ${packPrice} in the secure provider checkout when the integration is connected.`}
+          title="Purchases are not available yet"
+          message={`Your selected ${coins(d.pack)} pack costs ${packPrice}. Purchases will be available soon.`}
         />
-        <Notice>Checkout is disabled until a verified payment integration is available.</Notice>
+        <Notice>We’ll let you know when coin purchases are ready.</Notice>
         <Button title="Back to wallet" variant="secondary" onPress={() => go("/wallet")} />
       </Shell>
     );

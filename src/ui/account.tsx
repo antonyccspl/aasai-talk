@@ -61,26 +61,24 @@ function otpErrorMessage(error: unknown) {
       : "";
   const providerError = `${code} ${detail}`.toLowerCase();
   if (/unauthorized-domain|app-not-authorized|auth\/invalid-tenant-id|firebase web app settings/i.test(providerError)) {
-    return "This website is not authorized for Firebase phone sign-in. Add its hostname under Firebase Authentication > Settings > Authorized domains.";
+    return "Phone sign-in is not available on this website yet. Please try again later.";
   }
   if (/captcha|invalid-app-credential|missing-app-credential/i.test(providerError)) {
-    return "Firebase could not verify this browser. Refresh the page, complete reCAPTCHA, and try again.";
+    return "We could not verify this request. Refresh the page and try again.";
   }
   if (/operation-not-allowed|provider.*disabled|phone.*disabled/i.test(providerError)) {
-    return "Phone sign-in is not enabled in Firebase Authentication yet.";
+    return "Phone sign-in is not available right now. Please try again later.";
   }
   if (/too-many-requests|quota-exceeded|throttl/i.test(providerError)) {
-    return "Firebase is temporarily limiting SMS requests. Wait for the cooldown, or use a configured Firebase test number.";
+    return "Too many attempts were made. Please wait a little, then try again.";
   }
   if (/invalid-phone-number/i.test(providerError)) {
     return "Enter a valid mobile number with the +91 country code.";
   }
   if (/network-request-failed|network error/i.test(providerError)) {
-    return "Could not reach Firebase. Check your connection and try again.";
+    return "We could not send the code. Check your connection and try again.";
   }
-  return __DEV__ && code
-    ? `Could not send a verification code (Firebase: ${code}).`
-    : "We could not send a verification code. Please try again.";
+  return "We could not send a verification code. Please try again.";
 }
 
 function OnboardingProgress({ step, label }: { step: number; label: string }) {
@@ -1189,7 +1187,7 @@ export function Safety({ id, mode }: { id: string; mode: string }) {
           message={
             blocked
               ? "They will be eligible for discovery, chat, and calls again."
-              : "They will be removed from discovery, and the server will prevent chats and calls between you."
+              : "They will be removed from discovery, and you will no longer be able to chat or call each other."
           }
         />
         <Button
@@ -1281,7 +1279,7 @@ export function Safety({ id, mode }: { id: string; mode: string }) {
           <Empty
             icon="check-circle"
             title="Your concern has been noted"
-            message="Your report has been submitted to the server for review."
+            message="Your report has been sent to our safety team for review."
           />
           <Button
             title="Block this person too"

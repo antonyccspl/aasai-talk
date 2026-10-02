@@ -60,7 +60,7 @@ export function ZegoMedia({
             ? "Connected"
             : roomLoggedIn
               ? "Waiting for the other participant…"
-              : "Connecting to call room…",
+              : "Connecting…",
         );
     };
 
@@ -96,7 +96,7 @@ export function ZegoMedia({
 
     const start = async () => {
       try {
-        callbacksRef.current.onStatus?.("Preparing microphone and camera…");
+        callbacksRef.current.onStatus?.(video ? "Getting your camera ready…" : "Getting your microphone ready…");
         const token = await fetchZegoCallToken(sessionId, phone);
         if (disposed) return;
         if (!token.webServerUrl)
@@ -155,7 +155,7 @@ export function ZegoMedia({
           track.enabled = controlsRef.current.camera;
         });
 
-        callbacksRef.current.onStatus?.("Starting microphone and speaker…");
+        callbacksRef.current.onStatus?.("Joining call…");
         if (!engine.startPublishingStream(localStreamId, localStream))
           throw new Error("ZEGO could not start publishing your microphone.");
         publishing = true;
@@ -245,7 +245,7 @@ export function ZegoMedia({
     if (!element) return;
     element.muted = false;
     void element.play().then(() => setAudioPlaybackBlocked(false)).catch(() => {
-      callbacksRef.current.onError?.("Browser blocked call audio. Check site sound permissions and try again.");
+      callbacksRef.current.onError?.("Sound needs permission before this call can continue.");
     });
   };
 
