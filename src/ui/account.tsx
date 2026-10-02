@@ -930,7 +930,7 @@ export function Settings({
                   : "Privacy Policy"}
         </T>
         <Notice>
-          Official Talkative community and legal policy fetched live from
+          Official Aasai Talk community and legal policy fetched live from
           Supabase.
         </Notice>
         {sections && sections.length > 0 ? (
