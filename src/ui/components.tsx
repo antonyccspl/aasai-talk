@@ -960,18 +960,22 @@ export function Shell({
             )}
             {!immersive && (
               <>
-                {d.paid && !isApprovedHost && !title && !compact && (
+                {d.paid && !isApprovedHost && !title && (
                   <Pressable
                     onPress={() => go("/wallet")}
                     style={[
                       s.balance,
-                      { backgroundColor: c.high, borderColor: c.line },
+                      {
+                        backgroundColor: c.high,
+                        borderColor: c.line,
+                        padding: compact ? 8 : 10,
+                      },
                     ]}
-                    accessibilityLabel="Open wallet"
+                    accessibilityLabel={`Open wallet. Available balance: ${coins(d.balance)}`}
                   >
-                    <CoinStack size={21} />
-                    <T mono size={12}>
-                      {coins(d.balance)}
+                    <CoinStack size={compact ? 18 : 21} />
+                    <T mono size={compact ? 10 : 12}>
+                      {compact ? d.balance.toLocaleString("en-IN") : coins(d.balance)}
                     </T>
                   </Pressable>
                 )}

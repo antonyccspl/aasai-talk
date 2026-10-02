@@ -2,8 +2,8 @@ import { useAuth } from "@/data/auth";
 import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
 import { fetchHostEarningSlabs, type HostEarningSlab } from "@/data/host-metrics";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { useRefreshPeople } from '../data/sample-workspace';
 import {
@@ -43,22 +43,62 @@ function HostDashboardHome() {
   const [earningSlabs, setEarningSlabs] = useState<HostEarningSlab[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const load = async () => {
-    if (!auth.demoPhone) return;
-    const [dashboardData, slabData] = await Promise.all([
-      fetchPhoneHostDashboard(auth.demoPhone),
-      fetchHostEarningSlabs(),
-    ]);
-    setDashboard(dashboardData);
-    setEarningSlabs(slabData);
-    setError("");
-  };
+  const loadDashboard = useCallback(() => {
+    if (!auth.demoPhone) return Promise.resolve(null);
+    return fetchPhoneHostDashboard(auth.demoPhone);
+  }, [auth.demoPhone]);
+  useFocusEffect(
+    useCallback(() => {
+      let focused = true;
+      let loading = false;
+      const refreshDashboard = async () => {
+        if (loading || !auth.demoPhone) return;
+        loading = true;
+        try {
+          const data = await loadDashboard();
+          if (focused && data) {
+            setDashboard(data);
+            setError("");
+          }
+        } catch (cause) {
+          if (focused)
+            setError(cause instanceof Error ? cause.message : "Unable to load your host dashboard.");
+        } finally {
+          loading = false;
+        }
+      };
+      void refreshDashboard();
+      const interval = setInterval(() => void refreshDashboard(), 10000);
+      return () => {
+        focused = false;
+        clearInterval(interval);
+      };
+    }, [auth.demoPhone, loadDashboard]),
+  );
   useEffect(() => {
-    void load().catch((cause) => setError(cause instanceof Error ? cause.message : "Unable to load your host dashboard."));
+    if (!auth.demoPhone) {
+      setEarningSlabs([]);
+      return;
+    }
+    let active = true;
+    void fetchHostEarningSlabs()
+      .then((data) => { if (active) setEarningSlabs(data); })
+      .catch((cause) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Unable to load host earning rates.");
+      });
+    return () => { active = false; };
   }, [auth.demoPhone]);
   const refresh = async () => {
     setRefreshing(true);
-    try { await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to refresh your dashboard."); }
+    try {
+      const [dashboardData, slabData] = await Promise.all([
+        loadDashboard(),
+        fetchHostEarningSlabs(),
+      ]);
+      if (dashboardData) setDashboard(dashboardData);
+      setEarningSlabs(slabData);
+      setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to refresh your dashboard."); }
     finally { setRefreshing(false); }
   };
   return (
