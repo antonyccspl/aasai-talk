@@ -441,7 +441,7 @@ export function UserProfile({ id }: { id: string }) {
       </Card>
       {!blocked && (
         <>
-          {!isApprovedHost && <Row>
+          {!isApprovedHost && p.status === "Available" && <Row>
             <Button
               title="Audio call"
               icon="phone"
@@ -456,6 +456,11 @@ export function UserProfile({ id }: { id: string }) {
               onPress={() => go(`/calls/outgoing/${id}?type=video`)}
             />
           </Row>}
+          {!isApprovedHost && p.status !== "Available" && (
+            <Notice>
+              {p.status === "Busy" ? "This Host is busy on another call." : "This Host is offline."}
+            </Notice>
+          )}
           {d.paid && !isApprovedHost && (
             <T mono size={11} color={c.muted}>
               Audio {d.callSlabs.find(row => row.call_type === 'AUDIO')?.diamonds_per_minute ?? '—'} diamonds/min · Video {d.callSlabs.find(row => row.call_type === 'VIDEO')?.diamonds_per_minute ?? '—'} diamonds/min

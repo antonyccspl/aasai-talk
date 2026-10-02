@@ -50,11 +50,6 @@ as $$
     case
       when exists (
         select 1
-        from public.phone_host_presence presence
-        where presence.host_phone = pp.phone
-          and presence.last_seen_at > now() - interval '60 seconds'
-      ) and exists (
-        select 1
         from public.call_sessions call
         where call.host_phone = pp.phone
           and (
@@ -136,16 +131,16 @@ begin
     and status = 'ringing'
     and created_at < now() - interval '60 seconds';
 
+  if exists (
+    select 1 from public.call_sessions
+    where host_phone = input_host_phone and status in ('ringing', 'connected')
+  ) then raise exception 'Host is busy on another call'; end if;
+
   if not exists (
     select 1 from public.phone_host_presence
     where host_phone = input_host_phone
       and last_seen_at > now() - interval '60 seconds'
   ) then raise exception 'Host is offline'; end if;
-
-  if exists (
-    select 1 from public.call_sessions
-    where host_phone = input_host_phone and status in ('ringing', 'connected')
-  ) then raise exception 'Host is busy on another call'; end if;
 
   update public.call_sessions set status = 'cancelled', ended_at = now(), duration_seconds = 0
   where caller_phone = input_caller_phone and status = 'ringing';

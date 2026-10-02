@@ -10,6 +10,7 @@ import {
     updatePhoneCall,
 } from "@/data/call-sessions";
 import { startCallSound, stopCallSound } from "@/data/call-sounds";
+import { fetchDirectoryProfiles, type DirectoryStatus } from "@/data/directory";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -101,6 +102,7 @@ export function CallScreen({
     AppState.currentState === "active",
   );
   const [callError, setCallError] = useState("");
+  const [hostUnavailable, setHostUnavailable] = useState<DirectoryStatus | null>(null);
   const [mediaStatus, setMediaStatus] = useState("Starting media…");
   const connectingRef = useRef(false);
   const actionRef = useRef(false);
@@ -374,7 +376,7 @@ export function CallScreen({
     }
   }
   async function connect() {
-    if (blocked || conflict || actionRef.current || closedRef.current) return;
+    if (blocked || conflict || hostUnavailable || actionRef.current || closedRef.current) return;
     setCallError("");
     if (d.active && !incoming) return;
     if (!auth.demoPhone || !id.startsWith("phone_"))
@@ -385,6 +387,20 @@ export function CallScreen({
     actionRef.current = true;
     setActionPending(true);
     try {
+      if (!incoming) {
+        const directory = await fetchDirectoryProfiles();
+        const currentHost = directory.find((person) => person.id === id);
+        if (!currentHost || currentHost.status !== "Available") {
+          const unavailableStatus = currentHost?.status ?? "Offline";
+          setHostUnavailable(unavailableStatus);
+          setCallError(
+            unavailableStatus === "Busy"
+              ? `${p.name.split(" ")[0]} is busy on another call.`
+              : `${p.name.split(" ")[0]} is offline.`,
+          );
+          return;
+        }
+      }
       if (!incoming && d.paid) {
         const hostSlabs = await fetchHostCurrentSlabs(hostPhone);
         const slab = hostSlabs.find(
@@ -416,11 +432,14 @@ export function CallScreen({
       }
     } catch (error) {
       console.error("Failed to start call session:", error);
-      setCallError(
-        error instanceof Error && error.message
-          ? error.message
-          : "We could not start this call. Please try again.",
-      );
+      const detail = error instanceof Error ? error.message : "";
+      if (/host is offline|host is busy/i.test(detail)) {
+        const busy = /busy/i.test(detail);
+        setHostUnavailable(busy ? "Busy" : "Offline");
+        setCallError(busy
+          ? `${p.name.split(" ")[0]} is busy on another call.`
+          : `${p.name.split(" ")[0]} is offline.`);
+      } else setCallError(detail || "We could not start this call. Please try again.");
       return;
     } finally {
       actionRef.current = false;
@@ -453,12 +472,12 @@ export function CallScreen({
       );
   }
   useEffect(() => {
-    if (!outgoing || sessionId || connectingRef.current) return;
+    if (!outgoing || sessionId || hostUnavailable || connectingRef.current) return;
     connectingRef.current = true;
     void connect().finally(() => {
       connectingRef.current = false;
     });
-  }, [outgoing, sessionId, id, type]);
+  }, [outgoing, sessionId, id, type, hostUnavailable]);
   useEffect(() => {
     const activeId =
       sessionId ||
@@ -524,7 +543,13 @@ export function CallScreen({
                 onPress={connect}
               />
             </Row>
-          ) : (
+            ) : hostUnavailable ? (
+              <Button
+                title="Back to people"
+                icon="arrow-left"
+                onPress={() => router.replace("/search" as never)}
+              />
+            ) : (
             <View style={{ gap: 10 }}>
               <Button
                 title={route === "Speaker" ? "Speaker on" : "Speaker off"}
@@ -634,18 +659,22 @@ export function CallScreen({
             {video ? "VIDEO CONNECTION" : "AUDIO CONNECTION"}
           </T>
           <T size={13} color={c.secondary}>
-            {ringing ? "Waiting for response" : "Private 1:1 conversation"}
+            {hostUnavailable
+              ? hostUnavailable === "Busy"
+                ? "Host is busy on another call"
+                : "Host is offline"
+              : ringing ? "Waiting for response" : "Private 1:1 conversation"}
           </T>
         </View>
         <Badge
           text={
             ringing
-              ? state
+              ? hostUnavailable ? hostUnavailable : state
               : d.active?.incoming
                 ? duration(d.active?.seconds ?? 0)
                 : talkTime(remainingTalkSeconds)
           }
-          warning={state !== "Connected" && !ringing}
+          warning={!!hostUnavailable || (state !== "Connected" && !ringing)}
         />
       </Row>
       {!ringing && !video && videoRequestFromMe && (
@@ -839,7 +868,9 @@ export function CallScreen({
             {p.name}
           </T>
           <T size={13} color={c.mint} numberOfLines={1}>
-            {ringing
+            {hostUnavailable
+              ? hostUnavailable === "Busy" ? "Busy on another call" : "Offline"
+              : ringing
               ? `${video ? "Video" : "Audio"} call · ${state.toLowerCase()}`
               : muted
                 ? "Your microphone is muted"
@@ -897,6 +928,7 @@ export function CallsList() {
       <Section title="Recent calls" />
       {list.map((call) => {
         const person = personFor(call.person);
+        const canCallPerson = person.status === "Available";
         return (
           <Card key={call.id} style={{ padding: 12, gap: 10 }}>
             <Row>
@@ -924,7 +956,7 @@ export function CallsList() {
                   </T>
                 )}
               </Pressable>
-              {!isHost && (
+              {!isHost && canCallPerson && (
                 <>
                   <IconButton
                     icon="phone"
@@ -1048,7 +1080,7 @@ export function CallDetail({
     photo: summary?.counterpart_avatar_url ?? p.photo,
   };
   const canCallAgain =
-    d.profile.gender === "Male" && d.hostStatus !== "approved";
+    d.profile.gender === "Male" && d.hostStatus !== "approved" && p.status === "Available";
   return (
     <Shell title={result ? "Call summary" : "Call details"}>
       <View style={{ alignItems: "center", gap: 12, padding: 14 }}>
@@ -1104,6 +1136,11 @@ export function CallDetail({
           icon="phone"
           onPress={() => go(`/calls/outgoing/${p.id}?type=${summary?.call_type ?? call.type}`)}
         />
+      )}
+      {!hostViewer && d.profile.gender === "Male" && p.status !== "Available" && (
+        <Notice>
+          {p.status === "Busy" ? "This Host is busy on another call." : "This Host is offline. Call again when they are Online."}
+        </Notice>
       )}
       <Button
         title="Report a problem"
