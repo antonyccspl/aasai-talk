@@ -130,7 +130,11 @@ export async function sendPhoneMessage(
     typeof row.remaining_coins !== "number"
   )
     throw new Error("Invalid message billing response.");
-  return { message: row.message, remainingCoins: row.remaining_coins };
+  return {
+    message: row.message,
+    remainingCoins: row.remaining_coins,
+    coinsCharged: row.coins_charged,
+  };
 }
 
 export function subscribeToPhoneMessages(

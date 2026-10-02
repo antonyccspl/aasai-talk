@@ -15,5 +15,9 @@ export async function verifyFirebasePhoneToken(token: string) {
   const phone = payload.phone_number;
   if (typeof phone !== "string" || !/^\+91\d{10}$/.test(phone))
     throw new Error("A verified Indian phone identity is required.");
-  return { phone, uid: payload.sub || "" };
+  return {
+    phone,
+    uid: payload.sub || "",
+    moderator: payload.moderator === true,
+  };
 }

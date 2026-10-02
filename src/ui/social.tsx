@@ -1,5 +1,6 @@
 import { useAuth } from "@/data/auth";
 import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
+import { sendPushEvent } from "@/data/push-notifications";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
 import { fetchHostEarningSlabs, type HostEarningSlab } from "@/data/host-metrics";
 import { router, useFocusEffect } from "expo-router";
@@ -18,7 +19,9 @@ import {
     go,
     Icon,
     IconButton,
+    LoadingCards,
     Notice,
+    presenceText,
     Row,
     s,
     Section,
@@ -186,6 +189,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
   const isHost = d.hostStatus === "approved";
   const wideLayout = useWindowDimensions().width >= 768;
   const [refreshing, setRefreshing] = useState(false);
+  const [directoryLoading, setDirectoryLoading] = useState(true);
   const [newlyAvailableCount, setNewlyAvailableCount] = useState(0);
   const knownAvailableRef = useRef<Set<string> | null>(null);
   const availabilityNoticeY = useRef(new Animated.Value(-72)).current;
@@ -224,6 +228,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
         console.warn("Unable to refresh people presence:", error);
       } finally {
         loading = false;
+        if (mounted) setDirectoryLoading(false);
       }
     };
     void refreshDirectoryPresence();
@@ -368,6 +373,26 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
           />
         </>
       )}
+      {mode === "explore" && (
+        <Card style={{ padding: 14, gap: 10 }}>
+          <Row style={{ justifyContent: "space-between" }}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <T bold size={15}>Now available</T>
+              <T size={12} color={c.secondary}>People ready to talk right now</T>
+            </View>
+            <IconButton icon="refresh-cw" label="Refresh available people" onPress={refreshPeopleList} />
+          </Row>
+          <Row style={{ gap: 10 }}>
+            {result.filter((person) => person.status === "Available").slice(0, 4).map((person) => (
+              <View key={person.id} style={{ width: 48, alignItems: "center", gap: 4 }}>
+                <Avatar person={person} size={38} />
+                <T size={10} bold numberOfLines={1} style={{ maxWidth: 48 }}>{person.name.split(" ")[0]}</T>
+              </View>
+            ))}
+            {!result.some((person) => person.status === "Available") && <T size={12} color={c.muted}>Check back soon</T>}
+          </Row>
+        </Card>
+      )}
       <Section
         title={
           favorites
@@ -380,8 +405,8 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
         actionIcon={favorites ? undefined : "sliders"}
         onPress={() => go("/filters")}
       />
-      {mode === "explore" && <Chips items={["All", "Online", "Hindi", "Tamil", "English"]} selected={d.filter === "Available" ? "Online" : d.filter} onChange={(value) => d.setFilter(value === "Online" ? "Available" : value)} />}
-      {mode === "explore" ? (
+      {mode === "explore" && <Chips items={["All", "Available", "Hindi", "Tamil", "English"]} selected={d.filter} onChange={d.setFilter} />}
+      {directoryLoading ? <LoadingCards count={mode === "explore" ? 4 : 3} /> : mode === "explore" ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
           {result.map((p, index) => <UserCard key={p.id} person={p} grid index={index} />)}
           {result.length % 2 === 1 && <View style={{ width: "48%", flexGrow: 1 }} />}
@@ -395,7 +420,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
           ))}
         </View>
       ) : result.map((p) => <UserCard key={p.id} person={p} />)}
-      {!result.length && (
+      {!directoryLoading && !result.length && (
         <Empty
           title={favorites ? "Keep good company close" : "No people found"}
           message={
@@ -650,19 +675,27 @@ export function Conversations() {
   const auth = useAuth();
   const d = useDemo();
   const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
   const [conversations, setConversations] = useState<{ otherPhone: string; text: string; time: string; username?: string | null; displayName?: string | null; avatarUrl?: string | null; isHost?: boolean }[]>([]);
   const loadConversations = async () => {
-    if (!auth.demoPhone) return;
-    const rows = await fetchPhoneConversations(auth.demoPhone);
-    setConversations(rows.map((row) => ({
-      otherPhone: row.other_phone,
-      text: row.last_text,
-      time: new Date(row.last_created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      username: row.other_username,
-      displayName: row.other_display_name,
-      avatarUrl: row.other_avatar_url,
-      isHost: row.other_is_host,
-    })));
+    if (!auth.demoPhone) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const rows = await fetchPhoneConversations(auth.demoPhone);
+      setConversations(rows.map((row) => ({
+        otherPhone: row.other_phone,
+        text: row.last_text,
+        time: new Date(row.last_created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        username: row.other_username,
+        displayName: row.other_display_name,
+        avatarUrl: row.other_avatar_url,
+        isHost: row.other_is_host,
+      })));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => {
     if (!auth.demoPhone) return;
@@ -706,7 +739,7 @@ export function Conversations() {
         value={query}
         onChange={setQuery}
       />
-      {list.map(({ person, conversation }) => {
+      {loading ? <LoadingCards count={3} /> : list.map(({ person, conversation }) => {
         if (!person) return null;
         return (
           <Pressable
@@ -733,7 +766,7 @@ export function Conversations() {
           </Pressable>
         );
       })}
-      {!list.length && (
+      {!loading && !list.length && (
         <Empty
           title="Start with a hello"
           message="Your conversations will appear here."
@@ -759,6 +792,7 @@ export function Chat({ id }: { id: string }) {
       }
     : p;
   const [liveMessages, setLiveMessages] = useState<PhoneMessage[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(true);
   const [chatError, setChatError] = useState("");
   const blocked = d.blocked.includes(id);
   const text = d.drafts[id] || "";
@@ -780,7 +814,10 @@ export function Chat({ id }: { id: string }) {
     return () => { active = false; };
   }, [auth.demoPhone, isApprovedHost, otherPhone]);
   useEffect(() => {
-    if (!auth.demoPhone || !otherPhone) return;
+    if (!auth.demoPhone || !otherPhone) {
+      setMessagesLoading(false);
+      return;
+    }
     let active = true;
     setOpenChatPhone(otherPhone);
     const loadMessages = () => fetchPhoneMessages(auth.demoPhone!, otherPhone)
@@ -794,7 +831,8 @@ export function Chat({ id }: { id: string }) {
           void refreshUnreadNotificationCount();
         }
       })
-      .catch((error) => { if (active) setChatError(error instanceof Error ? error.message : "Unable to load messages."); });
+      .catch((error) => { if (active) setChatError(error instanceof Error ? error.message : "Unable to load messages."); })
+      .finally(() => { if (active) setMessagesLoading(false); });
     void loadMessages();
     const refreshTimer = setInterval(() => { void loadMessages(); }, 5000);
     const unsubscribe = subscribeToPhoneMessages(auth.demoPhone, otherPhone, (message) => {
@@ -823,9 +861,17 @@ export function Chat({ id }: { id: string }) {
     const body = text.trim();
     d.setDrafts((v) => ({ ...v, [id]: "" }));
     void sendPhoneMessage(auth.demoPhone, otherPhone, body)
-      .then(({ message, remainingCoins }) => {
+      .then(({ message, remainingCoins, coinsCharged }) => {
         d.setBalance(remainingCoins);
         setLiveMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
+        void auth.getIdentityToken()
+          .then((idToken) => sendPushEvent(idToken, "message", message.id))
+          .catch((error) => console.warn("Unable to send message push:", error));
+        if (coinsCharged > 0) {
+          void auth.getIdentityToken()
+            .then((idToken) => sendPushEvent(idToken, "wallet", message.id, "message"))
+            .catch((error) => console.warn("Unable to send message wallet push:", error));
+        }
       })
       .catch((error) => {
         d.setDrafts((v) => ({ ...v, [id]: body }));
@@ -893,9 +939,14 @@ export function Chat({ id }: { id: string }) {
             </Pressable>
           )}
           <T mono size={10} color={c.mint}>
-            {blocked ? "BLOCKED" : p.status.toUpperCase()}
+            {blocked ? "BLOCKED" : presenceText(p.status).toUpperCase()}
           </T>
         </View>
+        {!blocked && <IconButton
+          icon="shield"
+          label="Safety options"
+          onPress={() => go(`/report/${id}`)}
+        />}
         {!isApprovedHost && !blocked && <IconButton
           icon="phone"
           label="Audio call"
@@ -911,7 +962,7 @@ export function Chat({ id }: { id: string }) {
         <Chip title="Today" />
       </Row>
       {chatError ? <Notice error>{chatError}</Notice> : null}
-      {liveMessages.map((m) => ({
+      {messagesLoading ? <LoadingCards count={3} /> : liveMessages.map((m) => ({
         id: m.id,
         text: m.text,
         mine: m.sender_phone === auth.demoPhone,

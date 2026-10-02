@@ -10,6 +10,7 @@ import {
   Field,
   go,
   Icon,
+  LoadingCards,
   Notice,
   Row,
   Section,
@@ -140,6 +141,7 @@ export function Wallet({
   const selectedPack = coinPacks.find(pack => pack.coins === d.pack);
   const packPrice = selectedPack ? money(selectedPack.price_paise / 100) : "Price unavailable";
   const [filter, setFilter] = useState("All");
+  const [homeTab, setHomeTab] = useState<"Activity" | "Offers">("Activity");
   const [custom, setCustom] = useState("");
   const [error, setError] = useState("");
   const isApprovedHost = d.hostStatus === "approved";
@@ -210,7 +212,7 @@ export function Wallet({
           onChange={setFilter}
         />
         {!!activityError && <Notice error>{activityError}</Notice>}
-        {activity
+        {activityLoading ? <LoadingCards count={4} /> : activity
           .filter((x) => filter === "All" || x.kind === filter)
           .map((x) => (
             <TransactionItem key={x.id} item={x} />
@@ -332,6 +334,18 @@ export function Wallet({
             />
           </Card>
         )}
+      <Card style={{ padding: 22, backgroundColor: c.text }}>
+        <Row style={{ justifyContent: "space-between" }}>
+          <View style={{ gap: 5 }}>
+            <T mono size={11} bold color="#ffffffaa">AVAILABLE BALANCE</T>
+            <T size={34} bold color="#ffffff">{coins(d.balance)}</T>
+            <T size={12} color="#ffffffaa">Ready for your next conversation</T>
+          </View>
+          <CoinStack size={48} />
+        </Row>
+      </Card>
+      <Chips items={["Activity", "Offers"]} selected={homeTab} onChange={(value) => setHomeTab(value as "Activity" | "Offers")} />
+      {homeTab === "Offers" && <>
       <Section title="Choose coins" />
       {catalogLoading && <T color={c.secondary}>Loading coin packs…</T>}
       {!!catalogError && (
@@ -422,19 +436,22 @@ export function Wallet({
         }}
       />
       {error && <Notice error>{error}</Notice>}
+      </>}
+      {homeTab === "Activity" && <>
       <Section
         title="Recent activity"
         action="View all"
         onPress={() => go("/wallet/transactions")}
       />
-      {activityLoading && <T color={c.secondary}>Loading recent activity…</T>}
+      {activityLoading && <LoadingCards count={3} />}
       {!!activityError && <Notice error>{activityError}</Notice>}
       {!activityLoading && !activityError && !activity.length && (
-        <T color={c.secondary}>Your wallet activity will appear here.</T>
+        <Empty icon="credit-card" title="No wallet activity yet" message="Your purchases and conversation activity will appear here." />
       )}
       {activity.slice(0, 3).map((x) => (
         <TransactionItem key={x.id} item={x} />
       ))}
+      </>}
     </Shell>
   );
 }

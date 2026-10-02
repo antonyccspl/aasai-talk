@@ -9,6 +9,38 @@ export type ZegoCallToken = {
   webServerUrl?: string;
 };
 
+export type CallNetworkQuality =
+  | "excellent"
+  | "good"
+  | "fair"
+  | "poor"
+  | "disconnected"
+  | "unknown";
+
+export function normalizeCallNetworkQuality(...values: unknown[]): CallNetworkQuality {
+  const rank: Record<CallNetworkQuality, number> = {
+    excellent: 0,
+    good: 1,
+    fair: 2,
+    poor: 3,
+    disconnected: 4,
+    unknown: -1,
+  };
+  const normalized = values.map((value): CallNetworkQuality => {
+    const grade = String(value).toLowerCase();
+    if (grade === "0" || grade.includes("excellent")) return "excellent";
+    if (grade === "1" || grade.includes("good")) return "good";
+    if (grade === "2" || grade.includes("medium") || grade.includes("normal")) return "fair";
+    if (grade === "3" || grade.includes("bad") || grade.includes("poor")) return "poor";
+    if (grade === "4" || grade.includes("die") || grade.includes("failed")) return "disconnected";
+    return "unknown";
+  });
+  return normalized.reduce(
+    (worst, current) => rank[current] > rank[worst] ? current : worst,
+    "unknown",
+  );
+}
+
 export async function fetchZegoCallToken(
   sessionId: string,
   phone: string,

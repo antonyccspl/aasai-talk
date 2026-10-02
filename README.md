@@ -1,10 +1,12 @@
 # Aasai Talk
 
-Aasai Talk is an Expo/React Native social discovery prototype backed by Supabase.
-The current implementation includes the mobile UI, Supabase phone OTP
-authentication, profile persistence, public directory data, and a persisted
-sample workspace. Calling, real-time messaging, payments, payouts, and
-production moderation still require backend integrations.
+Aasai Talk is an Expo/React Native social discovery app backed by Supabase and
+Firebase Phone Authentication. The implementation includes profile and public
+directory data, messaging, call lifecycle and minute billing, Host presence and
+dashboards, safety reports/blocks, push notification plumbing, and a moderator
+operations view. Live two-party RTC, payment checkout/webhooks, withdrawals,
+push delivery, and moderator operations require the provider credentials,
+database migrations, and Edge Functions described below.
 
 ## Get started
 
@@ -50,6 +52,18 @@ Authorized domains. Use Firebase's fictional test numbers for development.
 Firebase Web App configuration is public client configuration; never add a
 Firebase service-account key or Supabase secret to the client.
 
+## Push notifications
+
+Remote notifications use `expo-notifications` and Expo Push Service. Link the
+app to an EAS project, configure Android FCM v1 credentials (and APNs
+credentials if enabling iOS), then build and install a development or release
+client. Push is opt-in under Settings > Notification preferences. Browser push
+is not configured.
+
+Apply the migrations and deploy `push-notifications`. The function verifies the
+Firebase ID token and derives call/message/wallet recipients from the server
+records. It uses Supabase-managed service-role credentials only on the server.
+
 ## Validation
 
 ```bash
@@ -90,12 +104,29 @@ npx supabase secrets set FIREBASE_PROJECT_ID=your-firebase-project-id
 npx supabase db push
 npx supabase functions deploy phone-safety
 npx supabase functions deploy zego-token
+npx supabase functions deploy host-presence
+npx supabase functions deploy push-notifications
+npx supabase functions deploy moderator-ops
 ```
 
 The function verifies Firebase ID tokens. Its service-role key remains a
 Supabase-managed server secret and must never be added to the client or Vercel
 `EXPO_PUBLIC_` variables. Account deletion currently records a server request;
 automatic data erasure still requires a scheduled server-side processor.
+
+The moderator operations route requires a Firebase custom claim
+`moderator: true`. Provision that claim only through a trusted Firebase Admin
+environment; do not grant it from the client. The `moderator-ops` function
+checks the claim, and report resolution writes a server-side audit record.
+Operations summaries include seven-day call completion/failure, open/high
+priority reports, and Hosts with a heartbeat in the last minute.
+
+The push and moderator migrations in this workspace are not applied merely by
+adding these files. Run `npx supabase db push` against the intended project and
+deploy the Edge Functions before enabling production use. Push delivery also
+depends on valid EAS/FCM/APNs provider credentials. The app's existing phone
+RPCs still need a broader Firebase-identity authorization audit before the
+wallet or calling features should be treated as production financial services.
 
 ### Other setup steps
 

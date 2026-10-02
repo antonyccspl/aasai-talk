@@ -40,7 +40,7 @@ console.log('PASS: overlapping poll prevention and late-response cleanup');
 
 const statuses = [];
 let current = 'ringing';
-rpc = async () => ({error:null, data:current});
+rpc = async () => ({error:null, data:{status:current, call_type:'audio'}});
 const stopStatus = api.subscribeToPhoneCall('session', '+910000000000', value => statuses.push(value));
 await flush();
 for (const tick of timers) tick();

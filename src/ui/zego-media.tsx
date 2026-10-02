@@ -1,4 +1,4 @@
-import { fetchZegoCallToken } from "@/data/zego";
+import { fetchZegoCallToken, normalizeCallNetworkQuality, type CallNetworkQuality } from "@/data/zego";
 import React, { useEffect, useRef, useState } from "react";
 import {
     findNodeHandle,
@@ -25,6 +25,7 @@ type Props = {
   /** Shown only until the other participant's video stream arrives. */
   videoPlaceholder?: React.ReactNode;
   onStatus?: (status: string) => void;
+  onNetworkQuality?: (quality: CallNetworkQuality) => void;
   onError?: (message: string) => void;
 };
 
@@ -48,6 +49,7 @@ export function ZegoMedia({
   speaker,
   videoPlaceholder,
   onStatus,
+  onNetworkQuality,
   onError,
 }: Props) {
   const localRef = useRef<ViewType>(null);
@@ -59,8 +61,8 @@ export function ZegoMedia({
   const audioRouteQueue = useRef(Promise.resolve());
   const [remoteStream, setRemoteStream] = useState(false);
   const [textureView, setTextureView] = useState<React.ComponentType | null>(null);
-  const callbacks = useRef({ onStatus, onError });
-  callbacks.current = { onStatus, onError };
+  const callbacks = useRef({ onStatus, onNetworkQuality, onError });
+  callbacks.current = { onStatus, onNetworkQuality, onError };
   const controls = useRef({ muted, camera, front, speaker });
   controls.current = { muted, camera, front, speaker };
 
@@ -126,6 +128,12 @@ export function ZegoMedia({
             onError("Call sound could not start.");
           else reportConnection();
         });
+        activeEngine.on("networkQuality", (userId, upstream, downstream) => {
+          if (!disposed && (!userId || userId === auth.userId))
+            callbacks.current.onNetworkQuality?.(
+              normalizeCallNetworkQuality(upstream, downstream),
+            );
+        });
         if (__DEV__) {
           let localLogAt = 0;
           let remoteLogAt = 0;
@@ -185,6 +193,8 @@ export function ZegoMedia({
             onStatus?.("Waiting for the other participant…");
           if (reason === zego.ZegoRoomStateChangedReason.Reconnecting)
             onStatus?.("Reconnecting");
+          if (reason === zego.ZegoRoomStateChangedReason.ReconnectFailed)
+            onError?.("The network connection could not be restored.");
           if (reason === zego.ZegoRoomStateChangedReason.LoginFailed)
             onError?.("The call could not connect.");
         });

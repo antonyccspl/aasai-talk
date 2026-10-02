@@ -6,6 +6,7 @@ import {
     setPhoneBlock,
     type PhoneDeletionReason,
 } from "@/data/phone-safety";
+  import { registerPushDevice, updatePushPreferences } from "@/data/push-notifications";
 import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
@@ -23,6 +24,7 @@ import {
     Field,
     go,
     Icon,
+    LoadingCards,
     Notice,
     Row,
     Section,
@@ -814,6 +816,8 @@ export function Settings({
   const [otherDeleteReason, setOtherDeleteReason] = useState("");
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMessage, setPushMessage] = useState("");
   useEffect(() => {
     if (mode === "policies") void d.refreshPlatformData();
   }, [d.refreshPlatformData, mode]);
@@ -839,11 +843,11 @@ export function Settings({
         <Card>
           <T size={22} bold>Presence is automatic</T>
           <Badge
-            text={d.active?.status === "Connected" || d.active?.status === "Ringing" ? "Busy on another call" : "Online"}
+            text={d.active?.status === "Connected" || d.active?.status === "Ringing" ? "On a call" : "Available"}
             warning={d.active?.status === "Connected" || d.active?.status === "Ringing"}
           />
           <T color={c.secondary}>
-            You appear Online while Aasai Talk is open, Busy while a call is ringing or connected, and Offline after the app has not checked in for a short time.
+            You appear Available while Aasai Talk is open, On a call while a call is ringing or connected, and Away after the app has not checked in for a short time.
           </T>
         </Card>
       </Shell>
@@ -864,28 +868,72 @@ export function Settings({
           mode === "privacy" ? "Privacy and safety" : "Notification preferences"
         }
       >
-        <T color={c.secondary}>Choose how you connect.</T>
-        {names.map((x) => (
+        <T color={c.secondary}>{mode === "privacy" ? "Choose what you want to share." : "Choose how Aasai Talk keeps you updated."}</T>
+        <Card style={{ gap: 2 }}>
+          <T bold size={15}>{mode === "privacy" ? "Your privacy" : "Alerts"}</T>
+          <T size={12} color={c.muted}>{mode === "privacy" ? "You can change these at any time." : "Turn off anything you do not want to receive."}</T>
+          {names.map((x) => (
+            <Setting
+              key={x}
+              title={x}
+              value={d.prefs[x]}
+              onToggle={(v) => {
+                const next = { ...d.prefs, [x]: v };
+                d.setPrefs(next);
+                if (auth.demoPhone && mode === "notifications") {
+                  void auth.getIdentityToken().then((idToken) =>
+                    updatePushPreferences(idToken, {
+                      calls: next["Call alerts"] !== false,
+                      messages: next["Message alerts"] !== false,
+                      wallet: next["Payment updates"] !== false,
+                    }),
+                  ).catch((error) => console.warn("Unable to sync push preferences:", error));
+                }
+              }}
+              icon={mode === "privacy" ? "shield" : "bell"}
+            />
+          ))}
+        </Card>
+        {mode === "notifications" && Platform.OS !== "web" && (
+          <>
+            <Button
+              title={pushBusy ? "Enabling…" : "Enable push notifications"}
+              icon="bell"
+              disabled={pushBusy || !auth.demoPhone}
+              onPress={() => {
+                setPushBusy(true);
+                setPushMessage("");
+                void auth.getIdentityToken()
+                  .then((idToken) => registerPushDevice(idToken, {
+                    calls: d.prefs["Call alerts"] !== false,
+                    messages: d.prefs["Message alerts"] !== false,
+                    wallet: d.prefs["Payment updates"] !== false,
+                  }))
+                  .then((token) => setPushMessage(token
+                    ? "Push notifications are enabled on this device."
+                    : "Notifications are disabled in device settings."))
+                  .catch((error) => setPushMessage(error instanceof Error ? error.message : "Unable to enable push notifications."))
+                  .finally(() => setPushBusy(false));
+              }}
+            />
+            {pushMessage ? <Notice>{pushMessage}</Notice> : null}
+          </>
+        )}
+        <Card style={{ gap: 2 }}>
+          <T bold size={15}>{mode === "privacy" ? "Safety tools" : "Device settings"}</T>
+          <T size={12} color={c.muted}>{mode === "privacy" ? "Review the people you have blocked." : "Manage permissions for this device."}</T>
           <Setting
-            key={x}
-            title={x}
-            value={d.prefs[x]}
-            onToggle={(v) => d.setPrefs((p) => ({ ...p, [x]: v }))}
-            icon={mode === "privacy" ? "shield" : "bell"}
+            title={mode === "privacy" ? "Blocked users" : "System permissions"}
+            icon="settings"
+            onPress={() =>
+              go(
+                mode === "privacy"
+                  ? "/settings/blocked-users"
+                  : "/settings/permissions",
+              )
+            }
           />
-        ))}
-        <Notice>Manage how your profile and activity are shared.</Notice>
-        <Setting
-          title={mode === "privacy" ? "Blocked users" : "System permissions"}
-          icon="settings"
-          onPress={() =>
-            go(
-              mode === "privacy"
-                ? "/settings/blocked-users"
-                : "/settings/permissions",
-            )
-          }
-        />
+        </Card>
       </Shell>
     );
   }
@@ -1349,6 +1397,7 @@ export function Notifications() {
   const [messages, setMessages] = useState<PhoneMessageNotification[]>([]);
   const [calls, setCalls] = useState<PhoneCallNotification[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     if (!auth.demoPhone) return;
     let active = true;
@@ -1363,7 +1412,8 @@ export function Notifications() {
       })
       .catch((cause) => {
         if (active) setError(cause instanceof Error ? cause.message : "Unable to load notifications.");
-      });
+      })
+      .finally(() => { if (active) setLoading(false); });
     void load();
     const unsubscribe = subscribeToAllPhoneMessages(auth.demoPhone, () => { void load(); });
     const refreshTimer = setInterval(() => { void load(); }, 10000);
@@ -1390,50 +1440,58 @@ export function Notifications() {
   const formatTime = (value: string) => new Date(value).toLocaleDateString([], {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
   });
+  const groupForDate = (value: string) => {
+    const date = new Date(value);
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const startOfYesterday = startOfToday - 86_400_000;
+    const timestamp = date.getTime();
+    if (timestamp >= startOfToday) return "Today";
+    if (timestamp >= startOfYesterday) return "Yesterday";
+    return "Earlier";
+  };
   return (
     <Shell title="Notifications">
       {error ? <Notice error>{error}</Notice> : null}
-      {groupedMessages.length > 0 && (
-        <Section title={`Messages${groupedMessages.reduce((count, item) => count + item.unreadCount, 0) ? ` · ${groupedMessages.reduce((count, item) => count + item.unreadCount, 0)} unread` : ""}`} />
-      )}
-      {groupedMessages.map((item) => {
-        const contact = people.find((person) => person.id === `phone_${item.senderPhone.replace("+", "")}`);
-        const name = contact?.name || "New message";
-        return (
-        <Setting
-          key={item.senderPhone}
-          title={`${item.unreadCount ? "• " : ""}${name}${item.unreadCount > 1 ? ` · ${item.unreadCount} messages` : ""}`}
-          detail={`${item.latest.text} · ${formatTime(item.latest.created_at)}`}
-          icon="message-circle"
-          onPress={() => {
-            go(`/chat/phone_${item.senderPhone.replace("+", "")}`);
-          }}
-        />
-      );
+      {loading ? <LoadingCards count={4} /> : ["Today", "Yesterday", "Earlier"].map((period) => {
+        const messageItems = groupedMessages.filter((item) => groupForDate(item.latest.created_at) === period);
+        const callItems = calls.filter((call) => groupForDate(call.created_at) === period);
+        if (!messageItems.length && !callItems.length) return null;
+        return <View key={period} style={{ gap: 2 }}>
+          <Section title={period} />
+          {messageItems.map((item) => {
+            const contact = people.find((person) => person.id === `phone_${item.senderPhone.replace("+", "")}`);
+            const name = contact?.name || "New message";
+            return <Setting
+              key={`message-${item.senderPhone}`}
+              title={`${item.unreadCount ? "• " : ""}${name}${item.unreadCount > 1 ? ` · ${item.unreadCount} messages` : ""}`}
+              detail={`${item.latest.text} · ${formatTime(item.latest.created_at)}`}
+              icon="message-circle"
+              onPress={() => go(`/chat/phone_${item.senderPhone.replace("+", "")}`)}
+            />;
+          })}
+          {callItems.map((call) => {
+            const contact = people.find((person) => person.id === `phone_${call.other_phone.replace("+", "")}`);
+            const name = contact?.name || "Caller";
+            const label = call.status === "missed" ? `Missed ${call.call_type} call` : `${call.call_type === "video" ? "Video" : "Audio"} call declined`;
+            return <Setting
+              key={`call-${call.id}`}
+              title={label}
+              detail={`${name} · ${formatTime(call.created_at)}`}
+              icon={call.call_type === "video" ? "video" : "phone"}
+              onPress={() => {
+                if (auth.demoPhone) {
+                  void markPhoneCallNotificationRead(call.id, auth.demoPhone)
+                    .then(() => d.refreshUnreadNotificationCount())
+                    .catch((error) => console.warn("Unable to mark call notification as read:", error));
+                }
+                go(`/calls/detail/${call.id}`);
+              }}
+            />;
+          })}
+        </View>;
       })}
-      {calls.length > 0 && <Section title={`Calls · ${calls.length}`} />}
-      {calls.map((call) => {
-        const contact = people.find((person) => person.id === `phone_${call.other_phone.replace("+", "")}`);
-        const name = contact?.name || "Caller";
-        const label = call.status === "missed" ? `Missed ${call.call_type} call` : `${call.call_type === "video" ? "Video" : "Audio"} call declined`;
-        return (
-          <Setting
-            key={call.id}
-            title={label}
-            detail={`${name} · ${formatTime(call.created_at)}`}
-            icon={call.call_type === "video" ? "video" : "phone"}
-            onPress={() => {
-              if (auth.demoPhone) {
-                void markPhoneCallNotificationRead(call.id, auth.demoPhone)
-                  .then(() => d.refreshUnreadNotificationCount())
-                  .catch((error) => console.warn("Unable to mark call notification as read:", error));
-              }
-              go(`/calls/detail/${call.id}`);
-            }}
-          />
-        );
-      })}
-      {!groupedMessages.length && !calls.length && (
+      {!loading && !groupedMessages.length && !calls.length && (
         <Empty
           title="You’re all caught up"
           message="Messages and missed calls will appear here."

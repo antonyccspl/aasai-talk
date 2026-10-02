@@ -14,9 +14,12 @@ import {
 import { startCallSound, stopAllCallSounds, stopCallSound } from "@/data/call-sounds";
 import { fetchDirectoryProfiles, type DirectoryStatus } from "@/data/directory";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
+import { setPhoneBlock, submitPhoneSafetyReport } from "@/data/phone-safety";
+import { sendPushEvent } from "@/data/push-notifications";
+import type { CallNetworkQuality } from "@/data/zego";
 import { router } from "expo-router";
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AppState, Platform, Pressable, useWindowDimensions, Vibration, View } from "react-native";
+import { Animated, AppState, Modal, Platform, Pressable, useWindowDimensions, Vibration, View } from "react-native";
 import {
     Avatar,
     Badge,
@@ -26,6 +29,7 @@ import {
     Empty,
     go,
     IconButton,
+    LoadingCards,
     Notice,
     Row,
     Section,
@@ -170,7 +174,12 @@ function CallScreenContent({
   );
   const [callError, setCallError] = useState("");
   const [hostUnavailable, setHostUnavailable] = useState<DirectoryStatus | null>(null);
+  const [safetyVisible, setSafetyVisible] = useState(false);
+  const [safetyBusy, setSafetyBusy] = useState(false);
+  const [safetyError, setSafetyError] = useState("");
+  const [safetyConfirmation, setSafetyConfirmation] = useState("");
   const [mediaStatus, setMediaStatus] = useState("Getting your call ready…");
+  const [networkQuality, setNetworkQuality] = useState<CallNetworkQuality>("unknown");
   const connectingRef = useRef(false);
   const actionRef = useRef(false);
   const closedRef = useRef(false);
@@ -179,6 +188,7 @@ function CallScreenContent({
     audio: boolean;
     video: boolean;
   } | null>(null);
+  const ringingPulse = useRef(new Animated.Value(0)).current;
   const blocked = d.blocked.includes(id);
   const conflict = !!d.active && d.active.person !== id;
   const activeCallId = d.active?.id ?? "";
@@ -194,6 +204,9 @@ function CallScreenContent({
   const activePhone = auth.demoPhone;
   const setActiveCall = d.setActive;
   const incomingCall = d.active?.incoming;
+  const safetyTargetPhone = id.startsWith("phone_")
+    ? `+${id.slice("phone_".length)}`
+    : "";
   const hostPhone = d.active?.incoming
     ? auth.demoPhone
     : id.startsWith("phone_")
@@ -211,6 +224,10 @@ function CallScreenContent({
     !!d.active?.videoUpgradeRequestedBy && !videoRequestFromMe;
   const onMediaStatus = useCallback(
     (status: string) => setMediaStatus(status),
+    [],
+  );
+  const onMediaNetworkQuality = useCallback(
+    (quality: CallNetworkQuality) => setNetworkQuality(quality),
     [],
   );
   const onMediaError = useCallback(
@@ -241,6 +258,40 @@ function CallScreenContent({
     },
     [activePhone, setActiveCall, incomingCall, mediaSessionId],
   );
+  const reportCallIssue = async (reason: string) => {
+    if (!auth.demoPhone || !safetyTargetPhone || safetyBusy) return;
+    setSafetyBusy(true);
+    setSafetyError("");
+    try {
+      await submitPhoneSafetyReport(
+        await auth.getIdentityToken(),
+        safetyTargetPhone,
+        reason,
+        `Reported during ${video ? "video" : "audio"} call${mediaSessionId ? ` ${mediaSessionId}` : ""}.`,
+      );
+      setSafetyVisible(false);
+      setSafetyConfirmation("Report sent to the safety team.");
+    } catch (error) {
+      setSafetyError(error instanceof Error ? error.message : "Unable to send this report.");
+    } finally {
+      setSafetyBusy(false);
+    }
+  };
+  const blockCallParticipant = async () => {
+    if (!auth.demoPhone || !safetyTargetPhone || safetyBusy) return;
+    setSafetyBusy(true);
+    setSafetyError("");
+    try {
+      await setPhoneBlock(await auth.getIdentityToken(), safetyTargetPhone, true);
+      d.setBlocked((current) => current.includes(id) ? current : [...current, id]);
+      setSafetyVisible(false);
+      await end(incoming ? "Rejected" : "Cancelled");
+    } catch (error) {
+      setSafetyError(error instanceof Error ? error.message : "Unable to block this person.");
+    } finally {
+      setSafetyBusy(false);
+    }
+  };
   useEffect(() => {
     if (!hostPhone) return;
     let mounted = true;
@@ -302,6 +353,29 @@ function CallScreenContent({
   useEffect(() => {
     setState(incoming ? "Incoming" : outgoing ? "Ringing" : "Connected");
   }, [incoming, outgoing, sessionId]);
+  useEffect(() => {
+    if (!ringing) {
+      ringingPulse.stopAnimation();
+      ringingPulse.setValue(0);
+      return;
+    }
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(ringingPulse, {
+          toValue: 1,
+          duration: 850,
+          useNativeDriver: true,
+        }),
+        Animated.timing(ringingPulse, {
+          toValue: 0,
+          duration: 850,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [ringing, ringingPulse]);
   useEffect(() => {
     if (
       mode !== "incoming" ||
@@ -550,6 +624,11 @@ function CallScreenContent({
           ? Math.floor(d.balance / callCoinsPerMinute) * 60
           : undefined,
     });
+    if (!incoming) {
+      void auth.getIdentityToken()
+        .then((idToken) => sendPushEvent(idToken, "incoming_call", session.id))
+        .catch((error) => console.warn("Unable to send incoming-call push:", error));
+    }
     if (incoming || session.status === "connected")
       router.replace(
         `/calls/${video ? "video" : "audio"}/${id}?session=${session.id}&type=${video ? "video" : "audio"}` as never,
@@ -641,6 +720,9 @@ function CallScreenContent({
           console.warn("Unable to continue the unanswered call:", error);
         }
       })();
+    // Give the person a full response window before trying someone else.
+    // A ringing request also makes their directory card appear busy, which
+    // must not be treated as a declined call while this timer is running.
     }, 30_000);
     return () => clearTimeout(timeout);
   }, [auth.demoPhone, continueWithAnotherAvailablePerson, mediaSessionId, outgoing, sessionId, state]);
@@ -691,25 +773,33 @@ function CallScreenContent({
       footer={
         ringing ? (
           incoming ? (
-            <Row>
+            <View style={{ gap: 8 }}>
+              <Row>
+                <Button
+                  title="Decline"
+                  icon="phone-off"
+                  variant="danger"
+                  disabled={actionPending}
+                  style={{ flex: 1 }}
+                  onPress={() => end("Rejected")}
+                />
+                <Button
+                  title={actionPending ? "Connecting…" : "Accept"}
+                  icon={video ? "video" : "phone"}
+                  disabled={
+                    blocked || conflict || actionPending || closedRef.current
+                  }
+                  style={{ flex: 1 }}
+                  onPress={connect}
+                />
+              </Row>
               <Button
-                title="Decline"
-                icon="phone-off"
-                variant="danger"
-                disabled={actionPending}
-                style={{ flex: 1 }}
-                onPress={() => end("Rejected")}
+                title="Safety options"
+                icon="shield"
+                variant="secondary"
+                onPress={() => setSafetyVisible(true)}
               />
-              <Button
-                title={actionPending ? "Connecting…" : "Accept"}
-                icon={video ? "video" : "phone"}
-                disabled={
-                  blocked || conflict || actionPending || closedRef.current
-                }
-                style={{ flex: 1 }}
-                onPress={connect}
-              />
-            </Row>
+            </View>
             ) : hostUnavailable ? (
               <Button
                 title="Back to people"
@@ -738,6 +828,12 @@ function CallScreenContent({
                 />
               )}
               <Button
+                title="Safety options"
+                icon="shield"
+                variant="secondary"
+                onPress={() => setSafetyVisible(true)}
+              />
+              <Button
                 title="Cancel call"
                 icon="phone-off"
                 variant="danger"
@@ -757,6 +853,11 @@ function CallScreenContent({
                 justifyContent: "space-around",
               }}
             >
+              <IconButton
+                label="Safety options"
+                icon="shield"
+                onPress={() => setSafetyVisible(true)}
+              />
               <IconButton
                 label={muted ? "Unmute microphone" : "Mute microphone"}
                 icon={muted ? "mic-off" : "mic"}
@@ -814,6 +915,7 @@ function CallScreenContent({
               />
             </Row>
             <Row style={{ justifyContent: "space-around" }}>
+              <T size={11}>Safety</T>
               <T size={11}>Microphone</T>
               <T size={11}>
                 {Platform.OS === "web"
@@ -857,6 +959,20 @@ function CallScreenContent({
           warning={!!hostUnavailable || (state !== "Connected" && !ringing)}
         />
       </Row>
+      {!ringing && networkQuality !== "unknown" && (
+        <Badge
+          text={`Network ${networkQuality}`}
+          warning={networkQuality === "poor" || networkQuality === "disconnected"}
+        />
+      )}
+      {!ringing && mediaStatus === "Reconnecting" && (
+        <Card style={{ gap: 6 }}>
+          <T bold>Reconnecting your call</T>
+          <T size={13} color={c.secondary}>
+            The connection was interrupted. Stay on this screen while the call service tries to restore it.
+          </T>
+        </Card>
+      )}
       {!ringing && !video && videoRequestFromMe && (
         <Notice>
           Video request sent. Waiting for the other participant to accept.
@@ -907,6 +1023,7 @@ function CallScreenContent({
                 front={front}
                 speaker={route === "Speaker"}
                 onStatus={onMediaStatus}
+                onNetworkQuality={onMediaNetworkQuality}
                 onError={onMediaError}
                 videoPlaceholder={
                   <View
@@ -1032,9 +1149,34 @@ function CallScreenContent({
                 front
                 speaker={route === "Speaker"}
                 onStatus={onMediaStatus}
+                onNetworkQuality={onMediaNetworkQuality}
                 onError={onMediaError}
               />
             </CallMediaBoundary>
+          )}
+          {ringing && (
+            <Animated.View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                width: callAvatarSize + 74,
+                height: callAvatarSize + 74,
+                borderRadius: 999,
+                backgroundColor: c.high,
+                opacity: ringingPulse.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.08, 0.24],
+                }),
+                transform: [
+                  {
+                    scale: ringingPulse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.9, 1.18],
+                    }),
+                  },
+                ],
+              }}
+            />
           )}
           <View
             style={{
@@ -1073,6 +1215,7 @@ function CallScreenContent({
       )}
       {!ringing && !video && <Wave />}
       {soundError ? <Notice error>{soundError}</Notice> : null}
+      {safetyConfirmation ? <Notice>{safetyConfirmation}</Notice> : null}
       {blocked || conflict ? (
         <Notice error>
           {blocked
@@ -1081,12 +1224,61 @@ function CallScreenContent({
         </Notice>
       ) : callError ? (
         <Notice error>{callError}</Notice>
-      ) : p.status !== "Available" && outgoing ? (
+      ) : hostUnavailable && !ringing ? (
         <Notice error>
-          {p.name.split(" ")[0]} is {p.status.toLowerCase()}. You can send a
-          message instead.
+          {p.name.split(" ")[0]} is {hostUnavailable === "Busy" ? "busy on another call" : "offline"}.
         </Notice>
       ) : null}
+      <Modal
+        transparent
+        visible={safetyVisible}
+        animationType="slide"
+        onRequestClose={() => setSafetyVisible(false)}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,18,17,0.46)" }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close safety options"
+            onPress={() => setSafetyVisible(false)}
+            style={{ flex: 1 }}
+          />
+          <View style={{ gap: 10, padding: 20, paddingBottom: 28, backgroundColor: c.background, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
+            <T size={20} bold>Call safety</T>
+            <T size={13} color={c.secondary}>Report an issue or block this person.</T>
+            {[
+              "Poor audio quality",
+              "Poor video quality",
+              "Call dropped or could not connect",
+              "Abusive or unsafe behavior",
+              "Spam or inappropriate contact",
+              "Other call issue",
+            ].map((reason) => (
+              <Button
+                key={reason}
+                title={reason}
+                variant="secondary"
+                disabled={safetyBusy}
+                style={{ minHeight: 44, paddingVertical: 8 }}
+                onPress={() => void reportCallIssue(reason)}
+              />
+            ))}
+            {safetyError ? <Notice error>{safetyError}</Notice> : null}
+            <Button
+              title={safetyBusy ? "Blocking…" : "Block this person and end call"}
+              icon="slash"
+              variant="danger"
+              disabled={safetyBusy}
+              onPress={() => void blockCallParticipant()}
+            />
+            <Button
+              title="Close"
+              variant="secondary"
+              disabled={safetyBusy}
+              onPress={() => setSafetyVisible(false)}
+            />
+          </View>
+        </View>
+      </Modal>
     </Shell>
   );
 }
@@ -1098,6 +1290,7 @@ export function CallsList() {
   const [menuCall, setMenuCall] = useState<string | null>(null);
   const [history, setHistory] = useState<Awaited<ReturnType<typeof fetchPhoneCallHistory>>>([]);
   const [historyError, setHistoryError] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const loadHistory = useCallback(async () => {
     if (!auth.demoPhone) {
@@ -1110,9 +1303,13 @@ export function CallsList() {
   }, [auth.demoPhone]);
   useEffect(() => {
     let active = true;
-    const load = () => void loadHistory().catch((error) => {
-      if (active) setHistoryError(error instanceof Error ? error.message : "Unable to load call history.");
-    });
+    const load = () => {
+      void loadHistory()
+        .catch((error) => {
+          if (active) setHistoryError(error instanceof Error ? error.message : "Unable to load call history.");
+        })
+        .finally(() => { if (active) setHistoryLoading(false); });
+    };
     load();
     const timer = setInterval(load, 10000);
     return () => { active = false; clearInterval(timer); };
@@ -1144,7 +1341,7 @@ export function CallsList() {
       />
       <Section title="Recent calls" />
       {historyError ? <Notice error>{historyError}</Notice> : null}
-      {list.map((call) => {
+      {historyLoading ? <LoadingCards count={3} /> : list.map((call) => {
         const personId = `phone_${call.other_phone.replace("+", "")}`;
         const directoryPerson = people.find((item) => item.id === personId);
         const person = directoryPerson ?? {
@@ -1234,7 +1431,7 @@ export function CallsList() {
           </Card>
         );
       })}
-      {!list.length && (
+      {!historyLoading && !list.length && (
         <Empty
           icon="phone"
           title="No calls here yet"

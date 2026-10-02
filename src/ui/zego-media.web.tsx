@@ -1,4 +1,4 @@
-import { fetchZegoCallToken } from "@/data/zego";
+import { fetchZegoCallToken, normalizeCallNetworkQuality, type CallNetworkQuality } from "@/data/zego";
 import React, { useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ZegoExpressEngine } from "zego-express-engine-webrtc";
@@ -13,6 +13,7 @@ type Props = {
   speaker: boolean;
   videoPlaceholder?: React.ReactNode;
   onStatus?: (status: string) => void;
+  onNetworkQuality?: (quality: CallNetworkQuality) => void;
   onError?: (message: string) => void;
 };
 
@@ -28,6 +29,7 @@ export function ZegoMedia({
   speaker,
   videoPlaceholder,
   onStatus,
+  onNetworkQuality,
   onError,
 }: Props) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -41,8 +43,8 @@ export function ZegoMedia({
   const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
   const controlsRef = useRef({ muted, camera, front });
   controlsRef.current = { muted, camera, front };
-  const callbacksRef = useRef({ onStatus, onError });
-  callbacksRef.current = { onStatus, onError };
+  const callbacksRef = useRef({ onStatus, onNetworkQuality, onError });
+  callbacksRef.current = { onStatus, onNetworkQuality, onError };
 
   useEffect(() => {
     let disposed = false;
@@ -123,6 +125,20 @@ export function ZegoMedia({
               reportStatus();
             }
           }
+        });
+        engine.on("networkQuality", (userId, upstream, downstream) => {
+          if (!disposed && (!userId || userId === token.userId))
+            callbacksRef.current.onNetworkQuality?.(
+              normalizeCallNetworkQuality(upstream, downstream),
+            );
+        });
+        engine.on("roomStateChanged", (_roomId, reason) => {
+          if (disposed) return;
+          if (reason === "RECONNECTING")
+            callbacksRef.current.onStatus?.("Reconnecting");
+          else if (reason === "RECONNECTED") reportStatus();
+          else if (reason === "RECONNECT_FAILED")
+            callbacksRef.current.onError?.("The network connection could not be restored.");
         });
 
         roomLoggedIn = await engine.loginRoom(

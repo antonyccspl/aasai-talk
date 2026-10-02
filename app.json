@@ -4,18 +4,18 @@
     "slug": "aasai-talk",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/aasai-talk-logo.jpg",
+    "icon": "./assets/images/aasai-talk-mark.png",
     "scheme": "aasai-talk",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/images/aasai-talk-logo.jpg"
+      "icon": "./assets/images/aasai-talk-mark.png"
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#faf7ff",
-        "foregroundImage": "./assets/images/aasai-talk-logo.jpg"
+        "foregroundImage": "./assets/images/aasai-talk-mark.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -27,11 +27,18 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/aasai-talk-logo.jpg"
+      "favicon": "./assets/images/aasai-talk-mark.png"
     },
     "plugins": [
       "./plugins/with-call-sounds",
       "expo-router",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "messages",
+          "color": "#e23744"
+        }
+      ],
       [
         "expo-image-picker",
         {

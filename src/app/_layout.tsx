@@ -10,13 +10,15 @@ import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { sendHostPresenceHeartbeat } from "@/data/host-presence";
 import { SampleWorkspaceProvider } from "@/data/sample-workspace";
 import { fetchPhoneWalletBalance } from "@/data/wallet";
+import { sendPushEvent } from "@/data/push-notifications";
 import { DemoProvider, people, useDemo } from "@/ui/store";
+import { ActivityIndicator, Animated, AppState, Platform, Pressable, Text, View } from "react-native";
+import type { NotificationResponse } from "expo-notifications";
 import { colors } from "@/ui/theme";
 import { Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold, useFonts } from "@expo-google-fonts/figtree";
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef } from "react";
-import { ActivityIndicator, Animated, AppState, Pressable, Text, View } from "react-native";
 
 const phoneCallId = (value: string) => /^[0-9a-f-]{36}$/.test(value);
 
@@ -74,11 +76,26 @@ function IncomingMessageBanner() {
   );
 }
 
+if (Platform.OS !== "web") {
+  const Notifications = require("expo-notifications") as typeof import("expo-notifications");
+  Notifications.setNotificationHandler({
+    handleNotification: async () => {
+      const foreground = AppState.currentState === "active";
+      return {
+        shouldShowBanner: !foreground,
+        shouldShowList: !foreground,
+        shouldPlaySound: !foreground,
+        shouldSetBadge: false,
+      };
+    },
+  });
+}
+
 /** Keeps a phone call authoritative even while its screen is not mounted. */
 function ActiveCallLifecycle() {
   const { active, setActive, setBalance, setCalls, refreshWalletBalance } =
     useDemo();
-  const { demoPhone } = useAuth();
+  const { demoPhone, getIdentityToken } = useAuth();
   const activeRef = useRef(active);
   const chargedMinuteRef = useRef({ callId: "", minute: 0 });
   const chargingRef = useRef(false);
@@ -205,6 +222,11 @@ function ActiveCallLifecycle() {
           chargedMinuteRef.current = { callId: active.id, minute: nextMinute };
           if (typeof result.remaining_coins === "number")
             setBalance(result.remaining_coins);
+          if (nextMinute === 1) {
+            void getIdentityToken()
+              .then((idToken) => sendPushEvent(idToken, "wallet", active.id, "call"))
+              .catch((error) => console.warn("Unable to send wallet activity push:", error));
+          }
           return;
         }
         if (!result.responseInvalid && result.insufficient_balance) {
@@ -315,6 +337,24 @@ function AppNavigator() {
   const { demoPhone, loading, authenticated } = useAuth();
   const { identityLoading } = useDemo();
   const incomingSessionRef = useRef("");
+  useEffect(() => {
+    if (Platform.OS === "web" || loading || !authenticated) return;
+    const Notifications = require("expo-notifications") as typeof import("expo-notifications");
+    let mounted = true;
+    const openNotificationRoute = (response: NotificationResponse | null) => {
+      const route = response?.notification.request.content.data?.route;
+      if (typeof route !== "string" || !/^\/(calls|chat|wallet|notifications)(\/|\?|$)/.test(route)) return;
+      router.push(route as never);
+    };
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (mounted) openNotificationRoute(response);
+    });
+    const subscription = Notifications.addNotificationResponseReceivedListener(openNotificationRoute);
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, [authenticated, loading]);
   useEffect(() => {
     if (loading || !authenticated || !demoPhone) return;
     return subscribeToIncomingCalls(demoPhone, (call) => {

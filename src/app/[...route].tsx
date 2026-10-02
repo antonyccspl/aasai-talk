@@ -18,6 +18,7 @@ import {
     UserProfile,
 } from "@/ui/social";
 import { Wallet } from "@/ui/wallet";
+import { ModeratorOps } from "@/ui/moderator-ops";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import React from "react";
 
@@ -86,10 +87,7 @@ export default function Route() {
   else if (root === "block" || root === "report" || root === "rate")
     screen = <Safety mode={root} id={action} />;
   else if (root === "status") screen = <ServiceState state={action} />;
-  // The prototype admin UI has no server-verified administrator role. Do not
-  // expose moderation, pricing, or financial controls until an Edge Function
-  // verifies a Firebase custom claim and records an immutable audit trail.
-  else if (root === "admin") screen = <ServiceState state="admin" />;
+  else if (root === "admin") screen = <ModeratorOps page={action || "dashboard"} id={id} />;
   else if (root === "preview") screen = <ServiceState state="unavailable" />;
   else screen = <ServiceState state="unavailable" />;
   return <React.Fragment key={key}>{screen}</React.Fragment>;

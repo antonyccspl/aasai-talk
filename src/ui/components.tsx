@@ -21,6 +21,7 @@ import {
     TextStyle,
     useWindowDimensions,
     View,
+    Vibration,
     ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -37,6 +38,15 @@ import {
 import { colors as c, fonts } from "./theme";
 export type IconName = React.ComponentProps<typeof Feather>["name"];
 export const go = (path: string) => router.push(path as never);
+/** Brief native acknowledgement for deliberate controls; web keeps visual feedback only. */
+const pressFeedback = () => {
+  if (Platform.OS !== "web") Vibration.vibrate(8);
+};
+export function presenceText(status: string) {
+  if (status === "Available") return "Available";
+  if (status === "Busy") return "On a call";
+  return "Away";
+}
 export function T({
   children,
   size = 14,
@@ -153,7 +163,10 @@ export function Button({
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       disabled={disabled}
-      onPress={onPress}
+      onPress={() => {
+        pressFeedback();
+        onPress();
+      }}
       style={({ pressed }) => [
         s.button,
         {
@@ -167,6 +180,7 @@ export function Button({
           borderColor: c.line,
           boxShadow: variant === "primary" ? "0 8px 20px rgba(226,55,68,0.20)" : "none",
           opacity: disabled ? 0.4 : pressed ? 0.72 : 1,
+          transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
         },
         style,
       ]}
@@ -197,7 +211,10 @@ export function IconButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ selected: active }}
-      onPress={onPress}
+      onPress={() => {
+        pressFeedback();
+        onPress();
+      }}
       style={({ pressed }) => [
         s.iconButton,
         {
@@ -205,6 +222,7 @@ export function IconButton({
           backgroundColor: danger ? c.danger : active ? c.mint : c.low,
           borderWidth: 1.5,
           borderColor: c.line,
+          transform: [{ scale: pressed ? 0.94 : 1 }],
         },
       ]}
     >
@@ -553,6 +571,31 @@ export function Empty({
     </View>
   );
 }
+/** Lightweight placeholders for network-backed lists. */
+export function LoadingCards({ count = 3 }: { count?: number }) {
+  return (
+    <View accessibilityLabel="Loading content" style={{ gap: 12 }}>
+      {Array.from({ length: count }, (_, index) => (
+        <View
+          key={index}
+          style={{
+            minHeight: 82,
+            padding: 15,
+            gap: 10,
+            borderRadius: 20,
+            backgroundColor: c.low,
+            borderWidth: 1,
+            borderColor: c.line,
+          }}
+        >
+          <View style={{ width: index % 2 ? "48%" : "64%", height: 13, borderRadius: 7, backgroundColor: c.high }} />
+          <View style={{ width: "82%", height: 10, borderRadius: 5, backgroundColor: c.high }} />
+          <View style={{ width: "34%", height: 10, borderRadius: 5, backgroundColor: c.high }} />
+        </View>
+      ))}
+    </View>
+  );
+}
 export function Wave({ large }: { large?: boolean }) {
   return (
     <Row
@@ -640,12 +683,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
       : effectiveStatus === "Busy"
         ? c.warning
         : c.error;
-  const presenceLabel =
-    effectiveStatus === "Available"
-      ? "Online"
-      : effectiveStatus === "Busy"
-        ? "Busy on another call"
-        : "Offline";
+  const presenceLabel = presenceText(effectiveStatus);
   if (grid) {
     const backgrounds = ["#c73543", "#6046c2", "#127e79", "#b95422"];
     const available = effectiveStatus === "Available";
@@ -655,7 +693,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
         <Image source={{ uri: person.photo }} resizeMode="cover" accessibilityLabel={`${person.name} profile photo`} style={StyleSheet.absoluteFill} onError={() => setFailedPhoto(person.photo ?? null)} />
         <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 112, backgroundColor: "rgba(0,0,0,0.65)" }} />
       </> : <T bold size={58} color="#ffffff55" style={{ position: "absolute", top: 34, left: 0, right: 0, textAlign: "center" }}>{person.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</T>}
-      <View style={{ position: "absolute", top: 12, left: 12, flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, backgroundColor: "#00000047", paddingHorizontal: 10, paddingVertical: 5 }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: available ? "#5dffb0" : statusColor }} /><T size={11} bold color="#fff">{available ? "Online" : effectiveStatus === "Busy" ? "Busy" : "Offline"}</T></View>
+      <View style={{ position: "absolute", top: 12, left: 12, flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, backgroundColor: "#00000047", paddingHorizontal: 10, paddingVertical: 5 }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: available ? "#5dffb0" : statusColor }} /><T size={11} bold color="#fff">{presenceText(effectiveStatus)}</T></View>
       <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}`} onPress={() => go(`/user/${person.id}`)} style={{ paddingTop: 100, paddingBottom: 10 }}>
         <T size={16.5} bold color="#fff" numberOfLines={1}>{person.name}, {person.age}</T>
         <T size={12} color="#fff" numberOfLines={1}>{person.city} · {person.languages[0]}</T>
@@ -775,18 +813,19 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
                 paddingHorizontal: 6,
                 minHeight: 54,
                 borderRadius: 18,
-                backgroundColor: c.text,
+                backgroundColor: c.low,
+                borderWidth: 1.5,
+                borderColor: c.mint,
               },
             ]}
           >
-            <BrandGradient dark />
             <Row style={{ gap: 5, justifyContent: "center" }}>
-              <Icon name="video" size={17} color={c.ink} />
-              <T bold size={12} color={c.ink}>
+              <Icon name="video" size={17} color={c.mint} />
+              <T bold size={12} color={c.mint}>
                 Video
               </T>
-              <DiamondMark size={9} color={c.ink} />
-              <T mono size={10} color={c.ink}>
+              <DiamondMark size={9} color={c.mint} />
+              <T mono size={10} color={c.mint}>
                 {slabsLoading
                   ? "…"
                   : videoRate === undefined

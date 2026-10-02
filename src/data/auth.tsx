@@ -7,6 +7,7 @@ import {
 } from "@react-native-firebase/auth";
 import type { Session, User } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
+import { unregisterPushDevice } from "./push-notifications";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { supabase } from "./supabase";
@@ -143,6 +144,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    if (Platform.OS !== "web" && getAuth().currentUser) {
+      try {
+        await unregisterPushDevice(await getAuth().currentUser!.getIdToken());
+      } catch (error) {
+        console.warn("Unable to unregister this push device:", error);
+      }
+    }
     if (Platform.OS !== "web") await firebaseSignOut(getAuth());
     confirmation.current = null;
     await clearLocalPhone();
