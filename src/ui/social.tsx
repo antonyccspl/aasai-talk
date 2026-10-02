@@ -4,7 +4,7 @@ import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboa
 import { fetchHostEarningSlabs, type HostEarningSlab } from "@/data/host-metrics";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, TextInput, useWindowDimensions, View } from "react-native";
+import { Platform, Pressable, TextInput, useWindowDimensions, View } from "react-native";
 import { useRefreshPeople } from '../data/sample-workspace';
 import {
     Avatar,
@@ -713,7 +713,13 @@ export function Chat({ id }: { id: string }) {
                 {
                   flex: 1,
                   borderWidth: 0,
-                  padding: 4,
+                  // Keep a one-line draft vertically centered in browsers while
+                  // still allowing the composer to grow for longer messages.
+                  minHeight: 44,
+                  paddingHorizontal: 12,
+                  paddingVertical: Platform.OS === "web" ? 11 : 10,
+                  lineHeight: 22,
+                  textAlignVertical: "center",
                   maxHeight: 110,
                   backgroundColor: "transparent",
                 },

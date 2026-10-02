@@ -1120,9 +1120,6 @@ export function CallDetail({
             icon="credit-card"
           />
         )}
-        <T mono size={11} color={c.muted}>
-          Reference {call.id}
-        </T>
       </Card>
       <Button
         title="Send a message"
