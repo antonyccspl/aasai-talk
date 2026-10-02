@@ -32,6 +32,43 @@ export type PhoneCallNotification = {
   created_at: string;
 };
 
+export type PhoneCallHistoryItem = {
+  id: string;
+  other_phone: string;
+  call_type: CallType;
+  status: Exclude<CallSessionStatus, "ringing" | "connected">;
+  duration_seconds: number;
+  incoming: boolean;
+  created_at: string;
+  counterpart_username: string;
+  counterpart_display_name: string | null;
+  counterpart_avatar_url: string | null;
+  counterpart_is_host: boolean;
+};
+
+export async function fetchPhoneCallHistory(phone: string, limit = 50) {
+  if (!/^\+91\d{10}$/.test(phone)) return [] as PhoneCallHistoryItem[];
+  const { data, error } = await supabase.rpc("get_phone_call_history", {
+    input_phone: phone,
+    input_limit: limit,
+  });
+  if (error) throw new Error(error.message);
+  if (!Array.isArray(data) || !data.every((row) => {
+    if (!row || typeof row !== "object") return false;
+    const value = row as Record<string, unknown>;
+    return typeof value.id === "string" && typeof value.other_phone === "string" &&
+      (value.call_type === "audio" || value.call_type === "video") &&
+      ["ended", "missed", "rejected", "cancelled"].includes(String(value.status)) &&
+      typeof value.duration_seconds === "number" && Number.isSafeInteger(value.duration_seconds) && value.duration_seconds >= 0 &&
+      typeof value.incoming === "boolean" && typeof value.created_at === "string" &&
+      typeof value.counterpart_username === "string" &&
+      (value.counterpart_display_name === null || typeof value.counterpart_display_name === "string") &&
+      (value.counterpart_avatar_url === null || typeof value.counterpart_avatar_url === "string") &&
+      typeof value.counterpart_is_host === "boolean";
+  })) throw new Error("Invalid call history returned by the server.");
+  return data as PhoneCallHistoryItem[];
+}
+
 export async function fetchPhoneCallNotifications(phone: string) {
   if (!/^\+91\d{10}$/.test(phone)) return [] as PhoneCallNotification[];
   const { data, error } = await supabase.rpc("get_phone_call_notifications", {

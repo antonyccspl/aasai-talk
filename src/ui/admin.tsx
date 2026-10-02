@@ -582,22 +582,22 @@ export function Admin({
         />
         <Setting
           title="Support Email"
-          detail={d.appConfig?.support_email || "support@aasaitalk.app"}
+          detail={d.appConfig?.support_email || "Not configured"}
           icon="mail"
         />
         <Setting
           title="Support Phone"
-          detail={d.appConfig?.support_phone || "+91 98765 43210"}
+          detail={d.appConfig?.support_phone || "Not configured"}
           icon="phone"
         />
         <Setting
           title="Minimum App Version"
-          detail={d.appConfig?.minimum_app_version || "1.0.0"}
+          detail={d.appConfig?.minimum_app_version || "Not configured"}
           icon="shield"
         />
         <Setting
           title="New User Bonus"
-          detail={`${d.appConfig?.new_user_bonus_coins || 100} coins`}
+          detail={d.appConfig ? `${d.appConfig.new_user_bonus_coins} coins` : "Not configured"}
           icon="gift"
         />
         <Setting

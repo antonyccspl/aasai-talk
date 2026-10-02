@@ -986,7 +986,9 @@ export function Settings({
           variant="secondary"
           onPress={() =>
             setMessage(
-              `Reach our 24/7 support desk at ${d.appConfig?.support_email || "support@aasaitalk.app"} or call ${d.appConfig?.support_phone || "+91 98765 43210"}.`,
+              d.appConfig
+                ? `Reach our support desk at ${d.appConfig.support_email} or call ${d.appConfig.support_phone}.`
+                : "Support details are temporarily unavailable. Please try again shortly.",
             )
           }
         />

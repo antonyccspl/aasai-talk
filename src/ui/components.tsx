@@ -365,6 +365,7 @@ export function Field({
   numeric?: boolean;
   secure?: boolean;
 }) {
+  const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 7 }}>
       <T size={13} color={c.secondary}>
@@ -382,13 +383,16 @@ export function Field({
         autoCapitalize={
           secure || /username|code|email/i.test(label) ? "none" : "sentences"
         }
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         style={[
           s.input,
           {
             minHeight: multiline ? 92 : 58,
-            borderColor: error ? c.error : c.line,
+            borderColor: error ? c.error : focused ? c.mint : c.line,
             backgroundColor: c.surface,
             color: c.text,
+            boxShadow: focused ? "0 0 0 3px rgba(226,55,68,0.10)" : "none",
           },
         ]}
       />
@@ -462,7 +466,13 @@ export function Setting({
     <Pressable
       onPress={onPress}
       accessibilityRole={onPress ? "button" : undefined}
-      style={[s.setting, { backgroundColor: c.low }]}
+      style={({ pressed }) => [
+        s.setting,
+        {
+          backgroundColor: pressed && onPress ? c.surface : c.low,
+          transform: [{ scale: pressed && onPress ? 0.992 : 1 }],
+        },
+      ]}
     >
       <Icon name={icon} color={c.mint} />
       <View style={{ flex: 1 }}>
@@ -503,6 +513,10 @@ export function Notice({
         backgroundColor: error ? c.errorSurface : c.successSurface,
         padding: 14,
         borderRadius: 16,
+        borderWidth: 1,
+        borderColor: error ? "#f7c8cc" : c.line,
+        borderLeftWidth: 4,
+        borderLeftColor: error ? c.error : c.mint,
       }}
     >
       <T size={13} color={error ? c.error : c.secondary}>
@@ -1140,10 +1154,10 @@ export function Shell({
 export const s = StyleSheet.create({
   safe: { flex: 1, minHeight: 0, backgroundColor: c.background },
   frame: { flex: 1, minHeight: 0, width: "100%", maxWidth: 430, alignSelf: "center" },
-  header: { minHeight: 72, paddingHorizontal: 18, gap: 8, backgroundColor: c.background },
+  header: { minHeight: 76, paddingHorizontal: 20, gap: 8, backgroundColor: c.background, borderBottomWidth: 1, borderBottomColor: "rgba(240,224,214,0.72)" },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
-  content: { padding: 18, gap: 18 },
-  card: { backgroundColor: c.low, borderRadius: 28, borderWidth: 1.5, borderColor: c.line, padding: 16, gap: 14, boxShadow: "0 12px 28px rgba(120,50,30,0.09)" },
+  content: { padding: 20, gap: 18 },
+  card: { backgroundColor: c.low, borderRadius: 24, borderWidth: 1, borderColor: c.line, padding: 17, gap: 14, boxShadow: "0 10px 26px rgba(97,47,28,0.075)" },
   button: {
     overflow: "hidden",
     minHeight: 56,
@@ -1186,10 +1200,10 @@ export const s = StyleSheet.create({
     backgroundColor: c.low,
     padding: 14,
     minHeight: 60,
-    borderRadius: 20,
-    borderWidth: 1.5,
+    borderRadius: 18,
+    borderWidth: 1,
     borderColor: c.line,
-    boxShadow: "0 6px 18px rgba(120,50,30,0.06)",
+    boxShadow: "0 8px 18px rgba(97,47,28,0.055)",
   },
   emptyIcon: {
     width: 80,
@@ -1213,13 +1227,13 @@ export const s = StyleSheet.create({
     left: 16,
     right: 16,
     padding: 8,
-    borderRadius: 30,
-    borderWidth: 1.5,
+    borderRadius: 28,
+    borderWidth: 1,
     borderColor: c.line,
     backgroundColor: c.low,
     flexDirection: "row",
     elevation: 8,
-    boxShadow: "0 14px 36px rgba(80,30,20,0.22)",
+    boxShadow: "0 14px 32px rgba(80,30,20,0.18)",
   },
   tab: {
     overflow: "hidden",

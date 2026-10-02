@@ -1,6 +1,7 @@
 import { useAuth } from "@/data/auth";
 import {
     acceptPhoneCallVideoUpgrade,
+    fetchPhoneCallHistory,
     fetchPhoneCallSummary,
     fetchPhoneCallState,
     fetchPhoneHostCallCapabilities,
@@ -14,7 +15,7 @@ import { startCallSound, stopAllCallSounds, stopCallSound } from "@/data/call-so
 import { fetchDirectoryProfiles, type DirectoryStatus } from "@/data/directory";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { router } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AppState, Platform, Pressable, useWindowDimensions, Vibration, View } from "react-native";
 import {
     Avatar,
@@ -37,14 +38,32 @@ import { coins, duration, people, personFor, talkTime, useDemo } from "./store";
 import { colors as c } from "./theme";
 import { ZegoMedia } from "./zego-media";
 
-export function CallScreen({
-  mode,
-  id,
-  type = "audio",
-  sessionId = "",
-  participantName,
-  attemptedIds = "",
-}: {
+/**
+ * WebRTC is provided by a third-party engine. Keep a media-render failure from
+ * unmounting the complete call screen (which previously appeared as a blank
+ * browser page immediately after accepting a call).
+ */
+class CallMediaBoundary extends Component<
+  { children: ReactNode; fallback?: ReactNode; onFailure: (message: string) => void },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("[Call media] render failure", error);
+    this.props.onFailure("Call media could not start. Please check your microphone and camera permissions.");
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback ?? null : this.props.children;
+  }
+}
+
+type CallScreenProps = {
   mode: string;
   id: string;
   type?: string;
@@ -52,7 +71,49 @@ export function CallScreen({
   participantName?: string;
   /** Comma-separated directory IDs already invited in this automatic request. */
   attemptedIds?: string;
-}) {
+};
+
+/** The call route must never fail to a browser-white page. */
+class CallScreenBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("[Call screen] unexpected render failure", error);
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <Shell title="Call connection">
+        <Notice error>
+          We could not open this call. Please return to calls and try again.
+        </Notice>
+        <Button title="Back to calls" icon="arrow-left" onPress={() => router.replace("/calls" as never)} />
+      </Shell>
+    );
+  }
+}
+
+export function CallScreen(props: CallScreenProps) {
+  return (
+    <CallScreenBoundary>
+      <CallScreenContent {...props} />
+    </CallScreenBoundary>
+  );
+}
+
+function CallScreenContent({
+  mode,
+  id,
+  type = "audio",
+  sessionId = "",
+  participantName,
+  attemptedIds = "",
+}: CallScreenProps) {
   const d = useDemo();
   const auth = useAuth();
   const { height: viewportHeight } = useWindowDimensions();
@@ -826,46 +887,52 @@ export function CallScreen({
           }}
         >
           {!ringing && mediaSessionId && auth.demoPhone && (
-            <ZegoMedia
-              sessionId={mediaSessionId}
-              phone={auth.demoPhone}
-              video
-              muted={muted}
-              camera={camera}
-              front={front}
-              speaker={route === "Speaker"}
-              onStatus={onMediaStatus}
-              onError={onMediaError}
-              videoPlaceholder={
-                <View
-                  style={{
-                    alignItems: "center",
-                    gap: 10,
-                    paddingHorizontal: 30,
-                  }}
-                >
+            <CallMediaBoundary
+              key={mediaSessionId}
+              onFailure={onMediaError}
+              fallback={<View style={{ flex: 1, backgroundColor: "#14201c" }} />}
+            >
+              <ZegoMedia
+                sessionId={mediaSessionId}
+                phone={auth.demoPhone}
+                video
+                muted={muted}
+                camera={camera}
+                front={front}
+                speaker={route === "Speaker"}
+                onStatus={onMediaStatus}
+                onError={onMediaError}
+                videoPlaceholder={
                   <View
                     style={{
-                      padding: 8,
-                      borderRadius: 99,
-                      backgroundColor: c.successSurface,
+                      alignItems: "center",
+                      gap: 10,
+                      paddingHorizontal: 30,
                     }}
                   >
-                    <Avatar person={p} size={callAvatarSize * 0.68} />
+                    <View
+                      style={{
+                        padding: 8,
+                        borderRadius: 99,
+                        backgroundColor: c.successSurface,
+                      }}
+                    >
+                      <Avatar person={p} size={callAvatarSize * 0.68} />
+                    </View>
+                    <T bold size={21}>
+                      {p.name}
+                    </T>
+                    <T
+                      size={13}
+                      color={c.secondary}
+                      style={{ textAlign: "center" }}
+                    >
+                      {camera ? "Waiting for their video…" : "Your camera is off"}
+                    </T>
                   </View>
-                  <T bold size={21}>
-                    {p.name}
-                  </T>
-                  <T
-                    size={13}
-                    color={c.secondary}
-                    style={{ textAlign: "center" }}
-                  >
-                    {camera ? "Waiting for their video…" : "Your camera is off"}
-                  </T>
-                </View>
-              }
-            />
+                }
+              />
+            </CallMediaBoundary>
           )}
           <View
             style={{
@@ -937,17 +1004,19 @@ export function CallScreen({
           }}
         >
           {!ringing && mediaSessionId && auth.demoPhone && (
-            <ZegoMedia
-              sessionId={mediaSessionId}
-              phone={auth.demoPhone}
-              video={false}
-              muted={muted}
-              camera={false}
-              front
-              speaker={route === "Speaker"}
-              onStatus={onMediaStatus}
-              onError={onMediaError}
-            />
+            <CallMediaBoundary key={mediaSessionId} onFailure={onMediaError}>
+              <ZegoMedia
+                sessionId={mediaSessionId}
+                phone={auth.demoPhone}
+                video={false}
+                muted={muted}
+                camera={false}
+                front
+                speaker={route === "Speaker"}
+                onStatus={onMediaStatus}
+                onError={onMediaError}
+              />
+            </CallMediaBoundary>
           )}
           <View
             style={{
@@ -1004,20 +1073,48 @@ export function CallScreen({
   );
 }
 export function CallsList() {
+  const auth = useAuth();
   const d = useDemo();
   const isHost = d.hostStatus === "approved";
   const [filter, setFilter] = useState("All");
   const [menuCall, setMenuCall] = useState<string | null>(null);
-  const list = d.calls.filter(
+  const [history, setHistory] = useState<Awaited<ReturnType<typeof fetchPhoneCallHistory>>>([]);
+  const [historyError, setHistoryError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const loadHistory = useCallback(async () => {
+    if (!auth.demoPhone) {
+      setHistory([]);
+      return;
+    }
+    const rows = await fetchPhoneCallHistory(auth.demoPhone);
+    setHistory(rows);
+    setHistoryError("");
+  }, [auth.demoPhone]);
+  useEffect(() => {
+    let active = true;
+    const load = () => void loadHistory().catch((error) => {
+      if (active) setHistoryError(error instanceof Error ? error.message : "Unable to load call history.");
+    });
+    load();
+    const timer = setInterval(load, 10000);
+    return () => { active = false; clearInterval(timer); };
+  }, [loadHistory]);
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await loadHistory(); }
+    catch (error) { setHistoryError(error instanceof Error ? error.message : "Unable to load call history."); }
+    finally { setRefreshing(false); }
+  }, [loadHistory]);
+  const list = history.filter(
     (x) =>
       filter === "All" ||
-      x.type === filter.toLowerCase() ||
-      x.status === filter ||
+      x.call_type === filter.toLowerCase() ||
+      x.status === filter.toLowerCase() ||
       (filter === "Incoming" && x.incoming) ||
       (filter === "Outgoing" && !x.incoming),
   );
   return (
-    <Shell tab="Calls">
+    <Shell tab="Calls" refreshing={refreshing} onRefresh={refresh}>
       <T size={24} bold>
         Your conversations
       </T>
@@ -1028,8 +1125,25 @@ export function CallsList() {
         onChange={setFilter}
       />
       <Section title="Recent calls" />
+      {historyError ? <Notice error>{historyError}</Notice> : null}
       {list.map((call) => {
-        const person = personFor(call.person);
+        const personId = `phone_${call.other_phone.replace("+", "")}`;
+        const directoryPerson = people.find((item) => item.id === personId);
+        const person = directoryPerson ?? {
+          id: personId,
+          name: isHost
+            ? call.counterpart_username ? `@${call.counterpart_username}` : "Caller"
+            : call.counterpart_display_name || "Conversation",
+          age: 0,
+          gender: "",
+          city: "",
+          languages: [],
+          interests: [],
+          bio: "",
+          status: "Offline" as const,
+          color: c.mint,
+          ...(call.counterpart_avatar_url ? { photo: call.counterpart_avatar_url } : {}),
+        };
         const canCallPerson = person.status === "Available";
         return (
           <Card key={call.id} style={{ padding: 12, gap: 10 }}>
@@ -1050,11 +1164,11 @@ export function CallsList() {
                   {person.name}
                 </T>
                 <T size={11} color={c.muted}>
-                  {`${call.incoming ? "Incoming" : "Outgoing"} · ${call.status} · ${duration(call.seconds)}`}
+                  {`${call.incoming ? "Incoming" : "Outgoing"} · ${call.status[0].toUpperCase()}${call.status.slice(1)} · ${duration(call.duration_seconds)}`}
                 </T>
                 {!call.incoming && (
                   <T mono size={10} color={c.warning}>
-                    {call.chargedCoins ?? 0} coins spent
+                    View receipt for coin details
                   </T>
                 )}
               </Pressable>
@@ -1063,12 +1177,12 @@ export function CallsList() {
                   <IconButton
                     icon="phone"
                     label={`Audio call ${person.name}`}
-                    onPress={() => go(`/calls/outgoing/${person.id}?type=audio`)}
+                  onPress={() => go(`/calls/outgoing/${person.id}?type=audio`)}
                   />
                   <IconButton
                     icon="video"
                     label={`Video call ${person.name}`}
-                    onPress={() => go(`/calls/outgoing/${person.id}?type=video`)}
+                  onPress={() => go(`/calls/outgoing/${person.id}?type=video`)}
                   />
                 </>
               )}

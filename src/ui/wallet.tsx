@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import {
   Badge,
@@ -17,10 +17,38 @@ import {
   Shell,
   T,
 } from "./components";
-import { coins, money, Transaction, useDemo } from "./store";
+import { coins, money, useDemo } from "./store";
 import { CoinPack, fetchCoinPacks } from "../data/coin-packs";
+import { useAuth } from "../data/auth";
+import { fetchPhoneWalletActivity, PhoneWalletActivity } from "../data/wallet";
 import { colors as c } from "./theme";
-function TransactionItem({ item }: { item: Transaction }) {
+
+type WalletTransaction = {
+  id: string;
+  title: string;
+  amount: number;
+  date: string;
+  kind: "Recharges" | "Calls";
+  status: string;
+};
+
+function toWalletTransaction(item: PhoneWalletActivity): WalletTransaction {
+  const timestamp = new Date(item.created_at);
+  return {
+    id: item.id,
+    title: item.title,
+    amount: item.coin_delta,
+    date: Number.isNaN(timestamp.getTime())
+      ? "Date unavailable"
+      : new Intl.DateTimeFormat("en-IN", {
+        day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit",
+      }).format(timestamp),
+    kind: item.category,
+    status: item.status,
+  };
+}
+
+function TransactionItem({ item }: { item: WalletTransaction }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -61,9 +89,13 @@ export function Wallet({
   id?: string;
 }) {
   const d = useDemo();
+  const { demoPhone, user } = useAuth();
   const [coinPacks, setCoinPacks] = useState<CoinPack[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
+  const [activity, setActivity] = useState<WalletTransaction[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [activityError, setActivityError] = useState("");
   const [reload, setReload] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -81,6 +113,30 @@ export function Wallet({
       .finally(() => { clearTimeout(timeout); if (active) setCatalogLoading(false); });
     return () => { active = false; clearTimeout(timeout); controller.abort(); };
   }, [reload, mode]);
+  const refreshWallet = useCallback(() => {
+    setReload(value => value + 1);
+  }, []);
+  useEffect(() => {
+    const phone = demoPhone || user?.phone;
+    let active = true;
+    setActivityLoading(true);
+    setActivityError("");
+    if (!phone) {
+      setActivity([]);
+      setActivityLoading(false);
+      return () => { active = false; };
+    }
+    void Promise.all([d.refreshWalletBalance(), fetchPhoneWalletActivity(phone)])
+      .then(([, rows]) => {
+        if (active) setActivity(rows.map(toWalletTransaction));
+      })
+      .catch((loadError: unknown) => {
+        if (active) setActivityError(loadError instanceof Error
+          ? loadError.message : "Unable to load wallet activity. Please try again.");
+      })
+      .finally(() => { if (active) setActivityLoading(false); });
+    return () => { active = false; };
+  }, [d.refreshWalletBalance, demoPhone, reload, user?.phone]);
   const selectedPack = coinPacks.find(pack => pack.coins === d.pack);
   const packPrice = selectedPack ? money(selectedPack.price_paise / 100) : "Price unavailable";
   const [filter, setFilter] = useState("All");
@@ -110,9 +166,9 @@ export function Wallet({
       </Shell>
     );
   if (mode === "transactions" && id) {
-    const tx = d.transactions.find((x) => x.id === id);
+    const tx = activity.find((x) => x.id === id);
     return (
-      <Shell title="Transaction details">
+      <Shell title="Transaction details" refreshing={activityLoading} onRefresh={refreshWallet}>
         {tx ? (
           <>
             <Badge text={tx.status} />
@@ -147,18 +203,19 @@ export function Wallet({
   }
   if (mode === "transactions")
     return (
-      <Shell title="Transaction history">
+      <Shell title="Transaction history" refreshing={activityLoading} onRefresh={refreshWallet}>
         <Chips
           items={["All", "Recharges", "Calls", "Refunds"]}
           selected={filter}
           onChange={setFilter}
         />
-        {d.transactions
+        {!!activityError && <Notice error>{activityError}</Notice>}
+        {activity
           .filter((x) => filter === "All" || x.kind === filter)
           .map((x) => (
             <TransactionItem key={x.id} item={x} />
           ))}
-        {!d.transactions.some((x) => filter === "All" || x.kind === filter) && (
+        {!activityLoading && !activity.some((x) => filter === "All" || x.kind === filter) && (
           <Empty
             title="No transactions here"
             message="Activity matching this filter will appear here."
@@ -243,7 +300,7 @@ export function Wallet({
       </Shell>
     );
   return (
-    <Shell tab="Wallet" refreshing={catalogLoading} onRefresh={() => setReload(value => value + 1)}>
+    <Shell tab="Wallet" refreshing={catalogLoading || activityLoading} onRefresh={refreshWallet}>
       {d.profile.gender === "Female" &&
         (d.hostStatus === "pending" || isApprovedHost) && (
           <Card>
@@ -280,7 +337,7 @@ export function Wallet({
       {!!catalogError && (
         <>
           <Notice error>{catalogError}</Notice>
-          <Button title="Try again" variant="secondary" onPress={() => setReload(value => value + 1)} />
+          <Button title="Try again" variant="secondary" onPress={refreshWallet} />
         </>
       )}
       {!catalogLoading && !catalogError && !coinPacks.length && (
@@ -370,7 +427,12 @@ export function Wallet({
         action="View all"
         onPress={() => go("/wallet/transactions")}
       />
-      {d.transactions.slice(0, 3).map((x) => (
+      {activityLoading && <T color={c.secondary}>Loading recent activity…</T>}
+      {!!activityError && <Notice error>{activityError}</Notice>}
+      {!activityLoading && !activityError && !activity.length && (
+        <T color={c.secondary}>Your wallet activity will appear here.</T>
+      )}
+      {activity.slice(0, 3).map((x) => (
         <TransactionItem key={x.id} item={x} />
       ))}
     </Shell>

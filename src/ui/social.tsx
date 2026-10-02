@@ -911,14 +911,14 @@ export function Chat({ id }: { id: string }) {
         <Chip title="Today" />
       </Row>
       {chatError ? <Notice error>{chatError}</Notice> : null}
-      {(liveMessages.length ? liveMessages.map((m) => ({
+      {liveMessages.map((m) => ({
         id: m.id,
         text: m.text,
         mine: m.sender_phone === auth.demoPhone,
         image: false,
         time: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         failed: false,
-      })) : d.messages.filter((m) => m.user === id)).map((m) => (
+      })).map((m) => (
           <View
             key={m.id}
             style={{

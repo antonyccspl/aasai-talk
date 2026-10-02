@@ -158,80 +158,40 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
       metricsMap[m.metric_key] = m;
     }
 
-    // Merge database records with workspace state if workspace state is empty or initial
+    // Server records are authoritative. Workspace state is kept only for local
+    // UI choices and drafts; it must never make an older activity feed appear
+    // to be current after another device updates the account.
     const mergedState: Snapshot = { ...ws.state };
 
-    if (
-      !Array.isArray(mergedState.transactions) ||
-      mergedState.transactions.length <= 3
-    ) {
-      if (txRows.length > 0) {
-        mergedState.transactions = txRows.map((t) => ({
-          id: t.id,
-          title: t.title,
-          amount: t.amount,
-          date: t.date,
-          kind: t.kind,
-          status: t.status,
-        }));
-      }
-    }
+    mergedState.transactions = txRows.map((t) => ({
+      id: t.id, title: t.title, amount: t.amount, date: t.date,
+      kind: t.kind, status: t.status,
+    }));
+    mergedState.calls = callRows.map((call) => ({
+      id: call.id, person: call.person_id, type: call.call_type,
+      status: call.status, seconds: call.seconds, incoming: call.incoming,
+    }));
+    mergedState.messages = msgRows.map((message) => ({
+      id: message.id,
+      user: message.conversation_with,
+      mine: message.is_mine,
+      text: message.text,
+      time: new Date(message.created_at).toLocaleTimeString('en-US', {
+        hour: '2-digit', minute: '2-digit',
+      }),
+    }));
+    mergedState.notifications = dbNotifs.map((notification) => ({
+      id: notification.id,
+      title: notification.title,
+      body: notification.body,
+      path: notification.path,
+      icon: notification.icon,
+    }));
 
-    if (!Array.isArray(mergedState.calls) || mergedState.calls.length <= 3) {
-      if (callRows.length > 0) {
-        mergedState.calls = callRows.map((c) => ({
-          id: c.id,
-          person: c.person_id,
-          type: c.call_type,
-          status: c.status,
-          seconds: c.seconds,
-          incoming: c.incoming,
-        }));
-      }
-    }
-
-    if (!Array.isArray(mergedState.messages) || mergedState.messages.length <= 3) {
-      if (msgRows.length > 0) {
-        mergedState.messages = msgRows.map((m) => {
-          const time = new Date(m.created_at).toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-          return {
-            id: m.id,
-            user: m.conversation_with,
-            mine: m.is_mine,
-            text: m.text,
-            time,
-          };
-        });
-      }
-    }
-
-    if (
-      !Array.isArray(mergedState.notifications) ||
-      mergedState.notifications.length === 0
-    ) {
-      if (dbNotifs.length > 0) {
-        mergedState.notifications = dbNotifs.map((n) => ({
-          id: n.id,
-          title: n.title,
-          body: n.body,
-          path: n.path,
-          icon: n.icon,
-        }));
-      }
-    }
-
-    if (reports.length > 0 && (!Array.isArray(mergedState.reports) || mergedState.reports.length <= 3)) {
-      mergedState.reports = reports.map(
-        (r) => `${r.reason} · ${r.reported_user_name}`
-      );
-    }
-
-    if (metricsMap.total_users?.chart_data && (!Array.isArray(mergedState.chart) || mergedState.chart.length === 0)) {
-      mergedState.chart = metricsMap.total_users.chart_data;
-    }
+    mergedState.reports = reports.map((report) =>
+      `${report.reason} · ${report.reported_user_name}`,
+    );
+    mergedState.chart = metricsMap.total_users?.chart_data ?? [];
 
     return {
       workspace: { state: mergedState, revision: ws.revision },
