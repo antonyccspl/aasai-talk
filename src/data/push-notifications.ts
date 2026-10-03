@@ -92,3 +92,19 @@ export async function sendPushEvent(
 ) {
   await requestPushAction(idToken, "send", { event, event_id: eventId, ...(source ? { source } : {}) });
 }
+
+/** A local device check confirms permission, channel setup, presentation, and routing. */
+export async function showPushTestNotification(kind: "call" | "message" | "missed" | "safety") {
+  if (Platform.OS === "web") throw new Error("Notification checks are available in the mobile app.");
+  const Notifications = notificationsModule();
+  const content = {
+    call: { title: "Incoming call", body: "A caller is trying to reach you.", route: "/calls" },
+    message: { title: "New message", body: "You have a new conversation waiting.", route: "/notifications" },
+    missed: { title: "Missed call", body: "You can view the call details in Calls.", route: "/calls" },
+    safety: { title: "Safety update", body: "Your report has been received for review.", route: "/notifications" },
+  }[kind];
+  await Notifications.scheduleNotificationAsync({
+    content: { ...content, sound: "default", data: { route: content.route, type: "test" } },
+    trigger: null,
+  });
+}

@@ -182,6 +182,15 @@ export function ModeratorOps({ page = "dashboard", id }: { page?: string; id?: s
             ))}
           </Card>
         )}
+        <Card style={{ gap: 8 }}>
+          <T size={18} bold>Release readiness</T>
+          <T size={12} color={c.secondary}>Review these live signals before a public release.</T>
+          <Setting title="Phone sign-in" detail="Complete one OTP sign-in on a real device" icon="check-circle" />
+          <Setting title="Calls" detail={summary.calls_failed ? `${summary.calls_failed} recent calls need review` : "Recent call outcomes look clear"} icon="phone" />
+          <Setting title="Messages" detail="Send and receive one message on two devices" icon="message-circle" />
+          <Setting title="Host availability" detail={`${summary.hosts_online} host${summary.hosts_online === 1 ? "" : "s"} currently available`} icon="users" />
+          <Setting title="Safety queue" detail={summary.reports_open ? `${summary.reports_open} report${summary.reports_open === 1 ? "" : "s"} awaiting review` : "No open reports"} icon="shield" />
+        </Card>
         <Button title="Open priority report queue" icon="flag" onPress={() => router.push("/admin/reports" as never)} />
         <Button title="View analytics" variant="secondary" onPress={() => router.push("/admin/analytics" as never)} />
       </Shell>

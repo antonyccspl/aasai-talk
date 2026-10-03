@@ -27,7 +27,7 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/aasai-talk-mark.png"
+      "favicon": "./assets/images/aasai-talk-logo.jpg"
     },
     "plugins": [
       "./plugins/with-call-sounds",

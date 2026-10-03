@@ -168,6 +168,7 @@ function CallScreenContent({
   );
   const soundKey = useRef(`call-sound-${Date.now()}-${Math.random()}`).current;
   const fallbackRef = useRef(false);
+  const fallbackHandlerRef = useRef<() => Promise<void>>(async () => {});
   const [soundError, setSoundError] = useState("");
   const [foreground, setForeground] = useState(
     AppState.currentState === "active",
@@ -179,6 +180,7 @@ function CallScreenContent({
   const [safetyError, setSafetyError] = useState("");
   const [safetyConfirmation, setSafetyConfirmation] = useState("");
   const [mediaStatus, setMediaStatus] = useState("Getting your call ready…");
+  const [mediaRetryKey, setMediaRetryKey] = useState(0);
   const [networkQuality, setNetworkQuality] = useState<CallNetworkQuality>("unknown");
   const connectingRef = useRef(false);
   const actionRef = useRef(false);
@@ -233,6 +235,12 @@ function CallScreenContent({
   const onMediaError = useCallback(
     (message: string) => {
       void stopAllCallSounds();
+      if (/network|connect|room|restored/i.test(message)) {
+        setCallError("Your connection dropped. Check your internet, then try reconnecting.");
+        setMediaStatus("Reconnect failed");
+        setNetworkQuality("disconnected");
+        return;
+      }
       const friendlyMessage = /microphone|camera|permission/i.test(message)
         ? "Please allow microphone and camera access, then try the call again."
         : /audio|sound/i.test(message)
@@ -691,6 +699,11 @@ function CallScreenContent({
       );
     }
   }, [attemptedIds, d, id, outgoing, soundKey, video]);
+  // The active-call store updates every second while a call is ringing. Keep the
+  // timeout callback in a ref so those updates do not restart the response window.
+  useEffect(() => {
+    fallbackHandlerRef.current = continueWithAnotherAvailablePerson;
+  }, [continueWithAnotherAvailablePerson]);
   useEffect(() => {
     if (!outgoing || sessionId || hostUnavailable || connectingRef.current) return;
     connectingRef.current = true;
@@ -715,7 +728,7 @@ function CallScreenContent({
           await updatePhoneCall(activeId, callerPhone, "missed");
           const latest = await fetchPhoneCallState(activeId, callerPhone);
           if (latest.status === "missed")
-            await continueWithAnotherAvailablePerson();
+            await fallbackHandlerRef.current();
         } catch (error) {
           console.warn("Unable to continue the unanswered call:", error);
         }
@@ -725,7 +738,7 @@ function CallScreenContent({
     // must not be treated as a declined call while this timer is running.
     }, 30_000);
     return () => clearTimeout(timeout);
-  }, [auth.demoPhone, continueWithAnotherAvailablePerson, mediaSessionId, outgoing, sessionId, state]);
+  }, [auth.demoPhone, mediaSessionId, outgoing, sessionId, state]);
   useEffect(() => {
     const activeId =
       sessionId ||
@@ -965,12 +978,17 @@ function CallScreenContent({
           warning={networkQuality === "poor" || networkQuality === "disconnected"}
         />
       )}
-      {!ringing && mediaStatus === "Reconnecting" && (
+      {!ringing && (mediaStatus === "Reconnecting" || mediaStatus === "Reconnect failed") && (
         <Card style={{ gap: 6 }}>
-          <T bold>Reconnecting your call</T>
+          <T bold>{mediaStatus === "Reconnecting" ? "Reconnecting your call" : "Connection interrupted"}</T>
           <T size={13} color={c.secondary}>
-            The connection was interrupted. Stay on this screen while the call service tries to restore it.
+            {mediaStatus === "Reconnecting" ? "Stay on this screen while we restore your call." : "Check your internet connection, then reconnect when you are ready."}
           </T>
+          <Button title="Reconnect" variant="secondary" icon="refresh-cw" onPress={() => {
+            setCallError("");
+            setMediaStatus("Reconnecting");
+            setMediaRetryKey((value) => value + 1);
+          }} />
         </Card>
       )}
       {!ringing && !video && videoRequestFromMe && (
@@ -1010,7 +1028,7 @@ function CallScreenContent({
         >
           {!ringing && mediaSessionId && auth.demoPhone && (
             <CallMediaBoundary
-              key={mediaSessionId}
+              key={`${mediaSessionId}-${mediaRetryKey}`}
               onFailure={onMediaError}
               fallback={<View style={{ flex: 1, backgroundColor: "#14201c" }} />}
             >
@@ -1139,7 +1157,7 @@ function CallScreenContent({
           }}
         >
           {!ringing && mediaSessionId && auth.demoPhone && (
-            <CallMediaBoundary key={mediaSessionId} onFailure={onMediaError}>
+            <CallMediaBoundary key={`${mediaSessionId}-${mediaRetryKey}`} onFailure={onMediaError}>
               <ZegoMedia
                 sessionId={mediaSessionId}
                 phone={auth.demoPhone}
@@ -1289,7 +1307,6 @@ export function CallsList() {
   const [filter, setFilter] = useState("All");
   const [menuCall, setMenuCall] = useState<string | null>(null);
   const [history, setHistory] = useState<Awaited<ReturnType<typeof fetchPhoneCallHistory>>>([]);
-  const [historyError, setHistoryError] = useState("");
   const [historyLoading, setHistoryLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const loadHistory = useCallback(async () => {
@@ -1299,14 +1316,14 @@ export function CallsList() {
     }
     const rows = await fetchPhoneCallHistory(auth.demoPhone);
     setHistory(rows);
-    setHistoryError("");
   }, [auth.demoPhone]);
   useEffect(() => {
     let active = true;
     const load = () => {
       void loadHistory()
         .catch((error) => {
-          if (active) setHistoryError(error instanceof Error ? error.message : "Unable to load call history.");
+          console.warn("Unable to load call history:", error);
+          if (active) setHistory([]);
         })
         .finally(() => { if (active) setHistoryLoading(false); });
     };
@@ -1317,7 +1334,10 @@ export function CallsList() {
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try { await loadHistory(); }
-    catch (error) { setHistoryError(error instanceof Error ? error.message : "Unable to load call history."); }
+    catch (error) {
+      console.warn("Unable to refresh call history:", error);
+      setHistory([]);
+    }
     finally { setRefreshing(false); }
   }, [loadHistory]);
   const list = history.filter(
@@ -1340,7 +1360,6 @@ export function CallsList() {
         onChange={setFilter}
       />
       <Section title="Recent calls" />
-      {historyError ? <Notice error>{historyError}</Notice> : null}
       {historyLoading ? <LoadingCards count={3} /> : list.map((call) => {
         const personId = `phone_${call.other_phone.replace("+", "")}`;
         const directoryPerson = people.find((item) => item.id === personId);

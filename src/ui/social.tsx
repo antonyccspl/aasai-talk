@@ -373,26 +373,6 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
           />
         </>
       )}
-      {mode === "explore" && (
-        <Card style={{ padding: 14, gap: 10 }}>
-          <Row style={{ justifyContent: "space-between" }}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <T bold size={15}>Now available</T>
-              <T size={12} color={c.secondary}>People ready to talk right now</T>
-            </View>
-            <IconButton icon="refresh-cw" label="Refresh available people" onPress={refreshPeopleList} />
-          </Row>
-          <Row style={{ gap: 10 }}>
-            {result.filter((person) => person.status === "Available").slice(0, 4).map((person) => (
-              <View key={person.id} style={{ width: 48, alignItems: "center", gap: 4 }}>
-                <Avatar person={person} size={38} />
-                <T size={10} bold numberOfLines={1} style={{ maxWidth: 48 }}>{person.name.split(" ")[0]}</T>
-              </View>
-            ))}
-            {!result.some((person) => person.status === "Available") && <T size={12} color={c.muted}>Check back soon</T>}
-          </Row>
-        </Card>
-      )}
       <Section
         title={
           favorites

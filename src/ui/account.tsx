@@ -6,7 +6,7 @@ import {
     setPhoneBlock,
     type PhoneDeletionReason,
 } from "@/data/phone-safety";
-  import { registerPushDevice, updatePushPreferences } from "@/data/push-notifications";
+  import { registerPushDevice, showPushTestNotification, updatePushPreferences } from "@/data/push-notifications";
 import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
@@ -129,11 +129,27 @@ export function Auth({ mode }: { mode: string }) {
   const [gender, setGender] = useState(d.profile.gender);
   const [dob, setDob] = useState(d.profile.dob);
   const [showDate, setShowDate] = useState(false);
+  const [guidelinesAccepted, setGuidelinesAccepted] = useState(false);
   const otpInput = useRef<TextInput>(null);
   const otpPhone = params.phone || phone;
   if (mode === "splash") return <Welcome />;
   if (mode === "create-profile") return <ProfileEdit onboarding />;
   if (mode === "permissions") return <Permissions onboarding />;
+  if (mode === "guidelines")
+    return (
+      <Shell title="Community promise" immersive>
+        <OnboardingProgress step={6} label="Almost there" />
+        <T size={27} bold>Help keep Aasai Talk kind.</T>
+        <T color={c.secondary}>Be genuine, respect boundaries, and never ask for money or share someone’s private information.</T>
+        <Card style={{ gap: 10 }}>
+          <Row><Icon name="shield" color={c.mint} /><T bold>Our community standards</T></Row>
+          <T size={13} color={c.secondary}>Harassment, scams, impersonation, and sexual exploitation are not allowed. You can block or report anyone at any time.</T>
+          <Button title="Read community guidelines" variant="secondary" onPress={() => go("/settings/policies/community")} />
+        </Card>
+        <Chip title="I agree to follow the community guidelines" selected={guidelinesAccepted} onPress={() => setGuidelinesAccepted((value) => !value)} />
+        <Button title="Continue" disabled={!guidelinesAccepted} onPress={() => go("/auth/complete")} />
+      </Shell>
+    );
   if (mode === "photo")
     return (
       <Shell title="Add a photo" immersive>
@@ -147,11 +163,11 @@ export function Auth({ mode }: { mode: string }) {
           </T>
         </View>
         <PhotoPicker uri={d.photo} onChange={d.setPhoto} />
-        <Button title="Continue" onPress={() => go("/auth/gender")} />
+        <Button title="Continue" disabled={!d.photo} onPress={() => go("/auth/gender")} />
         <Button
-          title="Skip for now"
+          title="Back to profile"
           variant="secondary"
-          onPress={() => go("/auth/gender")}
+          onPress={() => go("/auth/create-profile")}
         />
       </Shell>
     );
@@ -291,7 +307,7 @@ export function Auth({ mode }: { mode: string }) {
                 "You need to meet the minimum age requirement to use Aasai Talk.",
               );
             d.setProfile({ ...d.profile, dob });
-            go("/auth/complete");
+            go("/auth/guidelines");
           }}
         />
       </Shell>
@@ -309,11 +325,12 @@ export function Auth({ mode }: { mode: string }) {
           </T>
         </View>
         <Button
-          title="Continue to Aasai Talk"
+          title={busy ? "Finishing setup…" : "Continue to Aasai Talk"}
+          disabled={busy}
           onPress={() => {
             setBusy(true);
             void (auth.demoPhone
-              ? saveDemoProfile(auth.demoPhone, d.profile)
+              ? saveDemoProfile(auth.demoPhone, { ...d.profile, guidelinesAccepted: true })
               : auth.user
                 ? saveOwnProfile(d.profile)
                 : Promise.reject(new Error("Phone session is missing.")))
@@ -636,6 +653,8 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
             return setError("Use a 3–20 character username with letters, numbers, or underscores.");
           if (city.length < 2 || city.length > 80 || /[\r\n]/.test(city))
             return setError("Enter a valid city.");
+          if (onboarding && !d.photo)
+            return setError("Add a clear profile photo before continuing.");
           if (
             !isEligibleBirthday(form.dob) ||
             !["Female", "Male"].includes(form.gender) ||
@@ -643,11 +662,20 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
             form.languages.length > 4 ||
             !form.interests.length ||
             form.interests.length > 6 ||
-            form.bio.trim().length > 500
+            form.bio.trim().length > 500 ||
+            (onboarding && form.bio.trim().length < 12)
           )
             return setError(
-              "Choose an eligible date of birth, gender, language, and interest. Keep your bio under 500 characters.",
+              onboarding
+                ? "Add a short bio, then choose an eligible date of birth, gender, language, and interest."
+                : "Choose an eligible date of birth, gender, language, and interest. Keep your bio under 500 characters.",
             );
+          if (onboarding) {
+            d.setProfile({ ...form, name, city, bio: form.bio.trim() });
+            setError("");
+            go("/auth/permissions");
+            return;
+          }
           setBusy(true);
           void (
             auth.user
@@ -660,7 +688,6 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
               d.setProfile({ ...form, name, city, bio: form.bio.trim() });
               setError("");
               setSaved(true);
-              if (onboarding) go("/auth/permissions");
             })
             .catch((saveError) => {
               console.error("Failed to save profile:", saveError);
@@ -793,8 +820,8 @@ export function Permissions({ onboarding }: { onboarding?: boolean }) {
       <Notice>Review the permissions used by Aasai Talk.</Notice>
       {onboarding && (
         <Button
-          title="Continue to Explore"
-          onPress={() => router.replace("/explore" as never)}
+          title="Continue"
+          onPress={() => go("/auth/guidelines")}
         />
       )}
     </Shell>
@@ -818,6 +845,7 @@ export function Settings({
   const [refreshing, setRefreshing] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
+  const [pushTest, setPushTest] = useState<"call" | "message" | "missed" | "safety">("call");
   useEffect(() => {
     if (mode === "policies") void d.refreshPlatformData();
   }, [d.refreshPlatformData, mode]);
@@ -917,6 +945,19 @@ export function Settings({
               }}
             />
             {pushMessage ? <Notice>{pushMessage}</Notice> : null}
+            <Card style={{ gap: 10 }}>
+              <T bold size={15}>Check notifications on this device</T>
+              <T size={12} color={c.muted}>This sends a test alert only to this device. It does not contact anyone.</T>
+              <Chips items={["call", "message", "missed", "safety"]} selected={pushTest} onChange={(value) => setPushTest(value as typeof pushTest)} />
+              <Button title="Show test alert" variant="secondary" disabled={pushBusy} onPress={() => {
+                setPushBusy(true);
+                setPushMessage("");
+                void showPushTestNotification(pushTest)
+                  .then(() => setPushMessage("Test alert sent. Lock the phone or open the notification tray to check it."))
+                  .catch((error) => setPushMessage(error instanceof Error ? error.message : "Unable to show a test alert."))
+                  .finally(() => setPushBusy(false));
+              }} />
+            </Card>
           </>
         )}
         <Card style={{ gap: 2 }}>

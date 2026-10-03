@@ -701,8 +701,12 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
       <View style={{ flexDirection: "row", gap: 7 }}>
         {(["audio", "video"] as const).map((type) => <Pressable key={type} accessibilityRole="button" accessibilityLabel={`${type} call with ${person.name}`} accessibilityState={{ disabled: !available }} disabled={!available} onPress={() => go(`/calls/outgoing/${person.id}?type=${type}`)} style={{ flex: 1, minHeight: 38, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor: type === "audio" ? "#fff" : "#ffffff40", opacity: available ? 1 : 0.5 }}>
           <Icon name={type === "audio" ? "phone" : "video"} size={15} color={type === "audio" ? c.danger : "#fff"} />
+          <DiamondMark size={10} color={type === "audio" ? c.danger : "#fff"} />
           <T size={11} bold color={type === "audio" ? c.danger : "#fff"}>{slabsLoading ? "…" : (type === "audio" ? audioRate : videoRate) === undefined ? "—" : `${type === "audio" ? audioRate : videoRate}/min`}</T>
         </Pressable>)}
+        <Pressable accessibilityRole="button" accessibilityLabel={`Chat with ${person.name}`} onPress={() => go(`/chat/${person.id}`)} style={{ width: 40, minHeight: 38, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#ffffffde" }}>
+          <Icon name="message-circle" size={17} color={c.danger} />
+        </Pressable>
       </View>
     </View>;
   }
@@ -798,7 +802,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
                   ? "…"
                   : audioRate === undefined
                     ? "—"
-                    : `${audioRate}/min`}
+                    : `${audioRate} diamonds/min`}
               </T>
             </Row>
           </Pressable>
@@ -830,7 +834,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
                   ? "…"
                   : videoRate === undefined
                     ? "—"
-                    : `${videoRate}/min`}
+                    : `${videoRate} diamonds/min`}
               </T>
             </Row>
           </Pressable>

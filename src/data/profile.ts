@@ -10,6 +10,7 @@ export type UserProfile = {
   gender: string;
   city: string;
   photo?: string;
+  guidelinesAccepted?: boolean;
 };
 
 type ProfileRow = {
@@ -41,6 +42,7 @@ export async function fetchOwnProfile(): Promise<UserProfile | null> {
     dob: data.date_of_birth,
     gender: data.gender,
     city: data.city,
+    guidelinesAccepted: true,
   };
 }
 
@@ -120,5 +122,6 @@ export async function fetchDemoProfile(phone: string): Promise<UserProfile | nul
     gender: profile.gender,
     city: profile.city,
     photo: typeof profile.photo === "string" ? profile.photo : undefined,
+    guidelinesAccepted: true,
   };
 }

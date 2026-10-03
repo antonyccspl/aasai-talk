@@ -141,7 +141,7 @@ export function Wallet({
   const selectedPack = coinPacks.find(pack => pack.coins === d.pack);
   const packPrice = selectedPack ? money(selectedPack.price_paise / 100) : "Price unavailable";
   const [filter, setFilter] = useState("All");
-  const [homeTab, setHomeTab] = useState<"Activity" | "Offers">("Activity");
+  const [homeTab, setHomeTab] = useState<"Activity" | "Offers">("Offers");
   const [custom, setCustom] = useState("");
   const [error, setError] = useState("");
   const isApprovedHost = d.hostStatus === "approved";
@@ -344,9 +344,9 @@ export function Wallet({
           <CoinStack size={48} />
         </Row>
       </Card>
-      <Chips items={["Activity", "Offers"]} selected={homeTab} onChange={(value) => setHomeTab(value as "Activity" | "Offers")} />
+      <Chips items={["Offers", "Activity"]} selected={homeTab} onChange={(value) => setHomeTab(value as "Activity" | "Offers")} />
       {homeTab === "Offers" && <>
-      <Section title="Choose coins" />
+      <Section title="Choose coins" action="Best value" />
       {catalogLoading && <T color={c.secondary}>Loading coin packs…</T>}
       {!!catalogError && (
         <>
@@ -409,6 +409,21 @@ export function Wallet({
       <T size={11} color={c.muted} style={{ textAlign: "center" }}>
         Secure checkout
       </T>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="View wallet activity"
+        onPress={() => setHomeTab("Activity")}
+        style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 18, backgroundColor: c.low }}
+      >
+        <View style={{ width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: c.high }}>
+          <Icon name="clock" size={17} color={c.mint} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <T bold size={13}>Wallet activity</T>
+          <T size={11} color={c.secondary}>View your purchases and call spending</T>
+        </View>
+        <Icon name="chevron-right" size={18} color={c.secondary} />
+      </Pressable>
       <Field
         label="Custom coin amount"
         value={custom}
@@ -439,7 +454,7 @@ export function Wallet({
       </>}
       {homeTab === "Activity" && <>
       <Section
-        title="Recent activity"
+        title="Wallet activity"
         action="View all"
         onPress={() => go("/wallet/transactions")}
       />
