@@ -166,7 +166,13 @@ function CallScreenContent({
         ? "Speaker"
         : "Earpiece",
   );
-  const soundKey = useRef(`call-sound-${Date.now()}-${Math.random()}`).current;
+  // The app-level listener begins an incoming ringtone before this screen is
+  // rendered. Reuse its key so a Host hears one continuous alert.
+  const soundKey = useRef(
+    incoming && sessionId
+      ? `incoming-call-${sessionId}`
+      : `call-sound-${Date.now()}-${Math.random()}`,
+  ).current;
   const fallbackRef = useRef(false);
   const fallbackHandlerRef = useRef<() => Promise<void>>(async () => {});
   const [soundError, setSoundError] = useState("");
@@ -192,7 +198,9 @@ function CallScreenContent({
   } | null>(null);
   const ringingPulse = useRef(new Animated.Value(0)).current;
   const blocked = d.blocked.includes(id);
-  const conflict = !!d.active && d.active.person !== id;
+  // `tried` is present only for an automatic unanswered-call handoff. During
+  // that brief transition the prior ringing session is safe to replace.
+  const conflict = !!d.active && d.active.person !== id && !attemptedIds;
   const activeCallId = d.active?.id ?? "";
   const mediaSessionId = /^[0-9a-f-]{36}$/.test(activeCallId)
     ? activeCallId
@@ -541,7 +549,10 @@ function CallScreenContent({
   async function connect() {
     if (blocked || conflict || hostUnavailable || actionRef.current || closedRef.current) return;
     setCallError("");
-    if (d.active && !incoming) return;
+    // An automatic handoff may mount before React has finished clearing the
+    // unanswered call. The new invitation must replace that stale ringing
+    // state instead of being silently blocked by it.
+    if (d.active && !incoming && !attemptedIds) return;
     if (!auth.demoPhone || !id.startsWith("phone_"))
       return go("/status/unavailable");
     const hostPhone = `+${id.slice("phone_".length)}`;
@@ -601,6 +612,13 @@ function CallScreenContent({
       const detail = error instanceof Error ? error.message : "";
       if (/host is offline|host is busy/i.test(detail)) {
         const busy = /busy/i.test(detail);
+        if (attemptedIds) {
+          // A person can become busy in the short gap between directory
+          // refresh and invitation creation. Continue the same automatic
+          // search instead of leaving the caller on a failed attempt.
+          void continueWithAnotherAvailablePerson();
+          return;
+        }
         setHostUnavailable(busy ? "Busy" : "Offline");
         setCallError(busy
           ? `${p.name.split(" ")[0]} is busy on another call.`
@@ -680,7 +698,9 @@ function CallScreenContent({
       if (!next) {
         closedRef.current = true;
         d.finishCall("Missed");
-        router.replace(`/calls/result/${id}?status=Missed` as never);
+        router.replace(
+          `/calls/result/${id}?status=${encodeURIComponent("No one available")}` as never,
+        );
         return;
       }
 
@@ -710,7 +730,7 @@ function CallScreenContent({
     void connect().finally(() => {
       connectingRef.current = false;
     });
-  }, [outgoing, sessionId, id, type, hostUnavailable]);
+  }, [outgoing, sessionId, id, type, hostUnavailable, attemptedIds, d.active?.id]);
   useEffect(() => {
     const activeId = sessionId || mediaSessionId;
     const callerPhone = auth.demoPhone;
@@ -1517,6 +1537,7 @@ export function CallDetail({
   const displaySeconds = summary?.duration_seconds ?? call.seconds;
   const displayCoins = summary?.coins_charged ?? call.chargedCoins;
   const displayStatus = summary?.status ?? status ?? call.status;
+  const noOneAvailable = status === "No one available";
   const counterpartName = hostViewer
     ? summary?.counterpart_username
       ? `@${summary.counterpart_username}`
@@ -1531,6 +1552,19 @@ export function CallDetail({
   };
   const canCallAgain =
     d.profile.gender === "Male" && d.hostStatus !== "approved" && p.status === "Available";
+  if (result && noOneAvailable)
+    return (
+      <Shell title="Find someone new">
+        <Empty
+          icon="users"
+          title="No one is available right now"
+          message="Everyone is busy or away at the moment. Try again soon or send a message to someone you know."
+          action="Browse people"
+          onPress={() => router.replace("/search" as never)}
+        />
+        <Button title="Back to calls" variant="secondary" onPress={() => router.replace("/calls" as never)} />
+      </Shell>
+    );
   return (
     <Shell title={result ? "Call summary" : "Call details"}>
       <View style={{ alignItems: "center", gap: 12, padding: 14 }}>

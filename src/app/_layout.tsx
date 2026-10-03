@@ -6,6 +6,7 @@ import {
     subscribeToPhoneCallState,
     updatePhoneCall,
 } from "@/data/call-sessions";
+import { startCallSound, stopCallSound } from "@/data/call-sounds";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { sendHostPresenceHeartbeat } from "@/data/host-presence";
 import { SampleWorkspaceProvider } from "@/data/sample-workspace";
@@ -337,6 +338,8 @@ function AppNavigator() {
   const { demoPhone, loading, authenticated } = useAuth();
   const { identityLoading } = useDemo();
   const incomingSessionRef = useRef("");
+  const incomingSoundKeyRef = useRef("");
+  const stopIncomingStatusRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (Platform.OS === "web" || loading || !authenticated) return;
     const Notifications = require("expo-notifications") as typeof import("expo-notifications");
@@ -357,13 +360,40 @@ function AppNavigator() {
   }, [authenticated, loading]);
   useEffect(() => {
     if (loading || !authenticated || !demoPhone) return;
-    return subscribeToIncomingCalls(demoPhone, (call) => {
+    const unsubscribe = subscribeToIncomingCalls(demoPhone, (call) => {
       if (incomingSessionRef.current === call.id) return;
+      if (incomingSoundKeyRef.current) {
+        void stopCallSound(incomingSoundKeyRef.current);
+      }
+      stopIncomingStatusRef.current?.();
       incomingSessionRef.current = call.id;
+      const soundKey = `incoming-call-${call.id}`;
+      incomingSoundKeyRef.current = soundKey;
+      // Start alerting before navigation so the Host is notified immediately,
+      // including when rendering the call screen takes a moment on mobile web.
+      void startCallSound(soundKey, true, true).catch((error) =>
+        console.warn("Unable to play the incoming-call alert:", error),
+      );
+      const stopWatching = subscribeToPhoneCallState(call.id, demoPhone, (state) => {
+        if (state.status === "ringing") return;
+        void stopCallSound(soundKey);
+        if (incomingSoundKeyRef.current === soundKey)
+          incomingSoundKeyRef.current = "";
+        stopWatching();
+      });
+      stopIncomingStatusRef.current = stopWatching;
       router.replace(
         `/calls/incoming/phone_${call.caller_phone.replace(/^\+/, "")}?type=${call.call_type}&session=${call.id}&name=${encodeURIComponent(call.caller_username || "Caller")}` as never,
       );
     });
+    return () => {
+      unsubscribe();
+      stopIncomingStatusRef.current?.();
+      stopIncomingStatusRef.current = null;
+      if (incomingSoundKeyRef.current)
+        void stopCallSound(incomingSoundKeyRef.current);
+      incomingSoundKeyRef.current = "";
+    };
   }, [demoPhone, loading, authenticated]);
   if (authenticated && identityLoading) {
     return (
