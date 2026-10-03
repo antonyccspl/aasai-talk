@@ -26,6 +26,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BrandGradient } from "./brand-gradient";
+import { useLanguage } from "./language";
 import {
     coins,
     duration,
@@ -63,12 +64,16 @@ export function T({
   mono?: boolean;
   style?: TextStyle;
 } & Omit<React.ComponentProps<typeof Text>, "style">) {
+  const { translate, usesIndicScript } = useLanguage();
+  const displayedChildren = typeof children === "string" ? translate(children) : children;
   return (
     <Text
       {...rest}
       style={[
         {
-          fontFamily: mono ? fonts.mono : bold ? fonts.bold : fonts.regular,
+          // Figtree does not contain Tamil glyphs; use the platform's Indic font
+          // fallback for Tamil while retaining the existing brand typeface in English.
+          fontFamily: usesIndicScript ? undefined : mono ? fonts.mono : bold ? fonts.bold : fonts.regular,
           fontSize: size,
           lineHeight: size * 1.45,
           color,
@@ -76,7 +81,7 @@ export function T({
         style,
       ]}
     >
-      {children}
+      {displayedChildren}
     </Text>
   );
 }

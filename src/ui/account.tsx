@@ -36,6 +36,7 @@ import { PhotoPicker } from "./photo-picker";
 import { people, personFor, useDemo } from "./store";
 import { colors as c } from "./theme";
 import { Welcome } from "./welcome";
+import { priorityIndianLanguages, useLanguage } from "./language";
 
 function latestEligibleBirthday() {
   const date = new Date();
@@ -836,6 +837,7 @@ export function Settings({
 }) {
   const d = useDemo();
   const auth = useAuth();
+  const { language, languageLabel, setLanguage } = useLanguage();
   const [message, setMessage] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [question, setQuestion] = useState("");
@@ -861,6 +863,63 @@ export function Settings({
     }
   };
   if (mode === "permissions") return <Permissions />;
+  if (mode === "language")
+    return (
+      <Shell title="App language">
+        <T size={24} bold>Choose your app language</T>
+        <T color={c.secondary}>
+          Choose how Aasai Talk appears on this device. English is the default.
+        </T>
+        {priorityIndianLanguages.filter((item) => item.code === "en").map((item) => {
+          const selected = language === item.code;
+          return <Pressable
+            key={item.code}
+            accessibilityRole="radio"
+            accessibilityState={{ selected }}
+            onPress={() => void setLanguage(item.code)}
+            style={({ pressed }) => ({
+              minHeight: 84, padding: 18, borderRadius: 22, borderWidth: 1.5,
+              borderColor: selected ? c.mint : c.line, backgroundColor: selected ? c.high : c.surface,
+              opacity: pressed ? 0.72 : 1, flexDirection: "row", alignItems: "center", gap: 14,
+            })}
+          >
+            <View style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: selected ? c.mint : c.low }}>
+              <Icon name="globe" color={selected ? c.ink : c.mint} size={21} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <T bold size={17}>{item.nativeLabel}</T>
+              <T size={12} color={c.secondary}>Default app language</T>
+            </View>
+            {selected ? <Icon name="check-circle" color={c.success} size={24} /> : null}
+          </Pressable>;
+        })}
+        <Section title="Indian languages" />
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+          {priorityIndianLanguages.filter((item) => item.code !== "en" && item.available).map((item) => {
+            const selected = language === item.code;
+            return <Pressable
+              key={item.code}
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              onPress={() => void setLanguage(item.code)}
+              style={({ pressed }) => ({
+                width: "48.4%", minHeight: 104, padding: 14, borderRadius: 20, borderWidth: 1.5,
+                borderColor: selected ? c.mint : c.line, backgroundColor: selected ? c.high : c.low,
+                opacity: pressed ? 0.72 : 1, justifyContent: "space-between",
+              })}
+            >
+              <View style={{ alignSelf: "flex-end", width: 23, height: 23, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: selected ? c.success : c.surface, borderWidth: selected ? 0 : 1, borderColor: c.line }}>
+                {selected ? <Icon name="check" color="#fff" size={15} /> : null}
+              </View>
+              <View style={{ gap: 2 }}>
+                <T bold size={17} numberOfLines={1}>{item.nativeLabel}</T>
+                <T size={12} color={c.secondary}>{item.label}</T>
+              </View>
+            </Pressable>;
+          })}
+        </View>
+      </Shell>
+    );
   if (
     mode === "availability" &&
     d.profile.gender === "Female" &&
@@ -1228,6 +1287,12 @@ export function Settings({
           )}
         </>
       )}
+      <Setting
+        title="App language"
+        detail={languageLabel}
+        icon="globe"
+        onPress={() => go("/settings/language")}
+      />
       {[
         ["Privacy policy", "settings/policies/privacy"],
         ["Terms and conditions", "settings/policies/terms"],

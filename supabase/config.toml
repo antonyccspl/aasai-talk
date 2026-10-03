@@ -16,6 +16,12 @@ verify_jwt = false
 [functions.moderator-ops]
 verify_jwt = false
 
+[functions.razorpay-payments]
+verify_jwt = false
+
+[functions.host-payouts]
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.

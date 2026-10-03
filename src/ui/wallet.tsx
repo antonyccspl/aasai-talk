@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, useWindowDimensions, View } from "react-native";
 import {
   Badge,
   Button,
@@ -7,7 +7,6 @@ import {
   Chips,
   CoinStack,
   Empty,
-  Field,
   go,
   Icon,
   LoadingCards,
@@ -22,6 +21,7 @@ import { coins, money, useDemo } from "./store";
 import { CoinPack, fetchCoinPacks } from "../data/coin-packs";
 import { useAuth } from "../data/auth";
 import { fetchPhoneWalletActivity, PhoneWalletActivity } from "../data/wallet";
+import { createRazorpayOrder, launchRazorpayCheckout } from "../data/razorpay";
 import { colors as c } from "./theme";
 
 type WalletTransaction = {
@@ -90,7 +90,8 @@ export function Wallet({
   id?: string;
 }) {
   const d = useDemo();
-  const { demoPhone, user } = useAuth();
+  const { width } = useWindowDimensions();
+  const { demoPhone, user, getIdentityToken } = useAuth();
   const [coinPacks, setCoinPacks] = useState<CoinPack[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
@@ -138,12 +139,67 @@ export function Wallet({
       .finally(() => { if (active) setActivityLoading(false); });
     return () => { active = false; };
   }, [d.refreshWalletBalance, demoPhone, reload, user?.phone]);
-  const selectedPack = coinPacks.find(pack => pack.coins === d.pack);
+  const now = Date.now();
+  const visibleCoinPacks = coinPacks.filter((pack) => {
+    const startsAt = pack.available_from ? Date.parse(pack.available_from) : Number.NEGATIVE_INFINITY;
+    const endsAt = pack.available_until ? Date.parse(pack.available_until) : Number.POSITIVE_INFINITY;
+    return !Number.isNaN(startsAt) && !Number.isNaN(endsAt) && startsAt <= now && now < endsAt;
+  });
+  const specialCoinPacks = visibleCoinPacks.filter(pack => pack.is_special);
+  const regularCoinPacks = visibleCoinPacks.filter(pack => !pack.is_special);
+  const selectedPack = visibleCoinPacks.find(pack => pack.coins === d.pack);
   const packPrice = selectedPack ? money(selectedPack.price_paise / 100) : "Price unavailable";
   const [filter, setFilter] = useState("All");
   const [homeTab, setHomeTab] = useState<"Activity" | "Offers">("Offers");
-  const [custom, setCustom] = useState("");
   const [error, setError] = useState("");
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const wideLayout = width >= 900;
+  const compactLayout = width < 390;
+  const offerCardWidth = wideLayout ? "23.8%" : "48.5%";
+  const renderCoinPack = (pack: CoinPack) => {
+    const selected = d.pack === pack.coins;
+    const isRecommended = pack.is_special && pack.price_paise === 100000;
+    const label = isRecommended ? "RECOMMENDED" : pack.is_special ? pack.special_label?.toUpperCase() || "SPECIAL OFFER" : "";
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        key={pack.id}
+        onPress={() => d.setPack(pack.coins)}
+        style={{
+          width: offerCardWidth,
+          padding: compactLayout ? 9 : 10,
+          minHeight: wideLayout ? 138 : 144,
+          borderRadius: 18,
+          backgroundColor: selected ? c.successSurface : c.low,
+          borderWidth: 1,
+          borderColor: selected ? c.mint : pack.is_special ? "#f0bd4b" : "transparent",
+          gap: 6,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <View style={{ height: 18, justifyContent: "center" }}>
+          {!!label && (
+            <View style={{ backgroundColor: isRecommended ? c.secondary : "#b7791f", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}>
+              <T mono size={9} bold color="#ffffff">{label}</T>
+            </View>
+          )}
+        </View>
+        <CoinStack size={compactLayout ? 25 : 27} />
+        <T size={compactLayout ? 16 : 17} bold color={selected ? c.mint : c.text} style={{ textAlign: "center" }}>
+          {pack.coins}
+        </T>
+        <T mono size={11} color={c.secondary} style={{ textAlign: "center" }}>coins</T>
+        <View style={{ height: 15 }}>
+          {pack.bonus_coins > 0 && <T mono size={10} bold color={c.mint}>+{pack.bonus_coins} bonus</T>}
+        </View>
+        <T mono size={10} color={c.muted} style={{ textAlign: "center" }}>
+          {money(pack.price_paise / 100)}
+        </T>
+      </Pressable>
+    );
+  };
   const isApprovedHost = d.hostStatus === "approved";
   if (isApprovedHost)
     return (
@@ -283,17 +339,39 @@ export function Wallet({
             icon="hexagon"
           />
             <Setting title="Selected pack" detail={coins(d.pack)} icon="plus" />
-          <T size={12} color={c.muted}>
-            Any applicable fees and taxes must be confirmed by the backend
-            before live checkout.
-          </T>
+          <T size={12} color={c.muted}>Your coins are added only after payment is confirmed.</T>
         </Card>
-        <Notice>
-          Coin purchases are temporarily unavailable. Please check back soon.
-        </Notice>
-        <T size={11} color={c.muted} style={{ textAlign: "center" }}>
-          No payment details are collected and no coins are added.
-        </T>
+        {!!error && <Notice error>{error}</Notice>}
+        <Button
+          title={paymentLoading ? "Opening secure payment…" : `Pay ${packPrice}`}
+          disabled={paymentLoading || !selectedPack}
+          icon="credit-card"
+          onPress={() => {
+            if (!selectedPack) return;
+            setError("");
+            setPaymentLoading(true);
+            void (async () => {
+              try {
+                const idToken = await getIdentityToken();
+                const order = await createRazorpayOrder(idToken, selectedPack.id);
+                const remainingCoins = await launchRazorpayCheckout(
+                  idToken,
+                  order,
+                  `${selectedPack.coins} coins`,
+                );
+                if (typeof remainingCoins === "number") {
+                  await d.refreshWalletBalance();
+                  setReload(value => value + 1);
+                  go("/wallet");
+                }
+              } catch (paymentError) {
+                setError(paymentError instanceof Error ? paymentError.message : "Unable to complete payment. Please try again.");
+              } finally {
+                setPaymentLoading(false);
+              }
+            })();
+          }}
+        />
         <Button
           title="Change amount"
           variant="secondary"
@@ -334,19 +412,19 @@ export function Wallet({
             />
           </Card>
         )}
-      <Card style={{ padding: 22, backgroundColor: c.text }}>
+      <Card style={{ padding: wideLayout ? 18 : 17, backgroundColor: c.text, gap: 0 }}>
         <Row style={{ justifyContent: "space-between" }}>
-          <View style={{ gap: 5 }}>
+          <View style={{ gap: 3 }}>
             <T mono size={11} bold color="#ffffffaa">AVAILABLE BALANCE</T>
-            <T size={34} bold color="#ffffff">{coins(d.balance)}</T>
+            <T size={wideLayout ? 29 : 28} bold color="#ffffff">{coins(d.balance)}</T>
             <T size={12} color="#ffffffaa">Ready for your next conversation</T>
           </View>
-          <CoinStack size={48} />
+          <CoinStack size={wideLayout ? 40 : 38} />
         </Row>
       </Card>
       <Chips items={["Offers", "Activity"]} selected={homeTab} onChange={(value) => setHomeTab(value as "Activity" | "Offers")} />
       {homeTab === "Offers" && <>
-      <Section title="Choose coins" action="Best value" />
+      <Section title="Choose coins" />
       {catalogLoading && <T color={c.secondary}>Loading coin packs…</T>}
       {!!catalogError && (
         <>
@@ -354,48 +432,29 @@ export function Wallet({
           <Button title="Try again" variant="secondary" onPress={refreshWallet} />
         </>
       )}
-      {!catalogLoading && !catalogError && !coinPacks.length && (
+      {!catalogLoading && !catalogError && !visibleCoinPacks.length && (
         <T color={c.secondary}>No coin packs are available right now.</T>
       )}
-      <Row
-        style={{
-          flexWrap: "wrap",
-          justifyContent: "space-between",
-          columnGap: 0,
-          rowGap: 12,
-        }}
-      >
-        {coinPacks.map(({ id, coins: amount, price_paise }) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: d.pack === amount }}
-            key={id}
-            onPress={() => d.setPack(amount)}
-            style={{
-              width: "31.5%",
-              padding: 12,
-              minHeight: 132,
-              borderRadius: 20,
-              backgroundColor: d.pack === amount ? c.successSurface : c.low,
-              borderWidth: 1,
-              borderColor: d.pack === amount ? c.mint : "transparent",
-              gap: 7,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <CoinStack size={30} />
-            <T size={18} bold color={d.pack === amount ? c.mint : c.text} style={{ textAlign: "center" }}>
-              {amount}
-            </T>
-            <T mono size={11} color={c.secondary} style={{ textAlign: "center" }}>
-              coins
-            </T>
-            <T mono size={10} color={c.muted} style={{ textAlign: "center" }}>
-              {money(price_paise / 100)}
-            </T>
-          </Pressable>
-        ))}
+      {!!specialCoinPacks.length && (
+        <Card style={{ padding: 13, gap: 0, backgroundColor: "#fff4d9", borderColor: "#f0bd4b", borderWidth: 1 }}>
+          <Row>
+            <CoinStack size={27} />
+            <View style={{ flex: 1 }}>
+              <T bold>Special offers are here</T>
+              <T size={12} color={c.secondary}>Selected packs include extra bonus coins.</T>
+            </View>
+          </Row>
+        </Card>
+      )}
+      {!!specialCoinPacks.length && <Section title="Special offers" />}
+      {!!specialCoinPacks.length && (
+        <Row style={{ flexWrap: "wrap", justifyContent: "space-between", columnGap: 0, rowGap: 12 }}>
+          {specialCoinPacks.map(renderCoinPack)}
+        </Row>
+      )}
+      {!!regularCoinPacks.length && <Section title="All coin packs" />}
+      <Row style={{ flexWrap: "wrap", justifyContent: "space-between", columnGap: 0, rowGap: 12 }}>
+        {regularCoinPacks.map(renderCoinPack)}
       </Row>
       <T mono size={11} color={c.secondary} style={{ textAlign: "center" }}>
         10 coins = 1 diamond
@@ -424,33 +483,6 @@ export function Wallet({
         </View>
         <Icon name="chevron-right" size={18} color={c.secondary} />
       </Pressable>
-      <Field
-        label="Custom coin amount"
-        value={custom}
-        onChange={setCustom}
-        numeric
-        placeholder="Enter coins"
-      />
-      <Button
-        title="Use custom amount"
-        variant="secondary"
-        onPress={() => {
-          const n = Number(custom);
-          if (!Number.isInteger(n) || n < 1 || n > 10000)
-            setError(
-              "Enter a whole coin amount between 1 and 10,000.",
-            );
-          else {
-            if (!coinPacks.some(pack => pack.coins === n)) {
-              setError("Please choose one of the available coin packs.");
-              return;
-            }
-            d.setPack(n);
-            setError("");
-          }
-        }}
-      />
-      {error && <Notice error>{error}</Notice>}
       </>}
       {homeTab === "Activity" && <>
       <Section

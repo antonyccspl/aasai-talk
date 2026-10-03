@@ -1,10 +1,12 @@
 import { useAuth } from "@/data/auth";
 import { submitPhoneHostApplication } from "@/data/host-applications";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
+import { fetchHostPayoutStatus, requestHostWithdrawal, saveHostPayoutAccount, type HostPayoutAccount, type HostWithdrawal } from "@/data/host-payouts";
 import { fetchHostDailyCallSummary, fetchHostDailyCallTime, type HostDailyCallSummary } from "@/data/host-metrics";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
+import { View } from "react-native";
 import {
     Button,
     Card,
@@ -387,11 +389,26 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
   const auth = useAuth();
   const [dashboard, setDashboard] = useState<HostDashboard | null>(null);
   const [earningsError, setEarningsError] = useState("");
+  const [payoutAccount, setPayoutAccount] = useState<HostPayoutAccount | null>(null);
+  const [withdrawals, setWithdrawals] = useState<HostWithdrawal[]>([]);
+  const [accountHolderName, setAccountHolderName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
+  const [ifscCode, setIfscCode] = useState("");
+  const [withdrawalAmount, setWithdrawalAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [payoutMessage, setPayoutMessage] = useState("");
+  const loadPayouts = async () => {
+    const idToken = await auth.getIdentityToken();
+    const payout = await fetchHostPayoutStatus(idToken);
+    setPayoutAccount(payout.payout_account);
+    setWithdrawals(payout.withdrawals);
+  };
   const previewMode = preview && d.hostStatus === "pending";
   useEffect(() => {
     if (!auth.demoPhone || d.hostStatus !== "approved") return;
-    void fetchPhoneHostDashboard(auth.demoPhone)
-      .then(setDashboard)
+    void Promise.all([fetchPhoneHostDashboard(auth.demoPhone), loadPayouts()])
+      .then(([nextDashboard]) => setDashboard(nextDashboard))
       .catch((error) => setEarningsError(error instanceof Error ? error.message : "Unable to load host earnings."));
   }, [auth.demoPhone, d.hostStatus]);
   const availableEarnings = dashboard ? dashboard.total_earnings_paise / 100 : 0;
@@ -424,9 +441,52 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
       </Card>
       <T size={18} bold>Withdraw earnings</T>
       {earningsError ? <Notice error>{earningsError}</Notice> : null}
-      <Notice>
-        Withdrawals are not available yet. Your eligible earnings remain visible here.
-      </Notice>
+      {!payoutAccount ? <Card>
+        <T bold size={17}>Add your bank account</T>
+        <T size={12} color={c.secondary}>Your account details are kept private and must be verified before you can withdraw earnings.</T>
+        <Field label="Account holder name" value={accountHolderName} onChange={setAccountHolderName} placeholder="Name as shown on the bank account" />
+        <Field label="Bank account number" value={accountNumber} onChange={setAccountNumber} placeholder="Enter account number" numeric secure />
+        <Field label="Re-enter account number" value={confirmAccountNumber} onChange={setConfirmAccountNumber} placeholder="Enter account number again" numeric secure error={confirmAccountNumber && accountNumber !== confirmAccountNumber ? "Account numbers do not match." : undefined} />
+        <Field label="IFSC code" value={ifscCode} onChange={(value) => setIfscCode(value.toUpperCase())} placeholder="Example: HDFC0001234" />
+        <Button title={busy ? "Saving…" : "Save bank account"} disabled={busy || !accountHolderName.trim() || !accountNumber || accountNumber !== confirmAccountNumber || !ifscCode} onPress={() => {
+          setBusy(true); setPayoutMessage("");
+          void auth.getIdentityToken().then((token) => saveHostPayoutAccount(token, { accountHolderName, accountNumber, ifscCode }))
+            .then(() => loadPayouts()).then(() => setPayoutMessage("Bank account submitted for verification."))
+            .catch((error) => setPayoutMessage(error instanceof Error ? error.message : "Unable to save bank account."))
+            .finally(() => setBusy(false));
+        }} />
+      </Card> : <Card>
+        <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+          <View style={{ gap: 3, flex: 1 }}>
+            <T bold>{payoutAccount.account_holder_name}</T>
+            <T size={12} color={c.secondary}>{payoutAccount.masked_account_number} · {payoutAccount.ifsc_code}</T>
+          </View>
+          <Chip title={payoutAccount.status === "verified" ? "Verified" : payoutAccount.status === "rejected" ? "Needs update" : "Verification pending"} />
+        </Row>
+        {payoutAccount.status === "verified" ? <T size={12} color={c.secondary}>Withdrawals are sent only to this verified account.</T> : <Notice error={payoutAccount.status === "rejected"}>{payoutAccount.verification_note || "Our team will verify these bank details before withdrawals are enabled."}</Notice>}
+        <Button title="Update bank account" variant="secondary" onPress={() => { setPayoutAccount(null); setAccountNumber(""); setConfirmAccountNumber(""); setIfscCode(payoutAccount.ifsc_code); setAccountHolderName(payoutAccount.account_holder_name); }} />
+      </Card>}
+      {payoutMessage ? <Notice error={/unable|invalid|match/i.test(payoutMessage)}>{payoutMessage}</Notice> : null}
+      {payoutAccount?.status === "verified" && <Card>
+        <T bold size={16}>Request a withdrawal</T>
+        <Field label="Amount in rupees" value={withdrawalAmount} onChange={setWithdrawalAmount} placeholder="Minimum ₹100" numeric />
+        <T size={12} color={c.secondary}>Available to withdraw: ₹{availableEarnings.toLocaleString("en-IN")}</T>
+        <Button title={busy ? "Submitting…" : "Request withdrawal"} disabled={busy || !withdrawalAmount || Number(withdrawalAmount) < 100 || Number(withdrawalAmount) > availableEarnings} onPress={() => {
+          setBusy(true); setPayoutMessage("");
+          void auth.getIdentityToken().then((token) => requestHostWithdrawal(token, Math.round(Number(withdrawalAmount) * 100)))
+            .then(() => Promise.all([fetchPhoneHostDashboard(auth.demoPhone!), loadPayouts()]))
+            .then(([nextDashboard]) => { setDashboard(nextDashboard); setWithdrawalAmount(""); setPayoutMessage("Withdrawal request submitted for review."); })
+            .catch((error) => setPayoutMessage(error instanceof Error ? error.message : "Unable to request withdrawal."))
+            .finally(() => setBusy(false));
+        }} />
+      </Card>}
+      {withdrawals.length > 0 && <Card>
+        <T bold size={16}>Withdrawal history</T>
+        {withdrawals.map((withdrawal) => <Row key={withdrawal.id} style={{ justifyContent: "space-between" }}>
+          <View><T bold>₹{(withdrawal.amount_paise / 100).toLocaleString("en-IN")}</T><T size={11} color={c.secondary}>{hostDate(withdrawal.created_at)}</T></View>
+          <Chip title={withdrawal.status} />
+        </Row>)}
+      </Card>}
     </Shell>
   );
 }

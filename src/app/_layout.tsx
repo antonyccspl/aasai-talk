@@ -12,16 +12,162 @@ import { sendHostPresenceHeartbeat } from "@/data/host-presence";
 import { SampleWorkspaceProvider } from "@/data/sample-workspace";
 import { fetchPhoneWalletBalance } from "@/data/wallet";
 import { sendPushEvent } from "@/data/push-notifications";
+import { CoinPack, fetchCoinPacks } from "@/data/coin-packs";
 import { DemoProvider, people, useDemo } from "@/ui/store";
-import { ActivityIndicator, Animated, AppState, Platform, Pressable, Text, View } from "react-native";
+import { LanguageProvider } from "@/ui/language";
+import { ActivityIndicator, Animated, AppState, Modal, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import type { NotificationResponse } from "expo-notifications";
 import { colors } from "@/ui/theme";
 import { Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold, useFonts } from "@expo-google-fonts/figtree";
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const phoneCallId = (value: string) => /^[0-9a-f-]{36}$/.test(value);
+
+function activeSpecialOffers(packs: CoinPack[]) {
+  const now = Date.now();
+  return packs.filter((pack) => {
+    if (!pack.is_special) return false;
+    const startsAt = pack.available_from ? Date.parse(pack.available_from) : Number.NEGATIVE_INFINITY;
+    const endsAt = pack.available_until ? Date.parse(pack.available_until) : Number.POSITIVE_INFINITY;
+    return !Number.isNaN(startsAt) && !Number.isNaN(endsAt) && startsAt <= now && now < endsAt;
+  });
+}
+
+function SpecialOfferWelcome() {
+  const { authenticated, demoPhone } = useAuth();
+  const { profile, setPack } = useDemo();
+  const { width } = useWindowDimensions();
+  const [offers, setOffers] = useState<CoinPack[]>([]);
+  const [visible, setVisible] = useState(false);
+  const [offerIndex, setOfferIndex] = useState(0);
+  const campaignRef = useRef("");
+  const carouselRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (!authenticated || !demoPhone || profile.gender !== "Male") {
+      campaignRef.current = "";
+      setVisible(false);
+      setOffers([]);
+      return;
+    }
+    const controller = new AbortController();
+    let mounted = true;
+    const load = async () => {
+      try {
+        const currentOffers = activeSpecialOffers(await fetchCoinPacks(controller.signal));
+        if (!mounted || !currentOffers.length) return;
+        const campaign = currentOffers
+          .map((offer) => [offer.id, offer.coins, offer.bonus_coins, offer.price_paise, offer.available_from, offer.available_until].join(":"))
+          .join("|");
+        if (!mounted || campaignRef.current === campaign) return;
+        campaignRef.current = campaign;
+        setOffers(currentOffers);
+        setOfferIndex(0);
+        setVisible(true);
+      } catch (error) {
+        if (!controller.signal.aborted) console.info("Special offers are unavailable:", error);
+      }
+    };
+    void load();
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [authenticated, demoPhone, profile.gender]);
+
+  const dismiss = (openWallet = false) => {
+    setVisible(false);
+    if (openWallet) {
+      setPack(offers[offerIndex]?.coins ?? offers[0]?.coins ?? 0);
+      router.push("/wallet" as never);
+    }
+  };
+
+  if (!visible || !offers.length) return null;
+  const maxBonus = Math.max(...offers.map((offer) => offer.bonus_coins));
+  const compact = width < 380;
+  const modalWidth = Math.min(width - 40, 390);
+  const cardWidth = modalWidth - (compact ? 36 : 44);
+  const moveToOffer = (nextIndex: number) => {
+    const clampedIndex = Math.max(0, Math.min(offers.length - 1, nextIndex));
+    carouselRef.current?.scrollTo({ x: clampedIndex * modalWidth, animated: true });
+    setOfferIndex(clampedIndex);
+  };
+  return (
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={() => dismiss(false)}>
+      <View style={{ flex: 1, backgroundColor: "rgba(25, 21, 20, 0.52)", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <View style={{ width: modalWidth, borderRadius: 26, backgroundColor: "#1d1c1b", padding: compact ? 18 : 22, gap: 14, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 26, elevation: 16, overflow: "hidden" }}>
+          <View pointerEvents="none" style={{ position: "absolute", width: 190, height: 190, borderRadius: 95, backgroundColor: "#e7b743", opacity: 0.14, right: -80, top: -85 }} />
+          <View pointerEvents="none" style={{ position: "absolute", width: 95, height: 95, borderRadius: 48, backgroundColor: "#ff5a62", opacity: 0.13, left: -38, bottom: 80 }} />
+          <View style={{ alignItems: "flex-start", gap: 4 }}>
+            <Text style={{ color: "#f4c652", fontSize: 12, fontWeight: "800", letterSpacing: 0.8 }}>LIMITED-TIME BONUS</Text>
+            <Text style={{ color: "#ffffff", fontSize: compact ? 23 : 26, lineHeight: compact ? 30 : 34, fontWeight: "800" }}>Your extra coins are here</Text>
+            <Text style={{ color: "#d9d3cf", fontSize: 13, lineHeight: 19 }}>Pick a special pack and receive up to +{maxBonus.toLocaleString("en-IN")} bonus coins.</Text>
+          </View>
+          <ScrollView
+            ref={carouselRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(event) => setOfferIndex(Math.round(event.nativeEvent.contentOffset.x / modalWidth))}
+            style={{ marginHorizontal: compact ? -18 : -22 }}
+            contentContainerStyle={{ paddingHorizontal: compact ? 18 : 22 }}
+          >
+            {offers.map((offer) => (
+              <View key={offer.id} style={{ width: cardWidth, borderRadius: 20, backgroundColor: "#fff8ed", padding: compact ? 16 : 18, alignItems: "center", gap: 3 }}>
+                <Text style={{ color: "#ad6e12", fontSize: 11, fontWeight: "800", letterSpacing: 0.7 }}>SPECIAL OFFER</Text>
+                <Text style={{ color: colors.text, fontSize: compact ? 34 : 38, lineHeight: compact ? 43 : 48, fontWeight: "800" }}>{offer.coins.toLocaleString("en-IN")}</Text>
+                <Text style={{ color: colors.secondary, fontSize: 13, fontWeight: "700" }}>coins</Text>
+                <View style={{ marginTop: 5, borderRadius: 999, backgroundColor: "#ffe1a4", paddingHorizontal: 12, paddingVertical: 5 }}>
+                  <Text style={{ color: "#965905", fontSize: 12, fontWeight: "800" }}>+{offer.bonus_coins.toLocaleString("en-IN")} bonus coins</Text>
+                </View>
+                <Text style={{ color: colors.mint, fontSize: 16, fontWeight: "800", marginTop: 4 }}>₹{(offer.price_paise / 100).toLocaleString("en-IN")}</Text>
+              </View>
+            ))}
+          </ScrollView>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12 }}>
+            {offers.length > 1 && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Show previous special offer"
+                accessibilityState={{ disabled: offerIndex === 0 }}
+                disabled={offerIndex === 0}
+                onPress={() => moveToOffer(offerIndex - 1)}
+                style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: offerIndex === 0 ? "#413e3c" : "#fff8ed" }}
+              >
+                <Text style={{ color: offerIndex === 0 ? "#89827d" : "#1d1c1b", fontSize: 21, lineHeight: 22, fontWeight: "700" }}>‹</Text>
+              </Pressable>
+            )}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+            {offers.map((offer, index) => <View key={offer.id} style={{ width: index === offerIndex ? 18 : 6, height: 6, borderRadius: 3, backgroundColor: index === offerIndex ? "#f4c652" : "#736e6b" }} />)}
+            </View>
+            {offers.length > 1 && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Show next special offer"
+                accessibilityState={{ disabled: offerIndex === offers.length - 1 }}
+                disabled={offerIndex === offers.length - 1}
+                onPress={() => moveToOffer(offerIndex + 1)}
+                style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: offerIndex === offers.length - 1 ? "#413e3c" : "#fff8ed" }}
+              >
+                <Text style={{ color: offerIndex === offers.length - 1 ? "#89827d" : "#1d1c1b", fontSize: 21, lineHeight: 22, fontWeight: "700" }}>›</Text>
+              </Pressable>
+            )}
+          </View>
+          {offers.length > 1 && <Text style={{ color: "#d9d3cf", fontSize: 12, textAlign: "center" }}>Swipe to see the next offer</Text>}
+          <Pressable accessibilityRole="button" onPress={() => dismiss(true)} style={{ minHeight: 48, borderRadius: 15, backgroundColor: colors.mint, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>Choose this offer</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => dismiss(false)} style={{ minHeight: 34, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: colors.secondary, fontSize: 13, fontWeight: "700" }}>Not now</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 function IncomingMessageBanner() {
   const { incomingMessageNotice, dismissIncomingMessageNotice, unreadMessageCount } = useDemo();
@@ -426,6 +572,7 @@ function AppNavigator() {
         }}
       />
       <IncomingMessageBanner />
+      <SpecialOfferWelcome />
     </View>
   );
 }
@@ -436,9 +583,11 @@ export default function Layout() {
   return (
     <AuthProvider>
       <SampleWorkspaceProvider>
-        <DemoProvider>
-          <AppNavigator />
-        </DemoProvider>
+        <LanguageProvider>
+          <DemoProvider>
+            <AppNavigator />
+          </DemoProvider>
+        </LanguageProvider>
       </SampleWorkspaceProvider>
     </AuthProvider>
   );
