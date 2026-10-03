@@ -704,9 +704,6 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
           <DiamondMark size={10} color={type === "audio" ? c.danger : "#fff"} />
           <T size={11} bold color={type === "audio" ? c.danger : "#fff"}>{slabsLoading ? "…" : (type === "audio" ? audioRate : videoRate) === undefined ? "—" : `${type === "audio" ? audioRate : videoRate}/min`}</T>
         </Pressable>)}
-        <Pressable accessibilityRole="button" accessibilityLabel={`Chat with ${person.name}`} onPress={() => go(`/chat/${person.id}`)} style={{ width: 40, minHeight: 38, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#ffffffde" }}>
-          <Icon name="message-circle" size={17} color={c.danger} />
-        </Pressable>
       </View>
     </View>;
   }
@@ -838,17 +835,6 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
               </T>
             </Row>
           </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Message ${person.name}`}
-            onPress={() => go(`/chat/${person.id}`)}
-            style={[
-              s.button,
-              { width: 48, paddingHorizontal: 0, backgroundColor: c.high },
-            ]}
-          >
-            <Icon name="message-circle" size={20} color={c.mint} />
-          </Pressable>
         </Row>
       ) : (
         <Row>
@@ -862,17 +848,6 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
               {effectiveStatus === "Busy" ? "Busy on another call" : "Offline"}
             </T>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Message ${person.name}`}
-            onPress={() => go(`/chat/${person.id}`)}
-            style={[
-              s.button,
-              { width: 48, paddingHorizontal: 0, backgroundColor: c.high },
-            ]}
-          >
-            <Icon name="message-circle" size={20} color={c.mint} />
-          </Pressable>
         </Row>
       )}
     </Card>
@@ -934,6 +909,7 @@ export function Shell({
   onRefresh,
   skipSkeleton = false,
   scrollToEndToken,
+  stickyContentHeader,
 }: {
   title?: string;
   tab?: string;
@@ -946,6 +922,8 @@ export function Shell({
   skipSkeleton?: boolean;
   /** Change this value to bring a conversation to its latest message. */
   scrollToEndToken?: string;
+  /** Content that remains visible above a scrolling conversation. */
+  stickyContentHeader?: React.ReactNode;
 }) {
   const d = useDemo();
   const scrollRef = useRef<ScrollView>(null);
@@ -1108,6 +1086,19 @@ export function Shell({
                 · Return to call
               </T>
             </Pressable>
+          )}
+          {stickyContentHeader && (
+            <View
+              style={{
+                paddingHorizontal: 20,
+                paddingVertical: 12,
+                backgroundColor: c.background,
+                borderBottomWidth: 1,
+                borderBottomColor: c.line,
+              }}
+            >
+              {stickyContentHeader}
+            </View>
           )}
           {scroll ? (
               <ScrollView

@@ -199,8 +199,12 @@ function CallScreenContent({
   const ringingPulse = useRef(new Animated.Value(0)).current;
   const blocked = d.blocked.includes(id);
   // `tried` is present only for an automatic unanswered-call handoff. During
-  // that brief transition the prior ringing session is safe to replace.
-  const conflict = !!d.active && d.active.person !== id && !attemptedIds;
+  // that brief transition the prior ringing session is safe to replace. Once
+  // the replacement session belongs to this person, however, it must not be
+  // started a second time: their ringing presence is correctly shown as Busy.
+  const replacingPreviousAttempt =
+    !!attemptedIds && !!d.active && d.active.person !== id;
+  const conflict = !!d.active && d.active.person !== id && !replacingPreviousAttempt;
   const activeCallId = d.active?.id ?? "";
   const mediaSessionId = /^[0-9a-f-]{36}$/.test(activeCallId)
     ? activeCallId
@@ -552,7 +556,7 @@ function CallScreenContent({
     // An automatic handoff may mount before React has finished clearing the
     // unanswered call. The new invitation must replace that stale ringing
     // state instead of being silently blocked by it.
-    if (d.active && !incoming && !attemptedIds) return;
+    if (d.active && !incoming && !replacingPreviousAttempt) return;
     if (!auth.demoPhone || !id.startsWith("phone_"))
       return go("/status/unavailable");
     const hostPhone = `+${id.slice("phone_".length)}`;

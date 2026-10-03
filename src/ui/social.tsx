@@ -862,6 +862,40 @@ export function Chat({ id }: { id: string }) {
     <Shell
       title="Conversation"
       scrollToEndToken={liveMessages.at(-1)?.id}
+      stickyContentHeader={
+        <Row>
+          <Avatar person={chatPerson} size={44} />
+          <View style={{ flex: 1 }}>
+            {isApprovedHost ? (
+              <T bold size={17}>
+                {hostCallerUsername ? `@${hostCallerUsername}` : "Caller"}
+              </T>
+            ) : (
+              <Pressable onPress={() => go(`/user/${id}`)}>
+                <T bold size={17}>{p.name}</T>
+              </Pressable>
+            )}
+            <T mono size={10} color={c.mint}>
+              {blocked ? "BLOCKED" : presenceText(p.status).toUpperCase()}
+            </T>
+          </View>
+          {!blocked && <IconButton
+            icon="shield"
+            label="Safety options"
+            onPress={() => go(`/report/${id}`)}
+          />}
+          {!isApprovedHost && !blocked && <IconButton
+            icon="phone"
+            label="Audio call"
+            onPress={() => go(`/calls/outgoing/${id}?type=audio`)}
+          />}
+          {!isApprovedHost && !blocked && <IconButton
+            icon="video"
+            label="Video call"
+            onPress={() => go(`/calls/outgoing/${id}?type=video`)}
+          />}
+        </Row>
+      }
       footer={
         blocked ? (
           <Notice error>
@@ -906,38 +940,6 @@ export function Chat({ id }: { id: string }) {
         )
       }
     >
-      <Row>
-        <Avatar person={chatPerson} size={44} />
-        <View style={{ flex: 1 }}>
-          {isApprovedHost ? (
-            <T bold size={17}>
-              {hostCallerUsername ? `@${hostCallerUsername}` : "Caller"}
-            </T>
-          ) : (
-            <Pressable onPress={() => go(`/user/${id}`)}>
-              <T bold size={17}>{p.name}</T>
-            </Pressable>
-          )}
-          <T mono size={10} color={c.mint}>
-            {blocked ? "BLOCKED" : presenceText(p.status).toUpperCase()}
-          </T>
-        </View>
-        {!blocked && <IconButton
-          icon="shield"
-          label="Safety options"
-          onPress={() => go(`/report/${id}`)}
-        />}
-        {!isApprovedHost && !blocked && <IconButton
-          icon="phone"
-          label="Audio call"
-          onPress={() => go(`/calls/outgoing/${id}?type=audio`)}
-        />}
-        {!isApprovedHost && !blocked && <IconButton
-          icon="video"
-          label="Video call"
-          onPress={() => go(`/calls/outgoing/${id}?type=video`)}
-        />}
-      </Row>
       <Row style={{ justifyContent: "center" }}>
         <Chip title="Today" />
       </Row>
