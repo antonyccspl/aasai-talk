@@ -5,7 +5,7 @@ insert into public.app_policies_and_settings (key, title, category, content, upd
 values
   (
     'privacy',
-    'Privacy Policy',
+    'Privacy Policy', 
     'policy',
     $json$[
       {"title":"Information we use","description":"Aasai Talk uses your phone number to sign you in and your profile details, messages, and call metadata to provide the service and keep accounts safe."},
