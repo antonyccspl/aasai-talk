@@ -1582,13 +1582,24 @@ export function CallDetail({
         <Badge text={displayStatus} />
       </View>
       {summaryError ? <Notice error>{summaryError}</Notice> : null}
+      {result && (
+        <Card style={{ padding: 14, borderLeftWidth: 3, borderLeftColor: summary?.connected ? c.mint : c.secondary }}>
+          <T mono size={10} color={c.secondary}>CALL RECEIPT</T>
+          <T size={13} bold>{summary?.connected ? "Connected and settled" : "No connected-call charge"}</T>
+          <T size={11} color={c.secondary}>
+            {summary?.connected
+              ? "The final duration and coin amount are confirmed by the server."
+              : "This call did not connect, so no conversation charge was applied."}
+          </T>
+        </Card>
+      )}
       <Card>
         <Setting
           title="Duration"
           detail={duration(displaySeconds)}
           icon="clock"
         />
-        {d.paid && !call.incoming && (
+      {d.paid && !call.incoming && (
           <Setting
             title="Amount"
             detail={
@@ -1621,6 +1632,9 @@ export function CallDetail({
           icon="phone"
           onPress={() => go(`/calls/outgoing/${p.id}?type=${summary?.call_type ?? call.type}`)}
         />
+      )}
+      {d.paid && !call.incoming && d.balance < 20 && (
+        <Notice error>Low balance for another paid call. Recharge before calling again.</Notice>
       )}
       {!hostViewer && d.profile.gender === "Male" && p.status !== "Available" && (
         <Notice>

@@ -1558,6 +1558,15 @@ export function Notifications() {
   };
   return (
     <Shell title="Notifications">
+      <Card style={{ padding: 14 }}>
+        <Row style={{ justifyContent: "space-between" }}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <T bold size={14}>Your inbox</T>
+            <T size={11} color={c.secondary}>Messages, call updates, and safety updates in one place.</T>
+          </View>
+          <Button title="Preferences" variant="secondary" onPress={() => go("/settings/notifications")} />
+        </Row>
+      </Card>
       {error ? <Notice error>{error}</Notice> : null}
       {loading ? <LoadingCards count={4} /> : ["Today", "Yesterday", "Earlier"].map((period) => {
         const messageItems = groupedMessages.filter((item) => groupForDate(item.latest.created_at) === period);

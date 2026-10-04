@@ -50,6 +50,8 @@ function toWalletTransaction(item: PhoneWalletActivity): WalletTransaction {
 }
 
 function TransactionItem({ item }: { item: WalletTransaction }) {
+  const status = item.status.toLowerCase();
+  const statusColor = /fail|reject|cancel/.test(status) ? c.error : /pending|process/.test(status) ? "#b7791f" : c.mint;
   return (
     <Pressable
       accessibilityRole="button"
@@ -74,8 +76,8 @@ function TransactionItem({ item }: { item: WalletTransaction }) {
             {item.amount > 0 ? "+" : "−"}
             {coins(Math.abs(item.amount))}
           </T>
-          <T mono size={10} color={c.muted}>
-            {item.status}
+          <T mono size={10} color={statusColor}>
+            {item.status || "Completed"}
           </T>
         </View>
       </Row>
@@ -150,6 +152,7 @@ export function Wallet({
   const selectedPack = visibleCoinPacks.find(pack => pack.coins === d.pack);
   const packPrice = selectedPack ? money(selectedPack.price_paise / 100) : "Price unavailable";
   const [filter, setFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [homeTab, setHomeTab] = useState<"Activity" | "Offers">("Offers");
   const [error, setError] = useState("");
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -263,17 +266,28 @@ export function Wallet({
     return (
       <Shell title="Transaction history" refreshing={activityLoading} onRefresh={refreshWallet}>
         <Chips
-          items={["All", "Recharges", "Calls", "Refunds"]}
+          items={["All", "Recharges", "Calls"]}
           selected={filter}
           onChange={setFilter}
         />
+        <Chips
+          items={["All", "Completed", "Pending", "Failed"]}
+          selected={statusFilter}
+          onChange={setStatusFilter}
+        />
         {!!activityError && <Notice error>{activityError}</Notice>}
         {activityLoading ? <LoadingCards count={4} /> : activity
-          .filter((x) => filter === "All" || x.kind === filter)
+          .filter((x) =>
+            (filter === "All" || x.kind === filter) &&
+            (statusFilter === "All" || x.status.toLowerCase().includes(statusFilter.toLowerCase()))
+          )
           .map((x) => (
             <TransactionItem key={x.id} item={x} />
           ))}
-        {!activityLoading && !activity.some((x) => filter === "All" || x.kind === filter) && (
+        {!activityLoading && !activity.some((x) =>
+          (filter === "All" || x.kind === filter) &&
+          (statusFilter === "All" || x.status.toLowerCase().includes(statusFilter.toLowerCase()))
+        ) && (
           <Empty
             title="No transactions here"
             message="Activity matching this filter will appear here."
@@ -422,6 +436,11 @@ export function Wallet({
           <CoinStack size={wideLayout ? 40 : 38} />
         </Row>
       </Card>
+      {d.balance < 20 && (
+        <Notice error>
+          Low balance: add coins before starting a paid call. Your current balance is {coins(d.balance)}.
+        </Notice>
+      )}
       <Chips items={["Offers", "Activity"]} selected={homeTab} onChange={(value) => setHomeTab(value as "Activity" | "Offers")} />
       {homeTab === "Offers" && <>
       <Section title="Choose coins" />

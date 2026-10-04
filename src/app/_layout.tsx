@@ -195,30 +195,27 @@ function IncomingMessageBanner() {
   };
   return (
     <Animated.View pointerEvents="box-none" style={{ position: "absolute", top: 48, left: 12, right: 12, zIndex: 1000, transform: [{ translateY }] }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open message from ${name}`}
-        onPress={openChat}
-        style={{ backgroundColor: "#ffffff", borderRadius: 18, borderWidth: 1, borderColor: "#dfcef4", padding: 12, shadowColor: "#27123f", shadowOpacity: 0.16, shadowRadius: 14, elevation: 12, flexDirection: "row", alignItems: "center", gap: 10 }}
-      >
-        <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: "#eee5fa", alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ color: "#d936a4", fontWeight: "800", fontSize: 14 }}>{initials}</Text>
-        </View>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: "#27123f", fontSize: 14, fontWeight: "800" }} numberOfLines={1}>{name}</Text>
-          <Text style={{ color: "#664f7d", fontSize: 13 }} numberOfLines={1}>{incomingMessageNotice.text}</Text>
-          <Text style={{ color: "#d936a4", fontSize: 11, fontWeight: "700" }}>Tap to reply{unreadMessageCount > 1 ? ` · ${unreadMessageCount} unread` : ""}</Text>
-        </View>
+      <View style={{ backgroundColor: "#ffffff", borderRadius: 18, borderWidth: 1, borderColor: "#dfcef4", padding: 12, shadowColor: "#27123f", shadowOpacity: 0.16, shadowRadius: 14, elevation: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Open message from ${name}`} onPress={openChat} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: "#eee5fa", alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: "#d936a4", fontWeight: "800", fontSize: 14 }}>{initials}</Text>
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ color: "#27123f", fontSize: 14, fontWeight: "800" }} numberOfLines={1}>{name}</Text>
+            <Text style={{ color: "#664f7d", fontSize: 13 }} numberOfLines={1}>{incomingMessageNotice.text}</Text>
+            <Text style={{ color: "#d936a4", fontSize: 11, fontWeight: "700" }}>Tap to reply{unreadMessageCount > 1 ? ` · ${unreadMessageCount} unread` : ""}</Text>
+          </View>
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Dismiss message notification"
-          onPress={(event) => { event.stopPropagation(); dismissIncomingMessageNotice(); }}
+          onPress={dismissIncomingMessageNotice}
           hitSlop={10}
           style={{ padding: 6 }}
         >
           <Text style={{ color: "#664f7d", fontSize: 22, lineHeight: 22 }}>×</Text>
         </Pressable>
-      </Pressable>
+      </View>
     </Animated.View>
   );
 }

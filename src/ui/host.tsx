@@ -376,6 +376,12 @@ export function HostStatus() {
         </T>
         <Notice>{approved ? "APPROVED" : "PENDING REVIEW"}</Notice>
       </Card>
+      <Card style={{ padding: 14 }}>
+        <T mono size={10} color={c.secondary}>HOST CHECKLIST</T>
+        <Setting title="Application" detail={approved ? "Approved" : "Under review"} icon={approved ? "check-circle" : "clock"} />
+        <Setting title="Verification documents" detail="Submitted securely" icon="file-text" />
+        <Setting title="Bank account & payouts" detail={approved ? "Add and verify bank details" : "Available after approval"} icon="credit-card" onPress={approved ? () => router.push("/host/withdraw") : undefined} />
+      </Card>
       {!approved && (
         <T size={12} color={c.secondary}>
           Host availability, call controls, earnings, and withdrawals appear
@@ -465,6 +471,13 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
           Minimum withdrawal: ₹100
         </T>
       </Card>
+      {payoutAccount && (
+        <Card style={{ padding: 14 }}>
+          <T mono size={10} color={c.secondary}>PAYOUT STATUS</T>
+          <Setting title="Bank verification" detail={payoutAccount.status === "verified" ? "Verified" : payoutAccount.status === "rejected" ? "Action needed" : "In review"} icon={payoutAccount.status === "verified" ? "check-circle" : "clock"} />
+          <Setting title="Withdrawal requests" detail={withdrawals.length ? `${withdrawals.filter((item) => ["pending", "processing"].includes(item.status)).length} in progress` : "No requests yet"} icon="credit-card" />
+        </Card>
+      )}
       <T size={18} bold>Withdraw earnings</T>
       {earningsError ? <Notice error>{earningsError}</Notice> : null}
       {!payoutAccount ? <Card>
