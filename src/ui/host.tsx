@@ -1,5 +1,6 @@
 import { useAuth } from "@/data/auth";
 import { submitPhoneHostApplication } from "@/data/host-applications";
+import { uploadHostVerificationDocument } from "@/data/host-documents";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
 import { fetchHostPayoutStatus, requestHostWithdrawal, saveHostPayoutAccount, type HostPayoutAccount, type HostWithdrawal } from "@/data/host-payouts";
 import { fetchHostDailyCallSummary, fetchHostDailyCallTime, type HostDailyCallSummary } from "@/data/host-metrics";
@@ -30,12 +31,16 @@ const hostDate = (value: string) => {
 
 function DocumentUpload({
   label,
+  kind,
   fileName,
   onChange,
+  getIdentityToken,
 }: {
   label: string;
+  kind: "aadhaar" | "pan";
   fileName: string;
-  onChange: (name: string) => void;
+  onChange: (document: { name: string; path: string }) => void;
+  getIdentityToken: () => Promise<string>;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -47,9 +52,22 @@ function DocumentUpload({
         type: ["image/*", "application/pdf"],
         copyToCacheDirectory: true,
       });
-      if (!result.canceled && result.assets[0]) onChange(result.assets[0].name);
-    } catch {
-      setError("Could not open the document picker. Please try again.");
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const document = await uploadHostVerificationDocument(
+          await getIdentityToken(),
+          kind,
+          asset.uri,
+          asset.name,
+        );
+        onChange(document);
+      }
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Could not upload this document. Please try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -230,13 +248,21 @@ export function HostApplication() {
           </Notice>
           <DocumentUpload
             label="Aadhaar card"
+            kind="aadhaar"
             fileName={form.aadhaarDocument}
-            onChange={(aadhaarDocument) => update({ aadhaarDocument })}
+            getIdentityToken={auth.getIdentityToken}
+            onChange={({ name, path }) =>
+              update({ aadhaarDocument: name, aadhaarPath: path })
+            }
           />
           <DocumentUpload
             label="PAN card"
+            kind="pan"
             fileName={form.panDocument}
-            onChange={(panDocument) => update({ panDocument })}
+            getIdentityToken={auth.getIdentityToken}
+            onChange={({ name, path }) =>
+              update({ panDocument: name, panPath: path })
+            }
           />
         </>
       )}

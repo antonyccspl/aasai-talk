@@ -175,12 +175,14 @@ function useDemoState() {
     videoRate: "5",
     aadhaarDocument: "",
     panDocument: "",
+    aadhaarPath: "",
+    panPath: "",
   });
   // Identity-bound data must never be restored from the demo workspace. A
   // workspace is intentionally persistent for UI preferences, but profile and
   // host status belong exclusively to the currently signed-in phone account.
   const [hostStatus, setHostStatus] = useState<
-    "none" | "pending" | "approved" | "rejected"
+    "none" | "pending" | "approved" | "rejected" | "inactive" | "archived"
   >("none");
   const [hostEarnings, setHostEarnings] = useWorkspaceField(
     "hostEarnings",

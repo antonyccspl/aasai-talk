@@ -5,7 +5,9 @@ export type HostApplicationStatus =
   | "draft"
   | "pending"
   | "approved"
-  | "rejected";
+  | "rejected"
+  | "inactive"
+  | "archived";
 
 export type HostApplicationInput = {
   name: string;
@@ -19,6 +21,8 @@ export type HostApplicationInput = {
   photo?: string;
   aadhaarDocument: string;
   panDocument: string;
+  aadhaarPath?: string;
+  panPath?: string;
 };
 
 export async function submitPhoneHostApplication(
@@ -70,7 +74,9 @@ export async function fetchPhoneHostApplicationStatus(
     data !== "draft" &&
     data !== "pending" &&
     data !== "approved" &&
-    data !== "rejected"
+    data !== "rejected" &&
+    data !== "inactive" &&
+    data !== "archived"
   ) {
     throw new Error("Invalid host application status.");
   }

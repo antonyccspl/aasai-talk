@@ -135,6 +135,13 @@ Deno.serve(async (request) => {
       return Response.json({ error: "Call session is not authorized." }, { status: 403, headers: corsHeaders });
     if (session.status !== "connected")
       return Response.json({ error: "Call session is no longer active." }, { status: 409, headers: corsHeaders });
+    const { data: accountStatuses, error: accountStatusError } = await admin
+      .from("phone_user_admin_status")
+      .select("phone,status")
+      .in("phone", [session.caller_phone, session.host_phone]);
+    if (accountStatusError) throw new Error("Could not validate account status.");
+    if ((accountStatuses || []).some((account) => account.status !== "active"))
+      return Response.json({ error: "This call is unavailable because an account is inactive." }, { status: 403, headers: corsHeaders });
 
     const userId = zegoUserId(phone);
     const serverSecret = decodeServerSecret(
