@@ -291,12 +291,14 @@ export function HostApplication() {
                     token,
                   ),
                 )
-                .then(() => {
+                .then(({ photo }) => {
+                  if (photo) d.setPhoto(photo);
                   d.setHostStatus("pending");
                   router.replace("/host/status");
                 })
                 .catch((submitError) => {
                   console.error("Failed to submit host application:", submitError);
+                  if (d.photo && !/^https:\/\//i.test(d.photo)) d.setPhoto("");
                   setError(
                     submitError instanceof Error
                       ? submitError.message

@@ -335,7 +335,8 @@ export function Auth({ mode }: { mode: string }) {
               : auth.user
                 ? saveOwnProfile(d.profile)
                 : Promise.reject(new Error("Phone session is missing.")))
-              .then(() => {
+              .then((approvedPhoto) => {
+                if (approvedPhoto) d.setPhoto(approvedPhoto);
                 router.replace("/explore");
               })
               .catch((saveError) => {
@@ -343,6 +344,8 @@ export function Auth({ mode }: { mode: string }) {
                   "Failed to save authenticated profile:",
                   saveError,
                 );
+                if (auth.demoPhone && d.photo && !/^https:\/\//i.test(d.photo))
+                  d.setPhoto("");
                 setError(
                   saveError instanceof Error
                     ? saveError.message
@@ -689,13 +692,16 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
                   ? auth.getIdentityToken().then((token) => saveDemoProfile(auth.demoPhone!, { ...form, name, city, bio: form.bio.trim(), photo: d.photo }, token))
                 : Promise.reject(new Error("Demo phone is missing."))
           )
-            .then(() => {
+            .then((approvedPhoto) => {
+              if (approvedPhoto) d.setPhoto(approvedPhoto);
               d.setProfile({ ...form, name, city, bio: form.bio.trim() });
               setError("");
               setSaved(true);
             })
             .catch((saveError) => {
               console.error("Failed to save profile:", saveError);
+              if (auth.demoPhone && d.photo && !/^https:\/\//i.test(d.photo))
+                d.setPhoto("");
               setError(
                 saveError instanceof Error
                   ? saveError.message

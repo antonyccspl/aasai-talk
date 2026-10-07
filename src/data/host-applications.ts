@@ -49,7 +49,7 @@ export async function submitPhoneHostApplication(
   if (typeof data !== "string") {
     throw new Error("Host application was not created.");
   }
-  return data;
+  return { id: data, photo };
 }
 
 export async function fetchPhoneHostApplicationStatus(

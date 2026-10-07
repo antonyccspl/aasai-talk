@@ -83,6 +83,7 @@ export async function saveDemoProfile(phone: string, profile: UserProfile, idTok
     },
   });
   if (error) throw error;
+  return photo;
 }
 
 export async function fetchDemoProfile(phone: string): Promise<UserProfile | null> {
