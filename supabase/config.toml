@@ -25,6 +25,15 @@ verify_jwt = false
 [functions.admin-portal]
 verify_jwt = false
 
+[functions.content-moderation]
+# This function verifies Firebase identity tokens in its handler. Supabase JWT
+# verification must stay off so the gateway does not reject that token first.
+verify_jwt = false
+
+[functions.zego-token]
+# This function also verifies Firebase identity tokens in its handler.
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.

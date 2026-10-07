@@ -163,7 +163,10 @@ function useDemoState() {
     };
   }, [slabRevision]);
 
-  const [photo, setPhoto] = useWorkspaceField("photo", "");
+  // A selected local image is a transient draft, never workspace data. Keeping
+  // it in the persistent workspace caused an unapproved image to return after
+  // navigation or reopening the edit profile screen.
+  const [photo, setPhoto] = useState("");
   const [hostDraft, setHostDraft] = useWorkspaceField("hostDraft", {
     name: "",
     bio: "",
@@ -255,9 +258,11 @@ function useDemoState() {
         preferencesRequest,
         hostStatusRequest,
       ]);
-    if (profileResult.status === "fulfilled" && profileResult.value) {
-      setProfile(profileResult.value);
-      if (profileResult.value.photo) setPhoto(profileResult.value.photo);
+    if (profileResult.status === "fulfilled") {
+      setProfile(profileResult.value ?? EMPTY_PROFILE);
+      // Only the server's approved URL is allowed to hydrate the avatar. This
+      // also clears a failed/rejected local selection from the current UI.
+      setPhoto(profileResult.value?.photo ?? "");
     }
     if (preferencesResult.status === "fulfilled" && preferencesResult.value) {
       setFavorites(preferencesResult.value.favorites);
