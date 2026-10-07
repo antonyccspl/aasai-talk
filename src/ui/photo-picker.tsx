@@ -6,14 +6,16 @@ import { Avatar, Button, Notice, Row } from "./components";
 export function PhotoPicker({
   uri,
   onChange,
+  disabled = false,
 }: {
   uri: string;
   onChange: (uri: string) => void;
+  disabled?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function pick(camera: boolean) {
-    if (busy) return;
+    if (busy || disabled) return;
     setBusy(true);
     setError("");
     try {
@@ -71,7 +73,7 @@ export function PhotoPicker({
         <Button
           title="Take photo"
           icon="camera"
-          disabled={busy}
+          disabled={busy || disabled}
           style={{ flex: 1 }}
           onPress={() => {
             void pick(true);
@@ -81,7 +83,7 @@ export function PhotoPicker({
           title="From gallery"
           icon="image"
           variant="secondary"
-          disabled={busy}
+          disabled={busy || disabled}
           style={{ flex: 1 }}
           onPress={() => {
             void pick(false);

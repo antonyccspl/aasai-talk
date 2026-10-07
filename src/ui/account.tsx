@@ -11,7 +11,7 @@ import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, TextInput, View } from "react-native";
 import { AuthButton, authColors, AuthField, AuthFrame, AuthText } from "./auth-design";
 import {
     Avatar,
@@ -561,7 +561,17 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           />
         </View>
       </Row>
-      {avatar && <PhotoPicker uri={photo} onChange={setPhoto} />}
+      {avatar && (
+        <PhotoPicker
+          uri={photo}
+          disabled={busy}
+          onChange={(uri) => {
+            setPhoto(uri);
+            setError("");
+            setSaved(false);
+          }}
+        />
+      )}
       {(["name", "username", "city"] as const).map((key) => (
         <Field
           key={key}
@@ -652,6 +662,43 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           />
         ))}
       </Row>
+      {busy && photo && !/^https:\/\//i.test(photo) ? (
+        <View
+          accessibilityLiveRegion="assertive"
+          style={{
+            gap: 13,
+            padding: 18,
+            borderRadius: 22,
+            backgroundColor: "#ecfdf5",
+            borderWidth: 1,
+            borderColor: "#86efac",
+          }}
+        >
+          <Row style={{ alignItems: "center", gap: 12 }}>
+            <View style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "#d1fae5" }}>
+              <ActivityIndicator color={c.mint} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <T bold size={16}>Securing your new photo</T>
+              <T size={12} color={c.secondary}>Please keep this screen open.</T>
+            </View>
+          </Row>
+          <View style={{ gap: 8 }}>
+            {[
+              "Uploading your image securely",
+              "Checking it against our safety policy",
+              "Publishing it only after approval",
+            ].map((step, index) => (
+              <Row key={step} style={{ alignItems: "center", gap: 9 }}>
+                <View style={{ width: 21, height: 21, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: index === 0 ? c.mint : "#bbf7d0" }}>
+                  <T bold size={11} color={index === 0 ? "#fff" : "#166534"}>{index + 1}</T>
+                </View>
+                <T size={13} color={index === 0 ? c.ink : c.secondary}>{step}</T>
+              </Row>
+            ))}
+          </View>
+        </View>
+      ) : null}
       {error.includes("nudity policy") ? (
         <View
           accessibilityLiveRegion="assertive"
