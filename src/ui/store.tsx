@@ -16,7 +16,7 @@ import {
 } from "../data/directory";
 import { fetchPhoneHostApplicationStatus } from "../data/host-applications";
 import { fetchPhoneBlocks, submitPhoneSafetyReport } from "../data/phone-safety";
-import { fetchDemoProfile, fetchOwnProfile } from "../data/profile";
+import { fetchDemoProfile, fetchOwnProfile, type UserProfile } from "../data/profile";
 import {
     usePlatformContext,
     useWorkspaceField,
@@ -230,7 +230,7 @@ function useDemoState() {
     };
   }, [demoPhone, getIdentityToken, setBlocked]);
   const [available, setAvailable] = useWorkspaceField("available", true);
-  const [profile, setProfile] = useState(EMPTY_PROFILE);
+  const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
   const identityKey = demoPhone || user?.id || null;
   const [identityLoading, setIdentityLoading] = useState(Boolean(identityKey));
   const loadedIdentityRef = useRef<string | null>(null);

@@ -532,6 +532,11 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
   const [form, setForm] = useState(() =>
     onboarding ? { ...d.profile, name: "", username: "" } : d.profile,
   );
+  // This is deliberately screen-local. A photo must not survive leaving this
+  // editor until the save request has completed and the server has approved it.
+  const [photo, setPhoto] = useState(() =>
+    onboarding ? d.photo : d.profile.photo || "",
+  );
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -556,7 +561,7 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           />
         </View>
       </Row>
-      {avatar && <PhotoPicker uri={d.photo} onChange={d.setPhoto} />}
+      {avatar && <PhotoPicker uri={photo} onChange={setPhoto} />}
       {(["name", "username", "city"] as const).map((key) => (
         <Field
           key={key}
@@ -661,7 +666,7 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
             return setError("Use a 3–20 character username with letters, numbers, or underscores.");
           if (city.length < 2 || city.length > 80 || /[\r\n]/.test(city))
             return setError("Enter a valid city.");
-          if (onboarding && !d.photo)
+          if (onboarding && !photo)
             return setError("Add a clear profile photo before continuing.");
           if (
             !isEligibleBirthday(form.dob) ||
@@ -689,19 +694,24 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
             auth.user
               ? saveOwnProfile({ ...form, name, city, bio: form.bio.trim() })
               : auth.demoPhone
-                  ? auth.getIdentityToken().then((token) => saveDemoProfile(auth.demoPhone!, { ...form, name, city, bio: form.bio.trim(), photo: d.photo }, token))
+                  ? auth.getIdentityToken().then((token) => saveDemoProfile(auth.demoPhone!, { ...form, name, city, bio: form.bio.trim(), photo }, token))
                 : Promise.reject(new Error("Demo phone is missing."))
           )
             .then((approvedPhoto) => {
-              if (approvedPhoto) d.setPhoto(approvedPhoto);
-              d.setProfile({ ...form, name, city, bio: form.bio.trim() });
+              const savedPhoto = approvedPhoto || d.profile.photo || "";
+              d.setPhoto(savedPhoto);
+              setPhoto(savedPhoto);
+              d.setProfile({ ...form, name, city, bio: form.bio.trim(), photo: savedPhoto });
               setError("");
               setSaved(true);
             })
             .catch((saveError) => {
               console.error("Failed to save profile:", saveError);
-              if (auth.demoPhone && d.photo && !/^https:\/\//i.test(d.photo))
-                d.setPhoto("");
+              // A failed moderation or save must never leave the local file
+              // URI in the editor or global profile state.
+              const savedPhoto = d.profile.photo || "";
+              setPhoto(savedPhoto);
+              d.setPhoto(savedPhoto);
               setError(
                 saveError instanceof Error
                   ? saveError.message
