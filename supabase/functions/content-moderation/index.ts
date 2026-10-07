@@ -46,7 +46,13 @@ async function scanWithGoogleVision(bytes: Uint8Array) {
     body: JSON.stringify({ requests: [{ image: { content: encoded }, features: [{ type: "SAFE_SEARCH_DETECTION" }] }] }),
   });
   const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
-  if (!response.ok) throw new Error("The image safety scan could not be completed.");
+  if (!response.ok) {
+    const serviceError = payload?.error;
+    const detail = serviceError && typeof serviceError === "object" && typeof (serviceError as Record<string, unknown>).message === "string"
+      ? (serviceError as Record<string, unknown>).message
+      : `Google Vision returned ${response.status}.`;
+    throw new Error(`The image safety scan could not be completed: ${detail}`);
+  }
   const responses = Array.isArray(payload?.responses) ? payload.responses : [];
   const annotation = responses[0] && typeof responses[0] === "object" && (responses[0] as Record<string, unknown>).safeSearchAnnotation && typeof (responses[0] as Record<string, unknown>).safeSearchAnnotation === "object"
     ? (responses[0] as Record<string, unknown>).safeSearchAnnotation as Record<string, unknown> : {};

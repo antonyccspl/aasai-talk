@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { submitProfilePhotoForModeration } from "./content-moderation";
 
 export type HostApplicationStatus =
   | "none"
@@ -28,21 +29,11 @@ export type HostApplicationInput = {
 export async function submitPhoneHostApplication(
   phone: string,
   application: HostApplicationInput,
+  idToken: string,
 ) {
   let photo = application.photo;
   if (photo && !/^https?:\/\//i.test(photo)) {
-    const response = await fetch(photo);
-    if (!response.ok) throw new Error("The Host photo could not be read.");
-    const blob = await response.blob();
-    const path = `${phone.replace(/\D/g, "")}-host.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from("host-photos")
-      .upload(path, blob, {
-        contentType: blob.type || "image/jpeg",
-        upsert: true,
-      });
-    if (uploadError) throw uploadError;
-    photo = supabase.storage.from("host-photos").getPublicUrl(path).data.publicUrl;
+    photo = await submitProfilePhotoForModeration(idToken, photo);
   }
   const fixedRateApplication = {
     ...application,

@@ -282,10 +282,15 @@ export function HostApplication() {
                 setError("Please sign in again before submitting your application.");
                 return;
               }
-              void submitPhoneHostApplication(auth.demoPhone, {
-                ...form,
-                photo: d.photo || undefined,
-              })
+              void auth
+                .getIdentityToken()
+                .then((token) =>
+                  submitPhoneHostApplication(
+                    auth.demoPhone!,
+                    { ...form, photo: d.photo || undefined },
+                    token,
+                  ),
+                )
                 .then(() => {
                   d.setHostStatus("pending");
                   router.replace("/host/status");
@@ -293,7 +298,9 @@ export function HostApplication() {
                 .catch((submitError) => {
                   console.error("Failed to submit host application:", submitError);
                   setError(
-                    "We could not submit your Host application. Please try again.",
+                    submitError instanceof Error
+                      ? submitError.message
+                      : "We could not submit your Host application. Please try again.",
                   );
                 });
             }}

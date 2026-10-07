@@ -305,11 +305,15 @@ export function Avatar({
 }) {
   const { photo, profile } = useDemo();
   const avatarUri = person ? person.photo : photo;
+  // Local file URIs are allowed only inside PhotoPicker while a person is
+  // choosing an image. Everywhere else, render solely a server-approved URL.
+  const approvedAvatarUri =
+    avatarUri && /^https:\/\//i.test(avatarUri) ? avatarUri : undefined;
   // When this is the signed-in user's avatar there is no `person` object.
   // Use the saved profile name so a profile edit is reflected immediately.
   const avatarName = person?.name || name || profile.name || "M";
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [avatarUri]);
+  useEffect(() => setFailed(false), [approvedAvatarUri]);
   return (
     <View
       style={{
@@ -324,9 +328,9 @@ export function Avatar({
         overflow: "hidden",
       }}
     >
-      {avatarUri && !failed ? (
+      {approvedAvatarUri && !failed ? (
         <Image
-          source={{ uri: avatarUri }}
+          source={{ uri: approvedAvatarUri }}
           accessibilityLabel={`${avatarName} profile photo`}
           style={{ width: size, height: size }}
           onError={() => setFailed(true)}

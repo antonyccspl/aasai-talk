@@ -8,14 +8,21 @@ export async function submitProfilePhotoForModeration(idToken: string, uri: stri
   const form = new FormData();
   form.append("action", "submit-profile-photo");
   form.append("photo", blob, `profile.${type === "image/png" ? "png" : type === "image/webp" ? "webp" : "jpg"}`);
-  const response = await fetch(`${supabaseUrl}/functions/v1/content-moderation`, {
-    method: "POST",
-    headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${idToken}` },
-    body: form,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${supabaseUrl}/functions/v1/content-moderation`, {
+      method: "POST",
+      headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${idToken}` },
+      body: form,
+    });
+  } catch {
+    throw new Error("We could not reach the photo safety service. Check your connection and try again.");
+  }
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const message = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : "Photo safety check failed.";
+    const message = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
+      ? payload.error
+      : `Photo safety check failed (code ${response.status}).`;
     throw new Error(message);
   }
   if (!payload || typeof payload !== "object" || !("status" in payload) || typeof payload.status !== "string")
