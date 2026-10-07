@@ -1,4 +1,5 @@
 import { fetchZegoCallToken, normalizeCallNetworkQuality, type CallNetworkQuality } from "@/data/zego";
+import { useAuth } from "@/data/auth";
 import React, { useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ZegoExpressEngine } from "zego-express-engine-webrtc";
@@ -32,6 +33,9 @@ export function ZegoMedia({
   onNetworkQuality,
   onError,
 }: Props) {
+  const authContext = useAuth();
+  const getIdentityTokenRef = useRef(authContext.getIdentityToken);
+  getIdentityTokenRef.current = authContext.getIdentityToken;
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -99,7 +103,11 @@ export function ZegoMedia({
     const start = async () => {
       try {
         callbacksRef.current.onStatus?.(video ? "Getting your camera ready…" : "Getting your microphone ready…");
-        const token = await fetchZegoCallToken(sessionId, phone);
+        const token = await fetchZegoCallToken(
+          sessionId,
+          phone,
+          await getIdentityTokenRef.current(),
+        );
         if (disposed) return;
         if (!token.webServerUrl)
           throw new Error("ZEGO WebRTC server URL is not configured for browser calls.");
@@ -109,7 +117,15 @@ export function ZegoMedia({
           scenario: 0,
         });
         engineRef.current = engine;
+        const requirements = await engine.checkSystemRequirements();
+        if (!(requirements as { webRTC?: boolean }).webRTC)
+          throw new Error("This browser does not support secure real-time calls. Try the latest Chrome, Edge, Safari, or Firefox.");
         localStreamId = `aasai_${token.userId}`;
+
+        engine.on("publisherStateUpdate", (result) => {
+          if (!disposed && result.errorCode)
+            callbacksRef.current.onError?.("Your microphone or camera stream could not start.");
+        });
 
         engine.on("roomStreamUpdate", (_roomId, updateType, streams) => {
           if (disposed) return;
@@ -172,8 +188,9 @@ export function ZegoMedia({
         });
 
         callbacksRef.current.onStatus?.("Joining call…");
-        if (!engine.startPublishingStream(localStreamId, localStream))
-          throw new Error("ZEGO could not start publishing your microphone.");
+        // This SDK method returns void. Publishing failure is reported through
+        // publisherStateUpdate, not a return value.
+        engine.startPublishingStream(localStreamId, localStream);
         publishing = true;
         reportStatus();
       } catch (error) {

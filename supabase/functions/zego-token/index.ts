@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyFirebasePhoneToken } from "../_shared/firebase-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,11 +111,17 @@ Deno.serve(async (request) => {
   if (request.method !== "POST")
     return Response.json({ error: "POST required" }, { status: 405, headers: corsHeaders });
   try {
+    const bearerToken = (request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
+    if (!bearerToken)
+      return Response.json({ error: "Please sign in to join a call." }, { status: 401, headers: corsHeaders });
+    const identity = await verifyFirebasePhoneToken(bearerToken);
     const body = await request.json();
     const sessionId = typeof body.session_id === "string" ? body.session_id : "";
     const phone = typeof body.phone === "string" ? body.phone : "";
     if (!sessionId || !/^\+91\d{10}$/.test(phone))
       return Response.json({ error: "Invalid call identity." }, { status: 400, headers: corsHeaders });
+    if (identity.phone !== phone)
+      return Response.json({ error: "Call identity is not authorized." }, { status: 403, headers: corsHeaders });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey =

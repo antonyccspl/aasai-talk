@@ -44,6 +44,7 @@ export function normalizeCallNetworkQuality(...values: unknown[]): CallNetworkQu
 export async function fetchZegoCallToken(
   sessionId: string,
   phone: string,
+  identityToken: string,
 ): Promise<ZegoCallToken> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
@@ -53,7 +54,7 @@ export async function fetchZegoCallToken(
       method: "POST",
       headers: {
         apikey: supabasePublishableKey,
-        Authorization: `Bearer ${supabasePublishableKey}`,
+        Authorization: `Bearer ${identityToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ session_id: sessionId, phone }),

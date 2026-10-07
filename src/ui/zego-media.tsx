@@ -1,4 +1,5 @@
 import { fetchZegoCallToken, normalizeCallNetworkQuality, type CallNetworkQuality } from "@/data/zego";
+import { useAuth } from "@/data/auth";
 import React, { useEffect, useRef, useState } from "react";
 import {
     findNodeHandle,
@@ -52,6 +53,9 @@ export function ZegoMedia({
   onNetworkQuality,
   onError,
 }: Props) {
+  const authContext = useAuth();
+  const getIdentityTokenRef = useRef(authContext.getIdentityToken);
+  getIdentityTokenRef.current = authContext.getIdentityToken;
   const localRef = useRef<ViewType>(null);
   const remoteRef = useRef<ViewType>(null);
   const engineRef = useRef<ZegoExpressEngine | null>(null);
@@ -95,7 +99,11 @@ export function ZegoMedia({
           if (disposed) return;
         }
         onStatus?.(video ? "Getting your camera ready…" : "Getting your microphone ready…");
-        const auth = await fetchZegoCallToken(sessionId, phone);
+        const auth = await fetchZegoCallToken(
+          sessionId,
+          phone,
+          await getIdentityTokenRef.current(),
+        );
         if (disposed) return;
         onStatus?.("Connecting…");
         const profile = new zego.ZegoEngineProfile(
