@@ -88,6 +88,10 @@ export function PhotoPicker({
           }}
         />
       </Row>
+      <Notice>
+        Profile photos are reviewed before publication. Explicit sexual content
+        is not allowed.
+      </Notice>
       {error ? <Notice error>{error}</Notice> : null}
     </View>
   );

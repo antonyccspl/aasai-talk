@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { submitProfilePhotoForModeration } from "./content-moderation";
 
 export type UserProfile = {
   name: string;
@@ -66,17 +67,11 @@ export async function saveOwnProfile(profile: UserProfile) {
   if (error) throw error;
 }
 
-export async function saveDemoProfile(phone: string, profile: UserProfile) {
+export async function saveDemoProfile(phone: string, profile: UserProfile, idToken?: string) {
   let photo = profile.photo;
   if (photo && !photo.startsWith("http")) {
-    const response = await fetch(photo);
-    const blob = await response.blob();
-    const path = `${phone.replace(/\D/g, "")}.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from("host-photos")
-      .upload(path, blob, { contentType: blob.type || "image/jpeg", upsert: true });
-    if (uploadError) throw uploadError;
-    photo = supabase.storage.from("host-photos").getPublicUrl(path).data.publicUrl;
+    if (!idToken) throw new Error("Sign in again before uploading a profile photo.");
+    photo = await submitProfilePhotoForModeration(idToken, photo);
   }
   const { error } = await supabase.rpc("complete_phone_identity", {
     input_phone: phone,

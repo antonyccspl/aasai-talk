@@ -331,7 +331,7 @@ export function Auth({ mode }: { mode: string }) {
           onPress={() => {
             setBusy(true);
             void (auth.demoPhone
-              ? saveDemoProfile(auth.demoPhone, { ...d.profile, guidelinesAccepted: true })
+              ? auth.getIdentityToken().then((token) => saveDemoProfile(auth.demoPhone!, { ...d.profile, guidelinesAccepted: true }, token))
               : auth.user
                 ? saveOwnProfile(d.profile)
                 : Promise.reject(new Error("Phone session is missing.")))
@@ -343,7 +343,11 @@ export function Auth({ mode }: { mode: string }) {
                   "Failed to save authenticated profile:",
                   saveError,
                 );
-                setError("We could not save your profile. Please try again.");
+                setError(
+                  saveError instanceof Error
+                    ? saveError.message
+                    : "We could not save your profile. Please try again.",
+                );
               })
               .finally(() => setBusy(false));
           }}
@@ -682,7 +686,7 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
             auth.user
               ? saveOwnProfile({ ...form, name, city, bio: form.bio.trim() })
               : auth.demoPhone
-                  ? saveDemoProfile(auth.demoPhone, { ...form, name, city, bio: form.bio.trim(), photo: d.photo })
+                  ? auth.getIdentityToken().then((token) => saveDemoProfile(auth.demoPhone!, { ...form, name, city, bio: form.bio.trim(), photo: d.photo }, token))
                 : Promise.reject(new Error("Demo phone is missing."))
           )
             .then(() => {
@@ -693,7 +697,9 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
             .catch((saveError) => {
               console.error("Failed to save profile:", saveError);
               setError(
-                "We could not save your profile. Check your details and try again.",
+                saveError instanceof Error
+                  ? saveError.message
+                  : "We could not save your profile. Check your details and try again.",
               );
             })
             .finally(() => setBusy(false));

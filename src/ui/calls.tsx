@@ -1036,6 +1036,9 @@ function CallScreenContent({
       )}
       {video && !ringing ? (
         <View style={{ width: "100%", gap: 10 }}>
+          <Notice>
+            Keep video respectful: nudity and sexual content are not allowed. Turn off your camera, end the call, or use Safety to report a concern.
+          </Notice>
           <Card
             style={{
             // Adapt to compact screens instead of reserving a fixed desktop-like
@@ -1286,10 +1289,11 @@ function CallScreenContent({
           />
           <View style={{ gap: 10, padding: 20, paddingBottom: 28, backgroundColor: c.background, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
             <T size={20} bold>Call safety</T>
-            <T size={13} color={c.secondary}>Report an issue or block this person.</T>
+            <T size={13} color={c.secondary}>End the call any time. You can report or block this person without continuing the conversation.</T>
             {[
               "Poor audio quality",
               "Poor video quality",
+              "Nudity or sexual content",
               "Call dropped or could not connect",
               "Abusive or unsafe behavior",
               "Spam or inappropriate contact",
