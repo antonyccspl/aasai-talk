@@ -70,19 +70,42 @@ Deno.serve(async (request) => {
     const identity = await verifyFirebasePhoneToken(token);
     const form = await request.formData();
     const action = form.get("action");
-    if (action !== "submit-profile-photo") return reply({ error: "Unsupported moderation action." }, 400);
-    const file = form.get("photo");
-    if (!(file instanceof File) || !supportedTypes.has(file.type) || file.size < 1 || file.size > 5 * 1024 * 1024)
-      return reply({ error: "Use a JPG, PNG, or WEBP photo smaller than 5 MB." }, 400);
+    const isProfilePhoto = action === "submit-profile-photo";
+    const isCallFrame = action === "scan-call-frame";
+    if (!isProfilePhoto && !isCallFrame)
+      return reply({ error: "Unsupported moderation action." }, 400);
+    const file = form.get(isProfilePhoto ? "photo" : "frame");
+    const maxSize = isCallFrame ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
+    if (!(file instanceof File) || !supportedTypes.has(file.type) || file.size < 1 || file.size > maxSize)
+      return reply({ error: `Use a JPG, PNG, or WEBP image smaller than ${isCallFrame ? "2" : "5"} MB.` }, 400);
 
     const admin = adminClient();
     const bytes = new Uint8Array(await file.arrayBuffer());
+    const scan = await scanWithGoogleVision(bytes);
+    // Live-call samples are never stored. We retain an audit item only when a
+    // frame needs review or is rejected, which provides safety evidence while
+    // avoiding recording ordinary private calls.
+    if (isCallFrame) {
+      if (scan.status !== "approved") {
+        const { error: incidentError } = await admin.from("phone_content_moderation_items").insert({
+          owner_phone: identity.phone, content_type: "live_call_incident",
+          scan_provider: scan.provider, adult_likelihood: scan.adult, racy_likelihood: scan.racy,
+          provider_result: scan.result, status: scan.status,
+          decision_note: scan.status === "rejected"
+            ? "Explicit adult content detected during a video call."
+            : "Video-call frame queued for safety review.",
+          updated_at: new Date().toISOString(),
+        });
+        if (incidentError) throw incidentError;
+      }
+      return reply({ status: scan.status });
+    }
+
     const suffix = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
     const path = `${identity.phone.replace(/\D/g, "")}/${crypto.randomUUID()}.${suffix}`;
     const upload = await admin.storage.from("moderation-media").upload(path, bytes, { contentType: file.type, upsert: false });
     if (upload.error) throw upload.error;
 
-    const scan = await scanWithGoogleVision(bytes);
     const record = {
       owner_phone: identity.phone, content_type: "profile_photo", storage_bucket: "moderation-media", storage_path: path,
       scan_provider: scan.provider, adult_likelihood: scan.adult, racy_likelihood: scan.racy,

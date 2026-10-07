@@ -1,5 +1,6 @@
 import { fetchZegoCallToken, normalizeCallNetworkQuality, type CallNetworkQuality } from "@/data/zego";
 import { useAuth } from "@/data/auth";
+import { scanVideoCallFrame } from "@/data/content-moderation";
 import React, { useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ZegoExpressEngine } from "zego-express-engine-webrtc";
@@ -16,6 +17,7 @@ type Props = {
   onStatus?: (status: string) => void;
   onNetworkQuality?: (quality: CallNetworkQuality) => void;
   onError?: (message: string) => void;
+  onSafetyViolation?: () => void;
 };
 
 let webRtcLifecycle: Promise<void> = Promise.resolve();
@@ -32,6 +34,7 @@ export function ZegoMedia({
   onStatus,
   onNetworkQuality,
   onError,
+  onSafetyViolation,
 }: Props) {
   const authContext = useAuth();
   const getIdentityTokenRef = useRef(authContext.getIdentityToken);
@@ -47,8 +50,8 @@ export function ZegoMedia({
   const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
   const controlsRef = useRef({ muted, camera, front });
   controlsRef.current = { muted, camera, front };
-  const callbacksRef = useRef({ onStatus, onNetworkQuality, onError });
-  callbacksRef.current = { onStatus, onNetworkQuality, onError };
+  const callbacksRef = useRef({ onStatus, onNetworkQuality, onError, onSafetyViolation });
+  callbacksRef.current = { onStatus, onNetworkQuality, onError, onSafetyViolation };
 
   useEffect(() => {
     let disposed = false;
@@ -58,6 +61,10 @@ export function ZegoMedia({
     let publishing = false;
     let playing = false;
     let localStreamId = "";
+    let moderationFirstTimer: ReturnType<typeof setTimeout> | null = null;
+    let moderationTimer: ReturnType<typeof setInterval> | null = null;
+    let moderationBusy = false;
+    let violationDetected = false;
 
     const reportStatus = () => {
       if (!disposed)
@@ -103,10 +110,11 @@ export function ZegoMedia({
     const start = async () => {
       try {
         callbacksRef.current.onStatus?.(video ? "Getting your camera ready…" : "Getting your microphone ready…");
+        const identityToken = await getIdentityTokenRef.current();
         const token = await fetchZegoCallToken(
           sessionId,
           phone,
-          await getIdentityTokenRef.current(),
+          identityToken,
         );
         if (disposed) return;
         if (!token.webServerUrl)
@@ -193,6 +201,49 @@ export function ZegoMedia({
         engine.startPublishingStream(localStreamId, localStream);
         publishing = true;
         reportStatus();
+
+        const captureFrame = (element: HTMLVideoElement | null) => {
+          if (!element || element.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !element.videoWidth)
+            return "";
+          const width = Math.min(480, element.videoWidth);
+          const height = Math.max(1, Math.round((element.videoHeight / element.videoWidth) * width));
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext("2d");
+          if (!context) return "";
+          context.drawImage(element, 0, 0, width, height);
+          return canvas.toDataURL("image/jpeg", 0.65);
+        };
+        const scanCallFrames = async () => {
+          if (disposed || moderationBusy || violationDetected) return;
+          moderationBusy = true;
+          try {
+            const elements = [
+              controlsRef.current.camera ? localVideoRef.current : null,
+              remoteVideoRef.current,
+            ];
+            for (const element of elements) {
+              const frame = captureFrame(element);
+              if (!frame) continue;
+              if (await scanVideoCallFrame(identityToken, frame) === "rejected") {
+                violationDetected = true;
+                callbacksRef.current.onSafetyViolation?.();
+                return;
+              }
+            }
+          } catch (error) {
+            // Sampling must not break a working call if a temporary scan or
+            // network failure occurs. The next scheduled sample retries.
+            console.warn("[RTC] video safety sample failed", error);
+          } finally {
+            moderationBusy = false;
+          }
+        };
+        if (video) {
+          moderationFirstTimer = setTimeout(() => void scanCallFrames(), 9000);
+          moderationTimer = setInterval(() => void scanCallFrames(), 20000);
+        }
       } catch (error) {
         if (!disposed)
           callbacksRef.current.onError?.(
@@ -210,6 +261,8 @@ export function ZegoMedia({
 
     return () => {
       disposed = true;
+      if (moderationFirstTimer) clearTimeout(moderationFirstTimer);
+      if (moderationTimer) clearInterval(moderationTimer);
       webRtcLifecycle = webRtcLifecycle.then(async () => {
         if (engine && localStreamId) engine.stopPublishingStream(localStreamId);
         if (engine && remoteStreamIdRef.current)

@@ -652,7 +652,34 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           />
         ))}
       </Row>
-      {error && <Notice error>{error}</Notice>}
+      {error.includes("nudity policy") ? (
+        <View
+          accessibilityLiveRegion="assertive"
+          style={{
+            gap: 10,
+            padding: 18,
+            borderRadius: 20,
+            backgroundColor: "#fff1f2",
+            borderWidth: 1,
+            borderColor: "#fda4af",
+            borderLeftWidth: 6,
+            borderLeftColor: c.error,
+          }}
+        >
+          <Row style={{ alignItems: "center", gap: 10 }}>
+            <View style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: "#ffe4e6" }}>
+              <Icon name="shield" size={20} color={c.error} />
+            </View>
+            <T bold size={17} color={c.error}>Photo not allowed</T>
+          </Row>
+          <T size={14} color="#9f1239">
+            Explicit sexual or nude images are not allowed on Aasai Talk. Choose another clear, non-explicit photo.
+          </T>
+          <T size={12} color="#9f1239">
+            This image was not saved and is not visible to other people.
+          </T>
+        </View>
+      ) : error ? <Notice error>{error}</Notice> : null}
       {saved && <Notice>Profile saved.</Notice>}
       <Button
         title={busy ? "Saving…" : onboarding ? "Continue" : "Save changes"}

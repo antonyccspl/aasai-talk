@@ -28,6 +28,7 @@ import {
     Chips,
     Empty,
     go,
+    Icon,
     IconButton,
     LoadingCards,
     Notice,
@@ -180,6 +181,7 @@ function CallScreenContent({
     AppState.currentState === "active",
   );
   const [callError, setCallError] = useState("");
+  const [policyViolation, setPolicyViolation] = useState(false);
   const [hostUnavailable, setHostUnavailable] = useState<DirectoryStatus | null>(null);
   const [safetyVisible, setSafetyVisible] = useState(false);
   const [safetyBusy, setSafetyBusy] = useState(false);
@@ -191,6 +193,7 @@ function CallScreenContent({
   const connectingRef = useRef(false);
   const actionRef = useRef(false);
   const closedRef = useRef(false);
+  const policyEndingRef = useRef(false);
   const [actionPending, setActionPending] = useState(false);
   const [hostCapabilities, setHostCapabilities] = useState<{
     audio: boolean;
@@ -278,6 +281,18 @@ function CallScreenContent({
     },
     [activePhone, setActiveCall, incomingCall, mediaSessionId],
   );
+  function onMediaSafetyViolation() {
+    if (policyEndingRef.current || closedRef.current) return;
+    policyEndingRef.current = true;
+    void stopAllCallSounds();
+    setPolicyViolation(true);
+    setMediaStatus("Safety policy detected — ending call");
+    // Show an unmissable explanation before closing the room and navigating to
+    // the call result. There is no dismissal action: ending is automatic.
+    setTimeout(() => {
+      void end("Ended");
+    }, 2200);
+  }
   const reportCallIssue = async (reason: string) => {
     if (!auth.demoPhone || !safetyTargetPhone || safetyBusy) return;
     setSafetyBusy(true);
@@ -1070,6 +1085,7 @@ function CallScreenContent({
                 onStatus={onMediaStatus}
                 onNetworkQuality={onMediaNetworkQuality}
                 onError={onMediaError}
+                onSafetyViolation={onMediaSafetyViolation}
                 videoPlaceholder={
                   <View
                     style={{
@@ -1196,6 +1212,7 @@ function CallScreenContent({
                 onStatus={onMediaStatus}
                 onNetworkQuality={onMediaNetworkQuality}
                 onError={onMediaError}
+                onSafetyViolation={onMediaSafetyViolation}
               />
             </CallMediaBoundary>
           )}
@@ -1274,6 +1291,30 @@ function CallScreenContent({
           {p.name.split(" ")[0]} is {hostUnavailable === "Busy" ? "busy on another call" : "offline"}.
         </Notice>
       ) : null}
+      <Modal
+        transparent
+        visible={policyViolation}
+        animationType="fade"
+        onRequestClose={() => undefined}
+      >
+        <View
+          accessibilityLiveRegion="assertive"
+          style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: "rgba(42, 8, 17, 0.68)" }}
+        >
+          <View style={{ width: "100%", maxWidth: 420, gap: 16, padding: 24, borderRadius: 26, backgroundColor: "#fff7f7", borderWidth: 2, borderColor: "#fb7185" }}>
+            <View style={{ width: 54, height: 54, borderRadius: 27, alignItems: "center", justifyContent: "center", backgroundColor: "#ffe4e6" }}>
+              <Icon name="shield" size={28} color={c.error} />
+            </View>
+            <T size={22} bold color={c.error}>Safety alert</T>
+            <T size={15} color="#881337">
+              Nudity or explicit sexual content was detected in this video call. This violates Aasai Talk’s safety policy.
+            </T>
+            <View style={{ padding: 12, borderRadius: 14, backgroundColor: "#ffe4e6" }}>
+              <T size={13} bold color="#9f1239">This call is ending automatically to protect everyone.</T>
+            </View>
+          </View>
+        </View>
+      </Modal>
       <Modal
         transparent
         visible={safetyVisible}
