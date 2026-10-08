@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 const accountNumberPattern = /^[0-9]{9,18}$/;
 const ifscPattern = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-const upiPattern = /^[A-Za-z0-9._-]{2,256}@[A-Za-z][A-Za-z0-9._-]{1,64}$/;
+const upiPattern = /^[A-Za-z0-9._-]{2,255}@[A-Za-z][A-Za-z0-9._-]{1,64}$/;
 
 function response(body: Record<string, unknown>, status = 200) {
   return Response.json(body, { status, headers: { ...corsHeaders, "Cache-Control": "no-store" } });
