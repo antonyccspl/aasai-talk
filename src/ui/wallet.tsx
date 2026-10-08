@@ -104,6 +104,7 @@ export function Wallet({
   const [reload, setReload] = useState(0);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState("");
+  const [paymentMessage, setPaymentMessage] = useState("");
   const [pendingCashfreeOrder, setPendingCashfreeOrder] = useState("");
   useEffect(() => {
     const controller = new AbortController();
@@ -212,6 +213,7 @@ export function Wallet({
     if (result.status === "paid") {
       setPendingCashfreeOrder("");
       setPaymentError("");
+      setPaymentMessage("Payment confirmed. Your wallet has been updated.");
       setReload(value => value + 1);
       return true;
     }
@@ -222,23 +224,34 @@ export function Wallet({
     setPendingCashfreeOrder(orderId);
     return false;
   }, [getIdentityToken]);
+  const waitForCashfreePayment = useCallback(async (orderId: string) => {
+    // Browser checkout opens asynchronously, so the first status request can
+    // occur before the customer completes UPI/card authentication. Polling the
+    // server-side verifier avoids treating that normal delay as an error.
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      if (attempt > 0) await new Promise<void>(resolve => setTimeout(resolve, 3000));
+      if (await checkCashfreePayment(orderId)) return true;
+    }
+    return false;
+  }, [checkCashfreePayment]);
   const startPayment = useCallback(async () => {
     if (!selectedPack) return;
     setPaymentLoading(true);
     setPaymentError("");
+    setPaymentMessage("");
     try {
       const token = await getIdentityToken();
       const order = await createCashfreeOrder(token, selectedPack.id);
       setPendingCashfreeOrder(order.order_id);
       await startCashfreeCheckout({ orderId: order.order_id, paymentSessionId: order.payment_session_id });
-      const paid = await checkCashfreePayment(order.order_id);
-      if (!paid) setPaymentError("Payment is awaiting confirmation. Complete the payment, then tap Check payment status.");
+      const paid = await waitForCashfreePayment(order.order_id);
+      if (!paid) setPaymentMessage("Cashfree is still confirming this payment. You can safely check the status again in a few seconds.");
     } catch (error) {
       setPaymentError(error instanceof Error ? error.message : "Cashfree payment could not start.");
     } finally {
       setPaymentLoading(false);
     }
-  }, [checkCashfreePayment, getIdentityToken, selectedPack]);
+  }, [getIdentityToken, selectedPack, waitForCashfreePayment]);
   if (isApprovedHost)
     return (
       <Shell title="Wallet">
@@ -390,6 +403,7 @@ export function Wallet({
           <T size={12} color={c.muted}>Your coins are added only after payment is confirmed.</T>
         </Card>
         {!!paymentError && <Notice error>{paymentError}</Notice>}
+        {!!paymentMessage && <Notice>{paymentMessage}</Notice>}
         {pendingCashfreeOrder && !paymentLoading && (
           <Notice>Payment confirmation can take a moment. Your coins are credited only after Cashfree verifies the payment.</Notice>
         )}
