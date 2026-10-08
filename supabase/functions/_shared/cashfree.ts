@@ -50,8 +50,17 @@ export async function fetchCashfreeOrderPayments(orderId: string) {
     headers: headers(),
   });
   const body: unknown = await response.json().catch(() => null);
-  if (!response.ok || !Array.isArray(body)) throw new Error("Cashfree payment status could not be verified.");
-  return body as CashfreePayment[];
+  if (!response.ok) {
+    const message = body && typeof body === "object" && "message" in body && typeof body.message === "string"
+      ? body.message : "Cashfree payment status could not be verified.";
+    throw new Error(message);
+  }
+  // Cashfree has returned both a direct array and a { data: [...] } envelope
+  // across API versions. Accept either response without trusting client input.
+  if (Array.isArray(body)) return body as CashfreePayment[];
+  if (body && typeof body === "object" && "data" in body && Array.isArray(body.data))
+    return body.data as CashfreePayment[];
+  throw new Error("Cashfree returned an invalid payment-status response.");
 }
 
 function base64(bytes: Uint8Array) {

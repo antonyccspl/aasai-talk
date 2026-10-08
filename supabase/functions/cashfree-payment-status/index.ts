@@ -5,6 +5,10 @@ import { reconcileCashfreeOrder } from "../_shared/cashfree-reconcile.ts";
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const reply = (body: Record<string, unknown>, status = 200) => Response.json(body, { status, headers: { ...corsHeaders, "Cache-Control": "no-store" } });
 function adminClient() { const url = Deno.env.get("SUPABASE_URL") || ""; const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEYS") || ""; if (!url || !key) throw new Error("Payment service is not configured."); return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } }); }
+function errorMessage(error: unknown) {
+  return error && typeof error === "object" && "message" in error && typeof error.message === "string"
+    ? error.message : "Cashfree payment status could not be checked.";
+}
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -19,6 +23,6 @@ Deno.serve(async (request) => {
     return reply(await reconcileCashfreeOrder(adminClient(), orderId, identity.phone));
   } catch (error) {
     console.error("Cashfree payment status failed:", error);
-    return reply({ error: error instanceof Error ? error.message : "Cashfree payment status could not be checked." }, 500);
+    return reply({ error: errorMessage(error) }, 500);
   }
 });
