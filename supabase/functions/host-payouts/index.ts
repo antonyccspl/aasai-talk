@@ -14,6 +14,12 @@ function response(body: Record<string, unknown>, status = 200) {
   return Response.json(body, { status, headers: { ...corsHeaders, "Cache-Control": "no-store" } });
 }
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+  return "Unable to save payout destination. Please try again.";
+}
+
 function adminClient() {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEYS");
@@ -84,7 +90,7 @@ Deno.serve(async (request) => {
         ifsc_code: payoutMethod === "bank" ? ifscCode : null,
         upi_id: payoutMethod === "upi" ? upiId : null,
         status: "pending_verification", verification_note: null, verified_at: null, updated_at: new Date().toISOString(),
-      });
+      }, { onConflict: "host_phone" });
       if (error) throw error;
       return response({ ok: true, status: "pending_verification" });
     }
@@ -101,6 +107,6 @@ Deno.serve(async (request) => {
     return response({ error: "Unsupported payout action." }, 400);
   } catch (error) {
     console.error("Host payout request failed:", error);
-    return response({ error: error instanceof Error ? error.message : "Payout request failed." }, 500);
+    return response({ error: errorMessage(error) }, 500);
   }
 });
