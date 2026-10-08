@@ -400,26 +400,6 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
           <Button title={d.hostStatus === "pending" ? "Track application" : "Start your Host application"} icon={d.hostStatus === "pending" ? "clock" : "arrow-right"} onPress={() => go(d.hostStatus === "pending" ? "/host/status" : "/host/apply")} />
         </Card>
       )}
-      {mode === "explore" && d.profile.gender === "Male" && (
-        <Card style={{ backgroundColor: "#173d4c", borderWidth: 1, borderColor: "#356273", overflow: "hidden", gap: 14 }}>
-          <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
-            <View style={{ backgroundColor: "#ffd783", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 }}>
-              <T mono size={10} bold color="#4c3512">MEMBER OFFER</T>
-            </View>
-            <View style={{ width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: "#245363", borderWidth: 1, borderColor: "#4b7887" }}>
-              <Icon name="gift" color="#ffd783" size={23} />
-            </View>
-          </Row>
-          <View style={{ gap: 5 }}>
-            <T bold size={22} color="#ffffff">More time for better conversations</T>
-            <T size={13} color="#d8edf0">Explore special coin packs, including bonus coins on selected offers, and keep your conversations going.</T>
-          </View>
-          <Row style={{ flexWrap: "wrap", gap: 7 }}>
-            {["Secure checkout", "Bonus packs", "Instant wallet credit"].map((benefit) => <View key={benefit} style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: "#245363" }}><T mono size={10} color="#ffffff">{benefit}</T></View>)}
-          </Row>
-          <Button title="Explore coin offers" icon="arrow-right" onPress={() => go("/wallet")} />
-        </Card>
-      )}
       {searching && (
         <>
           <Field
