@@ -2,8 +2,10 @@ import { supabasePublishableKey, supabaseUrl } from "./supabase-config";
 
 export type HostPayoutAccount = {
   account_holder_name: string;
-  masked_account_number: string;
-  ifsc_code: string;
+  payout_method: "bank" | "upi";
+  masked_account_number: string | null;
+  ifsc_code: string | null;
+  masked_upi_id: string | null;
   status: "pending_verification" | "verified" | "rejected";
   verification_note: string | null;
   updated_at: string;
@@ -39,11 +41,19 @@ export async function fetchHostPayoutStatus(idToken: string) {
   return result;
 }
 
-export function saveHostPayoutAccount(idToken: string, details: { accountHolderName: string; accountNumber: string; ifscCode: string }) {
+export function saveHostPayoutAccount(idToken: string, details: {
+  accountHolderName: string;
+  payoutMethod: "bank" | "upi";
+  accountNumber?: string;
+  ifscCode?: string;
+  upiId?: string;
+}) {
   return hostPayoutRequest(idToken, "save-account", {
     account_holder_name: details.accountHolderName,
-    account_number: details.accountNumber,
-    ifsc_code: details.ifscCode,
+    payout_method: details.payoutMethod,
+    account_number: details.accountNumber || "",
+    ifsc_code: details.ifscCode || "",
+    upi_id: details.upiId || "",
   });
 }
 

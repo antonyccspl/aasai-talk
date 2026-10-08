@@ -8,6 +8,7 @@ const corsHeaders = {
 };
 const accountNumberPattern = /^[0-9]{9,18}$/;
 const ifscPattern = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const upiPattern = /^[A-Za-z0-9._-]{2,256}@[A-Za-z][A-Za-z0-9._-]{1,64}$/;
 
 function response(body: Record<string, unknown>, status = 200) {
   return Response.json(body, { status, headers: { ...corsHeaders, "Cache-Control": "no-store" } });
@@ -22,6 +23,11 @@ function adminClient() {
 
 function maskedAccount(value: string) {
   return `•••• ${value.slice(-4)}`;
+}
+
+function maskedUpi(value: string) {
+  const [local, handle] = value.split("@", 2);
+  return `${local.slice(0, 2)}••••@${handle}`;
 }
 
 Deno.serve(async (request) => {
@@ -41,15 +47,17 @@ Deno.serve(async (request) => {
 
     if (action === "status") {
       const [{ data: account, error: accountError }, { data: withdrawals, error: withdrawalsError }] = await Promise.all([
-        admin.from("phone_host_payout_accounts").select("account_holder_name,account_number,ifsc_code,status,verification_note,updated_at").eq("host_phone", identity.phone).maybeSingle(),
+        admin.from("phone_host_payout_accounts").select("account_holder_name,account_number,ifsc_code,payout_method,upi_id,status,verification_note,updated_at").eq("host_phone", identity.phone).maybeSingle(),
         admin.from("phone_host_withdrawals").select("id,amount_paise,status,payout_reference,review_note,created_at").eq("host_phone", identity.phone).order("created_at", { ascending: false }).limit(12),
       ]);
       if (accountError || withdrawalsError) throw accountError || withdrawalsError;
       return response({
         payout_account: account ? {
           account_holder_name: account.account_holder_name,
-          masked_account_number: maskedAccount(account.account_number),
-          ifsc_code: account.ifsc_code,
+          payout_method: account.payout_method === "upi" ? "upi" : "bank",
+          masked_account_number: account.account_number ? maskedAccount(account.account_number) : null,
+          ifsc_code: account.ifsc_code || null,
+          masked_upi_id: account.upi_id ? maskedUpi(account.upi_id) : null,
           status: account.status,
           verification_note: account.verification_note,
           updated_at: account.updated_at,
@@ -62,11 +70,20 @@ Deno.serve(async (request) => {
       const accountHolderName = typeof body.account_holder_name === "string" ? body.account_holder_name.trim().replace(/\s+/g, " ") : "";
       const accountNumber = typeof body.account_number === "string" ? body.account_number.replace(/\s/g, "") : "";
       const ifscCode = typeof body.ifsc_code === "string" ? body.ifsc_code.trim().toUpperCase() : "";
-      if (accountHolderName.length < 2 || accountHolderName.length > 120 || !accountNumberPattern.test(accountNumber) || !ifscPattern.test(ifscCode))
-        return response({ error: "Enter a valid account holder name, account number, and IFSC code." }, 400);
+      const payoutMethod = body.payout_method === "upi" ? "upi" : body.payout_method === "bank" ? "bank" : "";
+      const upiId = typeof body.upi_id === "string" ? body.upi_id.trim().toLowerCase() : "";
+      if (accountHolderName.length < 2 || accountHolderName.length > 120 || !payoutMethod)
+        return response({ error: "Choose a payout method and enter the account holder name." }, 400);
+      if (payoutMethod === "bank" && (!accountNumberPattern.test(accountNumber) || !ifscPattern.test(ifscCode)))
+        return response({ error: "Enter a valid account number and IFSC code." }, 400);
+      if (payoutMethod === "upi" && !upiPattern.test(upiId))
+        return response({ error: "Enter a valid UPI ID, for example name@bank." }, 400);
       const { error } = await admin.from("phone_host_payout_accounts").upsert({
-        host_phone: identity.phone, account_holder_name: accountHolderName, account_number: accountNumber,
-        ifsc_code: ifscCode, status: "pending_verification", verification_note: null, verified_at: null, updated_at: new Date().toISOString(),
+        host_phone: identity.phone, account_holder_name: accountHolderName, payout_method: payoutMethod,
+        account_number: payoutMethod === "bank" ? accountNumber : null,
+        ifsc_code: payoutMethod === "bank" ? ifscCode : null,
+        upi_id: payoutMethod === "upi" ? upiId : null,
+        status: "pending_verification", verification_note: null, verified_at: null, updated_at: new Date().toISOString(),
       });
       if (error) throw error;
       return response({ ok: true, status: "pending_verification" });

@@ -12,7 +12,9 @@ import {
     Button,
     Card,
     Chip,
+    Chips,
     Field,
+    Icon,
     Notice,
     Row,
     Setting,
@@ -389,7 +391,7 @@ export function HostStatus() {
         <T mono size={10} color={c.secondary}>HOST CHECKLIST</T>
         <Setting title="Application" detail={approved ? "Approved" : "Under review"} icon={approved ? "check-circle" : "clock"} />
         <Setting title="Verification documents" detail="Submitted securely" icon="file-text" />
-        <Setting title="Bank account & payouts" detail={approved ? "Add and verify bank details" : "Available after approval"} icon="credit-card" onPress={approved ? () => router.push("/host/withdraw") : undefined} />
+        <Setting title="Payout destination" detail={approved ? "Add and verify a bank account or UPI ID" : "Available after approval"} icon="credit-card" onPress={approved ? () => router.push("/host/withdraw") : undefined} />
       </Card>
       {!approved && (
         <T size={12} color={c.secondary}>
@@ -433,9 +435,11 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
   const [payoutAccount, setPayoutAccount] = useState<HostPayoutAccount | null>(null);
   const [withdrawals, setWithdrawals] = useState<HostWithdrawal[]>([]);
   const [accountHolderName, setAccountHolderName] = useState("");
+  const [payoutMethod, setPayoutMethod] = useState<"bank" | "upi">("bank");
   const [accountNumber, setAccountNumber] = useState("");
   const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
   const [ifscCode, setIfscCode] = useState("");
+  const [upiId, setUpiId] = useState("");
   const [withdrawalAmount, setWithdrawalAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [payoutMessage, setPayoutMessage] = useState("");
@@ -448,11 +452,16 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
   const previewMode = preview && d.hostStatus === "pending";
   useEffect(() => {
     if (!auth.demoPhone || d.hostStatus !== "approved") return;
-    void Promise.all([fetchPhoneHostDashboard(auth.demoPhone), loadPayouts()])
-      .then(([nextDashboard]) => setDashboard(nextDashboard))
-      .catch((error) => setEarningsError(error instanceof Error ? error.message : "Unable to load host earnings."));
+    let active = true;
+    const refresh = () => void Promise.all([fetchPhoneHostDashboard(auth.demoPhone!), loadPayouts()])
+      .then(([nextDashboard]) => { if (active) setDashboard(nextDashboard); })
+      .catch((error) => { if (active) setEarningsError(error instanceof Error ? error.message : "Unable to load host earnings."); });
+    refresh();
+    const timer = setInterval(refresh, 15000);
+    return () => { active = false; clearInterval(timer); };
   }, [auth.demoPhone, d.hostStatus]);
   const availableEarnings = dashboard ? dashboard.total_earnings_paise / 100 : 0;
+  const activeWithdrawal = withdrawals.find((item) => item.status === "pending" || item.status === "processing");
   if (d.hostStatus !== "approved" && !previewMode)
     return (
       <Shell title="Host earnings">
@@ -483,36 +492,65 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
       {payoutAccount && (
         <Card style={{ padding: 14 }}>
           <T mono size={10} color={c.secondary}>PAYOUT STATUS</T>
-          <Setting title="Bank verification" detail={payoutAccount.status === "verified" ? "Verified" : payoutAccount.status === "rejected" ? "Action needed" : "In review"} icon={payoutAccount.status === "verified" ? "check-circle" : "clock"} />
+          <Setting title={`${payoutAccount.payout_method === "upi" ? "UPI ID" : "Bank account"} verification`} detail={payoutAccount.status === "verified" ? "Verified" : payoutAccount.status === "rejected" ? "Action needed" : "In review"} icon={payoutAccount.status === "verified" ? "check-circle" : "clock"} />
           <Setting title="Withdrawal requests" detail={withdrawals.length ? `${withdrawals.filter((item) => ["pending", "processing"].includes(item.status)).length} in progress` : "No requests yet"} icon="credit-card" />
         </Card>
       )}
       <T size={18} bold>Withdraw earnings</T>
       {earningsError ? <Notice error>{earningsError}</Notice> : null}
+      {activeWithdrawal?.status === "pending" && (
+        <Card style={{ backgroundColor: "#fff8df", borderWidth: 1, borderColor: "#f0d28a" }}>
+          <Row>
+            <Icon name="clock" color="#b7791f" />
+            <View style={{ flex: 1, gap: 3 }}>
+              <T bold>Withdrawal request received</T>
+              <T size={12} color={c.secondary}>Your ₹{(activeWithdrawal.amount_paise / 100).toLocaleString("en-IN")} request is under review. We typically review and complete manual payouts within 2–3 business days.</T>
+            </View>
+          </Row>
+          <T size={11} color={c.muted}>Your earnings are safely reserved while this request is reviewed. You do not need to submit another request.</T>
+        </Card>
+      )}
+      {activeWithdrawal?.status === "processing" && (
+        <Card style={{ backgroundColor: "#edf8f4", borderWidth: 1, borderColor: "#b9e4d2" }}>
+          <Row>
+            <Icon name="shield" color={c.mint} />
+            <View style={{ flex: 1, gap: 3 }}>
+              <T bold>Your withdrawal is being processed</T>
+              <T size={12} color={c.secondary}>We are preparing your ₹{(activeWithdrawal.amount_paise / 100).toLocaleString("en-IN")} manual payout. The status will update as soon as the transfer is completed.</T>
+            </View>
+          </Row>
+        </Card>
+      )}
       {!payoutAccount ? <Card>
-        <T bold size={17}>Add your bank account</T>
-        <T size={12} color={c.secondary}>Your account details are kept private and must be verified before you can withdraw earnings.</T>
-        <Field label="Account holder name" value={accountHolderName} onChange={setAccountHolderName} placeholder="Name as shown on the bank account" />
-        <Field label="Bank account number" value={accountNumber} onChange={setAccountNumber} placeholder="Enter account number" numeric secure />
-        <Field label="Re-enter account number" value={confirmAccountNumber} onChange={setConfirmAccountNumber} placeholder="Enter account number again" numeric secure error={confirmAccountNumber && accountNumber !== confirmAccountNumber ? "Account numbers do not match." : undefined} />
-        <Field label="IFSC code" value={ifscCode} onChange={(value) => setIfscCode(value.toUpperCase())} placeholder="Example: HDFC0001234" />
-        <Button title={busy ? "Saving…" : "Save bank account"} disabled={busy || !accountHolderName.trim() || !accountNumber || accountNumber !== confirmAccountNumber || !ifscCode} onPress={() => {
+        <T bold size={17}>Add your payout destination</T>
+        <T size={12} color={c.secondary}>Choose a bank account or UPI ID. Your details stay private and must be verified before you can withdraw earnings.</T>
+        <Chips items={["Bank account", "UPI ID"]} selected={payoutMethod === "bank" ? "Bank account" : "UPI ID"} onChange={(value) => setPayoutMethod(value === "UPI ID" ? "upi" : "bank")} />
+        <Field label="Account holder name" value={accountHolderName} onChange={setAccountHolderName} placeholder="Name shown on the payout destination" />
+        {payoutMethod === "bank" ? <>
+          <Field label="Bank account number" value={accountNumber} onChange={setAccountNumber} placeholder="Enter account number" numeric secure />
+          <Field label="Re-enter account number" value={confirmAccountNumber} onChange={setConfirmAccountNumber} placeholder="Enter account number again" numeric secure error={confirmAccountNumber && accountNumber !== confirmAccountNumber ? "Account numbers do not match." : undefined} />
+          <Field label="IFSC code" value={ifscCode} onChange={(value) => setIfscCode(value.toUpperCase())} placeholder="Example: HDFC0001234" />
+        </> : <>
+          <Field label="UPI ID" value={upiId} onChange={(value) => setUpiId(value.trim().toLowerCase())} placeholder="Example: name@bank" />
+          <Notice>Your UPI ID will be checked by our team before the first withdrawal.</Notice>
+        </>}
+        <Button title={busy ? "Saving…" : `Save ${payoutMethod === "upi" ? "UPI ID" : "bank account"}`} disabled={busy || !accountHolderName.trim() || (payoutMethod === "bank" ? (!accountNumber || accountNumber !== confirmAccountNumber || !ifscCode) : !upiId)} onPress={() => {
           setBusy(true); setPayoutMessage("");
-          void auth.getIdentityToken().then((token) => saveHostPayoutAccount(token, { accountHolderName, accountNumber, ifscCode }))
-            .then(() => loadPayouts()).then(() => setPayoutMessage("Bank account submitted for verification."))
-            .catch((error) => setPayoutMessage(error instanceof Error ? error.message : "Unable to save bank account."))
+          void auth.getIdentityToken().then((token) => saveHostPayoutAccount(token, { accountHolderName, payoutMethod, accountNumber, ifscCode, upiId }))
+            .then(() => loadPayouts()).then(() => setPayoutMessage(`${payoutMethod === "upi" ? "UPI ID" : "Bank account"} submitted for verification.`))
+            .catch((error) => setPayoutMessage(error instanceof Error ? error.message : "Unable to save payout destination."))
             .finally(() => setBusy(false));
         }} />
       </Card> : <Card>
         <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
           <View style={{ gap: 3, flex: 1 }}>
             <T bold>{payoutAccount.account_holder_name}</T>
-            <T size={12} color={c.secondary}>{payoutAccount.masked_account_number} · {payoutAccount.ifsc_code}</T>
+            <T size={12} color={c.secondary}>{payoutAccount.payout_method === "upi" ? payoutAccount.masked_upi_id : `${payoutAccount.masked_account_number} · ${payoutAccount.ifsc_code}`}</T>
           </View>
           <Chip title={payoutAccount.status === "verified" ? "Verified" : payoutAccount.status === "rejected" ? "Needs update" : "Verification pending"} />
         </Row>
-        {payoutAccount.status === "verified" ? <T size={12} color={c.secondary}>Withdrawals are sent only to this verified account.</T> : <Notice error={payoutAccount.status === "rejected"}>{payoutAccount.verification_note || "Our team will verify these bank details before withdrawals are enabled."}</Notice>}
-        <Button title="Update bank account" variant="secondary" onPress={() => { setPayoutAccount(null); setAccountNumber(""); setConfirmAccountNumber(""); setIfscCode(payoutAccount.ifsc_code); setAccountHolderName(payoutAccount.account_holder_name); }} />
+        {payoutAccount.status === "verified" ? <T size={12} color={c.secondary}>Withdrawals are sent only to this verified {payoutAccount.payout_method === "upi" ? "UPI ID" : "bank account"}.</T> : <Notice error={payoutAccount.status === "rejected"}>{payoutAccount.verification_note || "Our team will verify these payout details before withdrawals are enabled."}</Notice>}
+        <Button title="Update payout destination" variant="secondary" onPress={() => { setPayoutAccount(null); setPayoutMethod(payoutAccount.payout_method); setAccountNumber(""); setConfirmAccountNumber(""); setIfscCode(payoutAccount.ifsc_code || ""); setUpiId(""); setAccountHolderName(payoutAccount.account_holder_name); }} />
       </Card>}
       {payoutMessage ? <Notice error={/unable|invalid|match/i.test(payoutMessage)}>{payoutMessage}</Notice> : null}
       {payoutAccount?.status === "verified" && <Card>

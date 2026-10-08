@@ -128,7 +128,7 @@ Deno.serve(async (request) => {
       const phones = (applications || []).map((item) => item.phone).filter((phone): phone is string => Boolean(phone));
       const [{ data: profiles, error: profileError }, { data: accounts, error: accountError }] = await Promise.all([
         phones.length ? admin.from("phone_profiles").select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at").in("phone", phones) : Promise.resolve({ data: [], error: null }),
-        role === "super_admin" && phones.length ? admin.from("phone_host_payout_accounts").select("host_phone,account_holder_name,account_number,ifsc_code,status,verification_note,verified_at,updated_at").in("host_phone", phones) : Promise.resolve({ data: [], error: null }),
+        role === "super_admin" && phones.length ? admin.from("phone_host_payout_accounts").select("host_phone,account_holder_name,payout_method,account_number,ifsc_code,upi_id,status,verification_note,verified_at,updated_at").in("host_phone", phones) : Promise.resolve({ data: [], error: null }),
       ]);
       if (profileError || accountError) throw profileError || accountError;
       const profilesByPhone = new Map((profiles || []).map((profile) => [profile.phone, profile]));
@@ -191,19 +191,19 @@ Deno.serve(async (request) => {
       const phone = typeof body.phone === "string" ? body.phone : "";
       const status = typeof body.status === "string" ? body.status : "";
       const note = typeof body.note === "string" ? body.note.trim() : "";
-      if (!phone || !["verified", "rejected"].includes(status)) throw new Error("Choose Verify or Reject for this bank account.");
-      if (status === "rejected" && !note) throw new Error("Enter a reason before rejecting a bank account.");
+      if (!phone || !["verified", "rejected"].includes(status)) throw new Error("Choose Verify or Reject for this payout destination.");
+      if (status === "rejected" && !note) throw new Error("Enter a reason before rejecting a payout destination.");
       const { data: before, error: beforeError } = await admin.from("phone_host_payout_accounts").select("status,verification_note").eq("host_phone", phone).maybeSingle();
-      if (beforeError || !before) throw beforeError || new Error("Host bank account was not found.");
+      if (beforeError || !before) throw beforeError || new Error("Host payout destination was not found.");
       const { error } = await admin.from("phone_host_payout_accounts").update({ status, verification_note: note || null, verified_at: status === "verified" ? new Date().toISOString() : null, updated_at: new Date().toISOString() }).eq("host_phone", phone);
       if (error) throw error;
-      await admin.from("admin_audit_logs").insert({ admin_user_id:user.id, action:"bank_account_reviewed", entity_type:"host_bank_account", entity_id:phone, before_state:before, after_state:{status,note:note||null} });
+      await admin.from("admin_audit_logs").insert({ admin_user_id:user.id, action:"payout_destination_reviewed", entity_type:"host_payout_destination", entity_id:phone, before_state:before, after_state:{status,note:note||null} });
       return reply({ ok:true });
     }
     if (action === "list_payouts") {
       requireRole(role, ["super_admin", "finance_admin"]); const { data: withdrawals, error } = await admin.from("phone_host_withdrawals").select("id,host_phone,amount_paise,status,payout_reference,review_note,account_snapshot,created_at,updated_at").order("created_at", { ascending:false }).limit(100); if (error) throw error;
       requirePage(pages, "Payouts");
-      const phones = (withdrawals || []).map((item) => item.host_phone); const [{ data: profiles, error: profileError }, { data: accounts, error: accountError }] = await Promise.all([admin.from("phone_profiles").select("phone,display_name,username,gender,avatar_url").in("phone", phones), admin.from("phone_host_payout_accounts").select("host_phone,account_holder_name,account_number,ifsc_code,status,verification_note,verified_at,updated_at").in("host_phone", phones)]); if (profileError || accountError) throw profileError || accountError;
+      const phones = (withdrawals || []).map((item) => item.host_phone); const [{ data: profiles, error: profileError }, { data: accounts, error: accountError }] = await Promise.all([admin.from("phone_profiles").select("phone,display_name,username,gender,avatar_url").in("phone", phones), admin.from("phone_host_payout_accounts").select("host_phone,account_holder_name,payout_method,account_number,ifsc_code,upi_id,status,verification_note,verified_at,updated_at").in("host_phone", phones)]); if (profileError || accountError) throw profileError || accountError;
       const profilesByPhone = new Map((profiles || []).map((profile) => [profile.phone, profile])); const accountsByPhone = new Map((accounts || []).map((account) => [account.host_phone, account])); return reply({ items:(withdrawals || []).map((withdrawal) => ({ ...withdrawal, profile: profilesByPhone.get(withdrawal.host_phone), bank_account: accountsByPhone.get(withdrawal.host_phone) || null })) });
     }
     if (action === "review_payout") {

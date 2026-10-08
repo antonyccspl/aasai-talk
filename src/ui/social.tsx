@@ -4,7 +4,7 @@ import { sendPushEvent } from "@/data/push-notifications";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
 import { fetchHostEarningSlabs, type HostEarningSlab } from "@/data/host-metrics";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, TextInput, useWindowDimensions, View } from "react-native";
 import { useRefreshPeople } from '../data/sample-workspace';
 import {
@@ -38,6 +38,29 @@ const formatCallTime = (seconds: number) => {
   return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
 };
 const formatRupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+
+function chatDateKey(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function formatChatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  const today = new Date();
+  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const startYesterday = startToday - 86_400_000;
+  if (date.getTime() >= startToday) return "Today";
+  if (date.getTime() >= startYesterday) return "Yesterday";
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: date.getFullYear() === today.getFullYear() ? undefined : "numeric" });
+}
+
+function formatChatTimestamp(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Time unavailable";
+  return `${formatChatDate(value)}, ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+}
 
 function HostDashboardHome() {
   const auth = useAuth();
@@ -357,6 +380,46 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
           </Pressable>
         </Animated.View>
       )}
+      {mode === "explore" && d.profile.gender === "Female" && d.hostStatus !== "approved" && (
+        <Card style={{ backgroundColor: "#3b2740", borderWidth: 1, borderColor: "#69476d", overflow: "hidden", gap: 14 }}>
+          <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+            <View style={{ backgroundColor: "#f6d6b2", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 }}>
+              <T mono size={10} bold color="#492c31">HOST PROGRAM</T>
+            </View>
+            <View style={{ width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: "#56385d", borderWidth: 1, borderColor: "#795b80" }}>
+              <Icon name="star" color="#ffd49a" size={23} />
+            </View>
+          </Row>
+          <View style={{ gap: 5 }}>
+            <T bold size={22} color="#ffffff">{d.hostStatus === "pending" ? "Your Host journey has started" : "Meet people. Earn on your time."}</T>
+            <T size={13} color="#f2dff2">{d.hostStatus === "pending" ? "Our team is reviewing your details. We’ll notify you when there is an update." : "Become a verified Aasai Talk Host and earn through meaningful audio and video conversations."}</T>
+          </View>
+          {d.hostStatus !== "pending" && <Row style={{ flexWrap: "wrap", gap: 7 }}>
+            {["Flexible hours", "Safe verification", "Weekly withdrawals"].map((benefit) => <View key={benefit} style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: "#56385d" }}><T mono size={10} color="#ffffff">{benefit}</T></View>)}
+          </Row>}
+          <Button title={d.hostStatus === "pending" ? "Track application" : "Start your Host application"} icon={d.hostStatus === "pending" ? "clock" : "arrow-right"} onPress={() => go(d.hostStatus === "pending" ? "/host/status" : "/host/apply")} />
+        </Card>
+      )}
+      {mode === "explore" && d.profile.gender === "Male" && (
+        <Card style={{ backgroundColor: "#173d4c", borderWidth: 1, borderColor: "#356273", overflow: "hidden", gap: 14 }}>
+          <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+            <View style={{ backgroundColor: "#ffd783", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 }}>
+              <T mono size={10} bold color="#4c3512">MEMBER OFFER</T>
+            </View>
+            <View style={{ width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: "#245363", borderWidth: 1, borderColor: "#4b7887" }}>
+              <Icon name="gift" color="#ffd783" size={23} />
+            </View>
+          </Row>
+          <View style={{ gap: 5 }}>
+            <T bold size={22} color="#ffffff">More time for better conversations</T>
+            <T size={13} color="#d8edf0">Explore special coin packs, including bonus coins on selected offers, and keep your conversations going.</T>
+          </View>
+          <Row style={{ flexWrap: "wrap", gap: 7 }}>
+            {["Secure checkout", "Bonus packs", "Instant wallet credit"].map((benefit) => <View key={benefit} style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: "#245363" }}><T mono size={10} color="#ffffff">{benefit}</T></View>)}
+          </Row>
+          <Button title="Explore coin offers" icon="arrow-right" onPress={() => go("/wallet")} />
+        </Card>
+      )}
       {searching && (
         <>
           <Field
@@ -667,7 +730,7 @@ export function Conversations() {
       setConversations(rows.map((row) => ({
         otherPhone: row.other_phone,
         text: row.last_text,
-        time: new Date(row.last_created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        time: formatChatTimestamp(row.last_created_at),
         username: row.other_username,
         displayName: row.other_display_name,
         avatarUrl: row.other_avatar_url,
@@ -940,26 +1003,26 @@ export function Chat({ id }: { id: string }) {
         )
       }
     >
-      <Row style={{ justifyContent: "center" }}>
-        <Chip title="Today" />
-      </Row>
       {chatError ? <Notice error>{chatError}</Notice> : null}
-      {messagesLoading ? <LoadingCards count={3} /> : liveMessages.map((m) => ({
+      {messagesLoading ? <LoadingCards count={3} /> : liveMessages.map((m, index) => ({
         id: m.id,
         text: m.text,
         mine: m.sender_phone === auth.demoPhone,
         image: false,
         time: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        date: m.created_at,
+        showDate: index === 0 || chatDateKey(liveMessages[index - 1].created_at) !== chatDateKey(m.created_at),
         failed: false,
       })).map((m) => (
-          <View
-            key={m.id}
-            style={{
-              alignSelf: m.mine ? "flex-end" : "flex-start",
-              maxWidth: "88%",
-              gap: 5,
-            }}
-          >
+          <Fragment key={m.id}>
+            {m.showDate && <Row style={{ justifyContent: "center", marginTop: 8 }}><Chip title={formatChatDate(m.date)} /></Row>}
+            <View
+              style={{
+                alignSelf: m.mine ? "flex-end" : "flex-start",
+                maxWidth: "88%",
+                gap: 5,
+              }}
+            >
             <Pressable
               onPress={() => (m.image ? go(`/media/${id}`) : undefined)}
               style={{
@@ -990,7 +1053,8 @@ export function Chat({ id }: { id: string }) {
                 }
               />
             )}
-          </View>
+            </View>
+          </Fragment>
         ))}
       {d.later && (
         <Button
