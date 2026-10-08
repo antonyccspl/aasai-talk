@@ -21,7 +21,7 @@ Talkative lets people discover available users, communicate through one-to-one r
 
 **MVP:** OTP login, profiles, discovery, durable availability, chat, incoming/outgoing one-to-one audio and video calls, call history, notifications, blocking, and reporting.
 
-**Release 2:** Wallet, Razorpay recharge, paid calls, pricing, and operational admin tools.
+**Release 2:** Wallet, payment-gateway recharge, paid calls, pricing, and operational admin tools.
 
 **Later:** Ratings, gifts, followers, stories, voice notes, groups, subscriptions, referrals, and promotions.
 
@@ -39,7 +39,7 @@ Expo / React Native app                     Admin web app
                                       |       |       |
                                   Payments  Push    RTC tokens
                                       |       |       |
-                                  Razorpay       FCM/APNs  RTC provider
+                                  Payment gateway FCM/APNs  RTC provider
 ```
 
 ### Non-negotiable boundaries
@@ -48,7 +48,7 @@ Expo / React Native app                     Admin web app
 2. PostgreSQL stores durable application and financial data.
 3. Supabase Realtime handles temporary presence, typing, and state/message events; it does not carry audio or video.
 4. The RTC service carries media. Its signing secret never reaches the mobile app.
-5. Edge Functions or database functions perform all privileged actions: call reservation, call state transitions, RTC token generation, billing, wallet mutation, and Razorpay payment verification.
+5. Edge Functions or database functions perform all privileged actions: call reservation, call state transitions, RTC token generation, billing, wallet mutation, and payment verification.
 6. A payment webhook—not a mobile success screen—confirms a recharge.
 7. Every sensitive table has Row Level Security (RLS). Service-role credentials remain server-side.
 
@@ -106,7 +106,7 @@ Talkative/
 | Chat | Conversation UI, send/retry, typing | Membership/RLS, notifications, media validation | Moderation only where authorized |
 | Calls | Incoming/outgoing UI, RTC client controls | Atomic reservation, state machine, RTC tokens, finalization | Metadata and support review |
 | Safety | Block/report/privacy UI | Enforce block rules and report lifecycle | Resolve reports and enforce suspensions |
-| Finance | Balance and Razorpay recharge UX | Webhook verification, ledger, billing | Rates, reconciliation |
+| Finance | Balance and payment recharge UX | Webhook verification, ledger, billing | Rates, reconciliation |
 
 ## 4. Mobile information architecture
 
@@ -272,7 +272,7 @@ Each privileged endpoint authenticates the requester, validates authorization se
 | Presence | `update-availability`, `reserve-user-for-call`, `release-user-after-call` |
 | Calls | `create-call`, `accept-call`, `reject-call`, `cancel-call`, `get-rtc-token`, `finalize-call` |
 | Chat | media authorization/validation and notification dispatch as needed |
-| Razorpay payments | `create-razorpay-order`, `verify-razorpay-payment`, `razorpay-webhook`, `refund-razorpay-payment` |
+| Payment gateway | Provider-specific order, verification, webhook, and refund endpoints |
 | Wallet | `get-balance`, `debit-wallet`, `refund-wallet`, `confirm-recharge` |
 | Notifications | `send-push`, `send-incoming-call-notification`, `send-chat-notification` |
 | Admin | `suspend-user`, `update-pricing`, `update-app-settings` |
@@ -301,7 +301,7 @@ Each privileged endpoint authenticates the requester, validates authorization se
 - Apply OTP, login, message, and call rate limits.
 - Add duplicate webhook/transaction prevention, suspicious activity logs, and report-abuse controls.
 - Define retention/deletion rules for messages, media, call metadata, payments, audit logs, reports, and notifications.
-- Obtain legal/tax/payment advice for India before processing paid calls through Razorpay. Publish privacy, terms, refund, community, and account-deletion policies before launch.
+- Obtain legal/tax/payment advice for India before processing paid calls through the selected payment gateway. Publish privacy, terms, refund, community, and account-deletion policies before launch.
 
 ## 9. Implementation phases
 
@@ -311,7 +311,7 @@ Each privileged endpoint authenticates the requester, validates authorization se
 
 - Select the RTC provider against pricing, Android/iOS support, incoming-call capability, SDK maturity, and token model.
 - Select OTP provider/Auth configuration and decide which optional sign-ins are in scope.
-- Define public profile fields, moderation rules, age eligibility, media rules, and whether Razorpay monetization is in MVP.
+- Define public profile fields, moderation rules, age eligibility, media rules, and whether payment-gateway monetization is in MVP.
 - Write database ERD, RLS matrix, call-state contract, API error contract, design system, and acceptance criteria.
 - Provision development, staging/UAT, and production environments with separate credentials.
 
@@ -358,9 +358,9 @@ Each privileged endpoint authenticates the requester, validates authorization se
 
 **Deliverable:** stable one-to-one video calling on supported devices and states.
 
-### Phase 6 — Wallet, Razorpay, and paid-call monetization
+### Phase 6 — Wallet, payment gateway, and paid-call monetization
 
-- Build an immutable wallet ledger, recharge packages, Razorpay order flow, verified Razorpay webhooks, reconciliation, and user transaction history.
+- Build an immutable wallet ledger, recharge packages, provider order flow, verified provider webhooks, reconciliation, and user transaction history.
 - Add admin-managed rates, minimum balance, authorization/reservation, server billing, and refunds.
 - Add financial idempotency, reconciliation runbooks, and finance-specific admin auditing.
 
@@ -368,7 +368,7 @@ Each privileged endpoint authenticates the requester, validates authorization se
 
 ### Phase 7 — Admin web dashboard
 
-- Create admin authentication/roles, dashboard metrics, user management, moderation, reports, call metadata, Razorpay payments, wallets, rates, settings, analytics, and audit log views.
+- Create admin authentication/roles, dashboard metrics, user management, moderation, reports, call metadata, payment records, wallets, rates, settings, analytics, and audit log views.
 - Ensure every sensitive action is permissioned and auditable.
 
 **Deliverable:** an operations team can run the platform without direct database access.
@@ -397,7 +397,7 @@ Each privileged endpoint authenticates the requester, validates authorization se
 | Presence | online/offline/busy, reconnect, app background/killed, network switch |
 | Chat | send/receive/read/typing, media failure, retry, offline recovery, blocks |
 | Calls | accept/reject/missed/busy/end, speaker/mute/camera, token expiry, poor network, competing callers |
-| Razorpay payments | success/failure/cancel/pending, delayed/duplicate webhook, refund, duplicate transaction |
+| Payment gateway | success/failure/cancel/pending, delayed/duplicate webhook, refund, duplicate transaction |
 | Admin | suspension, report resolution, rate change, audit trail |
 
 ### Performance targets
@@ -411,18 +411,18 @@ Each privileged endpoint authenticates the requester, validates authorization se
 
 | Environment | Purpose | Rules |
 | --- | --- | --- |
-| Development | Local feature work | Isolated Supabase/RTC/Razorpay test credentials and seed data |
-| Staging / UAT | Integrated acceptance testing | Production-like policies, Razorpay test mode/RTC setup, controlled testers |
+| Development | Local feature work | Isolated Supabase/RTC/payment-gateway test credentials and seed data |
+| Staging / UAT | Integrated acceptance testing | Production-like policies, payment-gateway test mode/RTC setup, controlled testers |
 | Production | Live customers | Only release credentials; deploy through reviewed CI/CD |
 
-Client-safe values may include Supabase URL, Supabase publishable/anon key, RTC app ID, and Razorpay Key ID. Server-only values include Supabase service role, RTC secret, Razorpay Key Secret, and Razorpay webhook signing secret.
+Client-safe values may include Supabase URL, Supabase publishable/anon key, and RTC app ID. Server-only values include Supabase service role, RTC secret, and selected payment-gateway secrets.
 
 ## 12. Production release checklist
 
 - [ ] Production Supabase project, database migrations, backups, and tested RLS/storage policies
 - [ ] Edge Functions deployed with production-only secrets and monitoring
 - [ ] RTC production credentials, short-lived token behavior, and device call tests complete
-- [ ] Razorpay orders/webhooks, idempotency, refund path, and financial reconciliation verified
+- [ ] Payment orders/webhooks, idempotency, refund path, and financial reconciliation verified
 - [ ] FCM and APNs configured; foreground/background/killed notification behavior tested
 - [ ] Crash reporting, error tracking, dashboards, alerts, and incident/runbook ownership active
 - [ ] Android signing and release build complete; iOS signing/build complete if iOS is in launch scope
@@ -437,7 +437,7 @@ Client-safe values may include Supabase URL, Supabase publishable/anon key, RTC 
 4. Audio calling.
 5. Video calling.
 6. Push notifications and background calling hardening.
-7. Wallet and Razorpay payments.
+7. Wallet and payment-gateway integration.
 8. Admin dashboard.
 9. Analytics, security, performance, and release operations.
 

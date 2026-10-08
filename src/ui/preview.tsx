@@ -23,7 +23,7 @@ export function Preview() {
       <Notice>
         Explore all mobile and admin screen groups. This is an interactive UI
         preview with in-memory sample data. Reload resets it. Authentication,
-        calls, media uploads and Razorpay are not connected.
+        calls, media uploads and payment checkout are not connected.
       </Notice>
       <Setting
         title="Paid-call UI"

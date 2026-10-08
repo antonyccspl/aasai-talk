@@ -27,7 +27,7 @@ Project: aasaitalk-dev (`vnpxbqcemqcsyxbunqvf`).
 
 - SMS provider and phone authentication configuration.
 - Audio/video provider selection and credentials.
-- Razorpay server credentials, webhook configuration and payout setup.
+- Payment-gateway server credentials, webhook configuration and payout setup.
 - Host revenue-share and billing rounding rules before implementing money movement.
 
 ## Verification

@@ -1,7 +1,7 @@
 begin;
 
--- Razorpay orders are private server-side records. The app can request an
--- order, but it can never choose an amount or credit a wallet itself.
+-- Provider-neutral, server-only payment records. A gateway integration is
+-- intentionally not included here; the selected provider will be added later.
 create table if not exists public.phone_payment_orders (
   id uuid primary key default gen_random_uuid(),
   phone text not null references public.phone_identities(phone) on delete cascade,
@@ -30,9 +30,6 @@ alter table public.phone_payment_orders enable row level security;
 revoke all on public.phone_payment_orders from public, anon, authenticated;
 grant all on public.phone_payment_orders to service_role;
 
--- The previous development helper allowed a client to credit its own wallet.
--- Keep its historical rows, but remove the client execution permission before
--- real payment testing starts.
 revoke all on function public.recharge_phone_wallet(text, bigint, text)
   from public, anon, authenticated;
 
@@ -40,7 +37,7 @@ alter table public.phone_wallet_recharge_ledger
   drop constraint if exists phone_wallet_recharge_ledger_source_check;
 alter table public.phone_wallet_recharge_ledger
   add constraint phone_wallet_recharge_ledger_source_check
-  check (source in ('test', 'razorpay'));
+  check (source in ('test', 'gateway'));
 
 create or replace function public.credit_phone_wallet_payment(input_payment_order_id uuid)
 returns jsonb
@@ -70,32 +67,20 @@ begin
   where phone = payment_order.phone for update;
 
   if payment_order.credited_at is not null then
-    return jsonb_build_object(
-      'credited', false,
-      'already_credited', true,
-      'coins_credited', payment_order.coins,
-      'remaining_coins', wallet.coins
-    );
+    return jsonb_build_object('credited', false, 'already_credited', true,
+      'coins_credited', payment_order.coins, 'remaining_coins', wallet.coins);
   end if;
 
-  update public.phone_wallets
-  set coins = coins + payment_order.coins, updated_at = now()
-  where phone = payment_order.phone
-  returning * into wallet;
-
+  update public.phone_wallets set coins = coins + payment_order.coins,
+    updated_at = now() where phone = payment_order.phone returning * into wallet;
   insert into public.phone_wallet_recharge_ledger(phone, client_order_id, coin_delta, source)
-  values (payment_order.phone, 'razorpay_' || payment_order.id::text, payment_order.coins, 'razorpay');
-
-  update public.phone_payment_orders
-  set credited_at = now(), updated_at = now()
+  values (payment_order.phone, 'gateway_' || payment_order.id::text,
+    payment_order.coins, 'gateway');
+  update public.phone_payment_orders set credited_at = now(), updated_at = now()
   where id = payment_order.id;
 
-  return jsonb_build_object(
-    'credited', true,
-    'already_credited', false,
-    'coins_credited', payment_order.coins,
-    'remaining_coins', wallet.coins
-  );
+  return jsonb_build_object('credited', true, 'already_credited', false,
+    'coins_credited', payment_order.coins, 'remaining_coins', wallet.coins);
 end;
 $$;
 
@@ -103,53 +88,35 @@ revoke all on function public.credit_phone_wallet_payment(uuid)
   from public, anon, authenticated;
 grant execute on function public.credit_phone_wallet_payment(uuid) to service_role;
 
--- Keep wallet history readable through the existing narrow RPC while giving
--- verified purchases a friendly, non-technical label.
 create or replace function public.get_phone_wallet_activity(
   input_phone text,
   input_limit integer default 50
 )
-returns table(
-  id uuid,
-  title text,
-  coin_delta bigint,
-  category text,
-  status text,
-  created_at timestamptz
-)
-language sql
-security definer
-set search_path = ''
+returns table(id uuid, title text, coin_delta bigint, category text, status text, created_at timestamptz)
+language sql security definer set search_path = ''
 as $$
   select activity.id, activity.title, activity.coin_delta, activity.category,
     activity.status, activity.created_at
   from (
     select recharge.id,
-      case when recharge.source = 'razorpay' then 'Coin purchase' else 'Coin recharge' end::text as title,
-      recharge.coin_delta,
-      'Recharges'::text as category,
-      'Completed'::text as status,
-      recharge.created_at
+      case when recharge.source = 'gateway' then 'Coin purchase' else 'Coin recharge' end::text as title,
+      recharge.coin_delta, 'Recharges'::text, 'Completed'::text, recharge.created_at
     from public.phone_wallet_recharge_ledger recharge
     where recharge.phone = input_phone
-
     union all
-
     select minute_charge.id,
-      case session.call_type when 'video' then 'Video call' else 'Audio call' end as title,
-      minute_charge.coin_delta, 'Calls'::text as category,
-      case session.status when 'connected' then 'In progress' when 'ended' then 'Completed' when 'missed' then 'Missed' when 'rejected' then 'Declined' when 'cancelled' then 'Cancelled' else 'Completed' end as status,
+      case session.call_type when 'video' then 'Video call' else 'Audio call' end,
+      minute_charge.coin_delta, 'Calls'::text,
+      case session.status when 'connected' then 'In progress' when 'ended' then 'Completed' when 'missed' then 'Missed' when 'rejected' then 'Declined' when 'cancelled' then 'Cancelled' else 'Completed' end,
       minute_charge.created_at
     from public.phone_call_minute_ledger minute_charge
     join public.call_sessions session on session.id = minute_charge.call_session_id
     where minute_charge.phone = input_phone
-
     union all
-
     select settlement.id,
-      case session.call_type when 'video' then 'Video call' else 'Audio call' end as title,
-      settlement.coin_delta, 'Calls'::text as category,
-      case session.status when 'connected' then 'In progress' when 'ended' then 'Completed' when 'missed' then 'Missed' when 'rejected' then 'Declined' when 'cancelled' then 'Cancelled' else 'Completed' end as status,
+      case session.call_type when 'video' then 'Video call' else 'Audio call' end,
+      settlement.coin_delta, 'Calls'::text,
+      case session.status when 'connected' then 'In progress' when 'ended' then 'Completed' when 'missed' then 'Missed' when 'rejected' then 'Declined' when 'cancelled' then 'Cancelled' else 'Completed' end,
       settlement.created_at
     from public.phone_wallet_ledger settlement
     join public.call_sessions session on session.id = settlement.call_session_id
@@ -159,10 +126,8 @@ as $$
   limit least(greatest(coalesce(input_limit, 50), 1), 100);
 $$;
 
-revoke all on function public.get_phone_wallet_activity(text, integer)
-  from public, anon, authenticated;
-grant execute on function public.get_phone_wallet_activity(text, integer)
-  to anon, authenticated;
+revoke all on function public.get_phone_wallet_activity(text, integer) from public, anon, authenticated;
+grant execute on function public.get_phone_wallet_activity(text, integer) to anon, authenticated;
 
 notify pgrst, 'reload schema';
 commit;

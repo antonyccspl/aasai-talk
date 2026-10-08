@@ -398,7 +398,7 @@ export function Admin({
     const paymentItem = id
       ? rechargeTxs.find((t) => t.id === id) || {
           id,
-          title: "Wallet recharge (Razorpay)",
+          title: "Wallet recharge",
           amount: 500,
           kind: "Recharges",
           status: "Success",
@@ -417,7 +417,7 @@ export function Admin({
         <Setting title="Amount" detail={`₹${paymentItem.amount} · INR`} icon="credit-card" />
         <Setting
           title="Provider"
-          detail="Razorpay · Live Order reference"
+          detail="Payment gateway · Order reference"
           icon="shield"
         />
         <Setting
@@ -436,7 +436,7 @@ export function Admin({
     ) : (
       <Card>
         <Section
-          title="Razorpay payments"
+          title="Payment records"
           action={`${rechargeTxs.length} TRANSACTIONS`}
         />
         {rechargeTxs
@@ -683,7 +683,7 @@ export function Admin({
       <>
         <Row style={{ flexWrap: "wrap" }}>
           {[
-            ["Razorpay total", "₹24,500"],
+            ["Gateway total", "₹24,500"],
             ["Ledger credits", "₹24,000"],
             ["Unmatched amount", "₹500"],
           ].map(([a, b]) => (

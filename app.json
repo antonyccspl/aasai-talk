@@ -8,7 +8,15 @@
     "scheme": "aasai-talk",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/images/aasai-talk-mark.png"
+      "icon": "./assets/images/aasai-talk-mark.png",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "phonepe",
+          "tez",
+          "paytm",
+          "bhim"
+        ]
+      }
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",

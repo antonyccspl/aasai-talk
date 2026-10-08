@@ -28,7 +28,7 @@ create policy public_transactions on public.transactions for select using (true)
 
 insert into public.transactions (title, amount, kind, status, date)
 values
-  ('Wallet recharge (Razorpay)', 500, 'Recharges', 'Success', 'Today, 2:40 PM'),
+  ('Wallet recharge', 500, 'Recharges', 'Success', 'Today, 2:40 PM'),
   ('Audio call with Priya (12 mins)', -240, 'Calls', 'Completed', 'Yesterday · 12 mins'),
   ('Audio call with Arjun (18 mins)', -360, 'Calls', 'Completed', '12 Sep · 18 mins'),
   ('Welcome gift bonus', 100, 'Bonus', 'Success', '10 Sep · New user'),

@@ -16,9 +16,6 @@ verify_jwt = false
 [functions.moderator-ops]
 verify_jwt = false
 
-[functions.razorpay-payments]
-verify_jwt = false
-
 [functions.host-payouts]
 verify_jwt = false
 
@@ -32,6 +29,18 @@ verify_jwt = false
 
 [functions.zego-token]
 # This function also verifies Firebase identity tokens in its handler.
+verify_jwt = false
+
+[functions.cashfree-create-order]
+# The function verifies Firebase identity tokens in its handler.
+verify_jwt = false
+
+[functions.cashfree-payment-status]
+# The function verifies Firebase identity tokens in its handler.
+verify_jwt = false
+
+[functions.cashfree-webhook]
+# Cashfree authenticates this endpoint with its signed webhook headers.
 verify_jwt = false
 
 [api]

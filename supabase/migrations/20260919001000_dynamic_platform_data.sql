@@ -216,7 +216,7 @@ values
       },
       {
         "title": "Information We Collect",
-        "description": "We only collect basic account data: your chosen display name, username, city, languages, interests, and profile photo. For wallet transactions, order references from our payment gateway (Razorpay) are securely retained for accounting."
+        "description": "We only collect basic account data: your chosen display name, username, city, languages, interests, and profile photo. For wallet transactions, payment order references are securely retained for accounting."
       },
       {
         "title": "Data Protection & RLS",
@@ -304,7 +304,7 @@ values
     $json$[
       {
         "title": "Prepaid Coin Recharges",
-        "description": "All wallet coin purchases processed via Razorpay are credited immediately upon bank confirmation. Please verify your selected pack before payment."
+        "description": "Wallet coin purchases are credited only after the payment gateway confirms the transaction. Please verify your selected pack before payment."
       },
       {
         "title": "Failed Transactions",
@@ -316,7 +316,7 @@ values
       },
       {
         "title": "Disputes & Inquiries",
-        "description": "For any billing queries or disputed charges, reach our finance support desk at billing@talkative.app with your Razorpay payment ID."
+        "description": "For any billing queries or disputed charges, reach our finance support desk at billing@talkative.app with your payment reference."
       }
     ]$json$::jsonb
   ),
@@ -393,7 +393,7 @@ end $$;
 
 insert into public.sample_transactions (id, title, amount, kind, status, date)
 values
-  ('TX-2401', 'Wallet recharge (Razorpay)', 500, 'Recharges', 'Success', 'Today, 2:40 PM'),
+  ('TX-2401', 'Wallet recharge', 500, 'Recharges', 'Success', 'Today, 2:40 PM'),
   ('TX-2400', 'Audio call with Priya (12 mins)', -240, 'Calls', 'Completed', 'Yesterday · 12 mins'),
   ('TX-2399', 'Audio call with Arjun (18 mins)', -360, 'Calls', 'Completed', '12 Sep · 18 mins'),
   ('TX-2398', 'Welcome gift bonus', 100, 'Bonus', 'Success', '10 Sep · New user'),

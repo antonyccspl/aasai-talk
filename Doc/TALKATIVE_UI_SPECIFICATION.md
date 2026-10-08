@@ -8,7 +8,7 @@ This file is the reusable visual and interaction contract for designing every Ta
 
 Use these sources in order:
 
-1. Latest user decisions: user-to-user communication, no host/creator role or related payouts, Razorpay for payments.
+1. Latest user decisions: user-to-user communication, no host/creator role or related payouts, payment checkout pending gateway selection.
 2. `Doc/TALKATIVE_DEVELOPMENT_PLAN.md`: product behavior and release boundaries.
 3. `Design/resonance_minimal_voice/DESIGN.md`: visual language and tokens.
 4. `Design/frnd_clean_discovery`, `frnd_clean_chat`, `frnd_clean_audio_call`, and `frnd_clean_wallet`: each contains `screen.png` and `code.html` visual references.
@@ -23,7 +23,7 @@ The reference HTML is a design prototype, not production business logic. Preserv
 | Featured Hosts, studio/room terminology | People to meet, Available now, and Audio call. All participants are normal users. |
 | Instant Random Pairing / anonymous matching | Use a compact people list with direct contact actions. No random matching engine is specified. |
 | Wallet and per-minute prices | Show only when paid calls are enabled. Rates and packs come from approved configuration. |
-| UPI AutoPay / instant activation | “Continue with Razorpay.” Do not imply an automatic recurring mandate or guaranteed instant settlement. |
+| UPI AutoPay / instant activation | Do not imply an automatic recurring mandate or guaranteed instant settlement. |
 | ₹250 → 55 mins / ₹500 → 120 mins | Use a transparent virtual-currency model instead: 10 coins = 1 diamond; audio costs 2 diamonds (20 coins) per minute and video costs 5 diamonds (50 coins) per minute. |
 | End-to-end encryption, spatial audio, 48kHz, verified safety | Show only capabilities actually verified by the implementation; default to simple “Connected” and “Audio call.” |
 | Gifts, voice-note recording, rate-call action | Document as later feature variants; hide until enabled. |
@@ -119,7 +119,7 @@ Auth flow: Splash → Login → OTP → Create profile → Permissions → Explo
 
 Stacks above tabs: search, person profile, favorites, conversation, call detail, settings, notifications, wallet details. Hide the global tab dock in chat, auth, payment, and active-call screens. Call controls and chat composer take its place.
 
-Android back: dismiss top sheet first; then pop stack; active calls minimize into a persistent ongoing-call banner rather than silently hanging up. An intentional end action terminates the call. Returning from Razorpay resumes the existing order status screen.
+Android back: dismiss top sheet first; then pop stack; active calls minimize into a persistent ongoing-call banner rather than silently hanging up. An intentional end action terminates the call. Returning from payment checkout resumes the existing order status screen.
 
 Responsive rules: 320–430 mobile widths use one column; 768+ tablet may show two discovery columns and split conversation layout; web admin uses a 240px navigation rail and content up to 1280px. Preserve safe areas and readable font scaling. All fixed docks reserve equivalent scroll padding.
 
@@ -213,15 +213,15 @@ Route: `/calls/[callId]`. Person and type/status, started/connected/ended timest
 
 ### M22 — Wallet
 
-Route: `/wallet`, Release 2. Use a coin-pack grid rather than an INR available-balance card. Each pack shows coins first and its Razorpay price beneath (for example, 100 coins for ₹200); selected treatment is mint. Show the conversion “10 coins = 1 diamond,” “Buy [coins] with Razorpay,” provider explanation, Recent activity and View all. Sample packs: 100, 250, 500, 750, 1,000 and 1,500 coins, with prices supplied by approved configuration. Transaction history shows credited or spent coins. Loading/error state must never impersonate a zero balance. Pack selection changes the CTA and amount; backend validates the order.
+Route: `/wallet`, Release 2. Use a coin-pack grid rather than an INR available-balance card. Each pack shows coins first and its configured price beneath (for example, 100 coins for ₹200); selected treatment is mint. Show the conversion “10 coins = 1 diamond,” provider explanation, Recent activity and View all. Sample packs: 100, 250, 500, 750, 1,000 and 1,500 coins, with prices supplied by approved configuration. Transaction history shows credited or spent coins. Loading/error state must never impersonate a zero balance. Pack selection changes the CTA and amount; backend validates the order.
 
 ### M23 — Recharge review
 
-Route: `/wallet/recharge`. Selected amount, optional custom amount if enabled, balance before, exact credit/fees/taxes if applicable, and “Continue with Razorpay.” Back changes pack. States: amount validation, creating order, order failure/retry. No unsupported “No hidden charges” promise; show the actual breakdown. Amount example is explicitly configured data, not a hardcoded contract.
+Route: `/wallet/recharge`. Selected amount, optional custom amount if enabled, balance before, exact credit/fees/taxes if applicable, and provider-owned checkout when available. Back changes pack. States: amount validation, creating order, order failure/retry. No unsupported “No hidden charges” promise; show the actual breakdown. Amount example is explicitly configured data, not a hardcoded contract.
 
-### M24 — Razorpay checkout handoff
+### M24 — Payment checkout handoff
 
-Provider-owned checkout with a Talkative transition screen. Explain “Complete your payment with Razorpay”; selected amount and cancel/back. Keep sensitive payment entry inside the supported provider flow. Only display payment methods offered by that checkout. App UI states: opening, returning, cancelled, failed to open. Do not reproduce a fake Razorpay payment form.
+Provider-owned checkout with a Talkative transition screen. Explain the selected provider and selected amount with cancel/back. Keep sensitive payment entry inside the supported provider flow. Only display payment methods offered by that checkout. App UI states: opening, returning, cancelled, failed to open. Do not reproduce a fake payment form.
 
 ### M25 — Payment result / verification
 
@@ -324,7 +324,7 @@ Admin is a separate web application. Reuse color/type/status tokens but use dens
 | A05 `/admin/reports` | Open/Under review/Resolved/Rejected tabs, reason/date filters, report queue | Assign/review if supported, open report, stale-list refresh |
 | A06 `/admin/reports/[id]` | Reporter/reported references, reason, description, permitted evidence, related context, action history | Mark under review, resolve/reject with reason, suspend user if authorized; no blanket access to private chats |
 | A07 `/admin/calls` | Caller/receiver, type/status/date/duration, charged amount; search/filter | Metadata detail with lifecycle/error/billing references; no live audio listening or recording control |
-| A08 `/admin/payments` | Razorpay order/payment references, amount, status, user, received/verified times | Detail and reconciliation status; pending/failed/duplicate events displayed accurately |
+| A08 `/admin/payments` | Payment order/payment references, amount, status, user, received/verified times | Detail and reconciliation status; pending/failed/duplicate events displayed accurately |
 | A09 `/admin/payments/[id]` | Payment timeline, webhook processing, ledger credit reference, refunds | Recheck status or authorized refund; confirm exact amount/reason; prevent duplicate processing |
 | A10 `/admin/wallets/[userId]` | Balance, ledger, linked call/recharge, filters | Authorized adjustment with signed amount/reason/confirmation; no unrestricted balance text editor |
 | A11 `/admin/pricing` | Audio/video rate, minimum balance, billing unit/rounding/grace settings when supported, effective date | Draft/save/publish confirmation; existing call rate snapshot remains visible |
@@ -332,7 +332,7 @@ Admin is a separate web application. Reuse color/type/status tokens but use dens
 | A13 `/admin/announcements` | Message editor, audience, preview, delivery status/history | Draft and explicit send confirmation; failed/partial delivery handling |
 | A14 `/admin/analytics` | Registrations, DAU/MAU, retention, call funnel/duration/minutes, recharge counts/amounts, revenue | Date/granularity filters; metric definition; authorized export if implemented |
 | A15 `/admin/audit` | Actor, timestamp, action, entity, result, reason; search/filter | Read-only detail and permitted before/after; never expose secrets |
-| A16 `/admin/reconciliation` | Razorpay versus ledger totals, unmatched payments, delayed events, refunds | Inspect discrepancy, safe retry of eligible reconciliation, dated resolution note |
+| A16 `/admin/reconciliation` | Payment-gateway versus ledger totals, unmatched payments, delayed events, refunds | Inspect discrepancy, safe retry of eligible reconciliation, dated resolution note |
 
 ## 7. Deferred feature coverage
 
@@ -358,7 +358,7 @@ These are named in the plan but are not part of the initial implementation. They
 | Find a person | M06–M10 | Query/filter/favorite changes are visible and back preserves context |
 | Exchange messages/media | M11–M14 | Text send, retry, receipts and supported media states are represented |
 | Call a person | M15–M21, M42–M44 | Incoming/outgoing states, controls, termination and history agree |
-| Recharge and inspect money | M22–M27, M44 | Razorpay handoff and backend verification are distinct; amounts agree everywhere |
+| Recharge and inspect money | M22–M27, M44 | Payment handoff and backend verification are distinct; amounts agree everywhere |
 | Manage account and safety | M28–M42 | Edit/preferences/block/report/logout/deletion each show actual pending/success/failure outcomes |
 | Operate platform | A01–A16 | Authorized admin action has confirmation, result and audit evidence |
 | Service interruption | M45 and inline states | Recoverable error gives next action; stale data is identified |
@@ -380,7 +380,7 @@ These are named in the plan but are not part of the initial implementation. They
 
 Copy this brief for each screen or feature batch:
 
-> Build Talkative screen(s) [SCREEN IDS] using `Doc/TALKATIVE_UI_SPECIFICATION.md` and `Doc/TALKATIVE_DEVELOPMENT_PLAN.md`. Use the dark charcoal/mint design from the four supplied reference folders. Keep the canonical color/type/spacing tokens and shared components. Implement all content, navigation, actions and states specified for those IDs. Roles are normal user and administrator only. Razorpay is the recharge provider. Do not add roles, payouts, random matching, unsupported RTC claims or later features. Label fixture data and unavailable integrations in preview mode. Return the implemented routes/components, states verified, screenshots where available and remaining service dependencies. Update the coverage record below based on evidence.
+> Build Talkative screen(s) [SCREEN IDS] using `Doc/TALKATIVE_UI_SPECIFICATION.md` and `Doc/TALKATIVE_DEVELOPMENT_PLAN.md`. Use the dark charcoal/mint design from the four supplied reference folders. Keep the canonical color/type/spacing tokens and shared components. Implement all content, navigation, actions and states specified for those IDs. Roles are normal user and administrator only. Payment checkout remains unavailable until a provider is integrated. Do not add roles, payouts, random matching, unsupported RTC claims or later features. Label fixture data and unavailable integrations in preview mode. Return the implemented routes/components, states verified, screenshots where available and remaining service dependencies. Update the coverage record below based on evidence.
 
 ## 11. Coverage record
 

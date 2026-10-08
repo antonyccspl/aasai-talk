@@ -21,7 +21,8 @@ import { coins, money, useDemo } from "./store";
 import { CoinPack, fetchCoinPacks } from "../data/coin-packs";
 import { useAuth } from "../data/auth";
 import { fetchPhoneWalletActivity, PhoneWalletActivity } from "../data/wallet";
-import { createRazorpayOrder, launchRazorpayCheckout } from "../data/razorpay";
+import { createCashfreeOrder, getCashfreePaymentStatus } from "../data/cashfree";
+import { startCashfreeCheckout } from "../data/cashfree-checkout";
 import { colors as c } from "./theme";
 
 type WalletTransaction = {
@@ -101,6 +102,9 @@ export function Wallet({
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityError, setActivityError] = useState("");
   const [reload, setReload] = useState(0);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+  const [pendingCashfreeOrder, setPendingCashfreeOrder] = useState("");
   useEffect(() => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -154,8 +158,6 @@ export function Wallet({
   const [filter, setFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [homeTab, setHomeTab] = useState<"Activity" | "Offers">("Offers");
-  const [error, setError] = useState("");
-  const [paymentLoading, setPaymentLoading] = useState(false);
   const wideLayout = width >= 900;
   const compactLayout = width < 390;
   const offerCardWidth = wideLayout ? "23.8%" : "48.5%";
@@ -204,6 +206,39 @@ export function Wallet({
     );
   };
   const isApprovedHost = d.hostStatus === "approved";
+  const checkCashfreePayment = useCallback(async (orderId: string) => {
+    const token = await getIdentityToken();
+    const result = await getCashfreePaymentStatus(token, orderId);
+    if (result.status === "paid") {
+      setPendingCashfreeOrder("");
+      setPaymentError("");
+      setReload(value => value + 1);
+      return true;
+    }
+    if (result.status === "failed") {
+      setPendingCashfreeOrder("");
+      throw new Error("Payment was not completed. Your wallet was not charged.");
+    }
+    setPendingCashfreeOrder(orderId);
+    return false;
+  }, [getIdentityToken]);
+  const startPayment = useCallback(async () => {
+    if (!selectedPack) return;
+    setPaymentLoading(true);
+    setPaymentError("");
+    try {
+      const token = await getIdentityToken();
+      const order = await createCashfreeOrder(token, selectedPack.id);
+      setPendingCashfreeOrder(order.order_id);
+      await startCashfreeCheckout({ orderId: order.order_id, paymentSessionId: order.payment_session_id });
+      const paid = await checkCashfreePayment(order.order_id);
+      if (!paid) setPaymentError("Payment is awaiting confirmation. Complete the payment, then tap Check payment status.");
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : "Cashfree payment could not start.");
+    } finally {
+      setPaymentLoading(false);
+    }
+  }, [checkCashfreePayment, getIdentityToken, selectedPack]);
   if (isApprovedHost)
     return (
       <Shell title="Wallet">
@@ -317,8 +352,8 @@ export function Wallet({
       <Shell title="Payment status">
         <Empty
           icon="shield"
-          title="Payments are not available yet"
-          message="Coin purchases are not available yet."
+          title="Payment status"
+          message="Return to your wallet to check the status of your Cashfree payment."
         />
         <Button title="Back to wallet" onPress={() => go("/wallet")} />
       </Shell>
@@ -328,10 +363,9 @@ export function Wallet({
       <Shell title="Payment">
         <Empty
           icon="shield"
-          title="Purchases are not available yet"
-          message={`Your selected ${coins(d.pack)} pack costs ${packPrice}. Purchases will be available soon.`}
+          title="Continue with Cashfree"
+          message={`Your selected ${coins(d.pack)} pack costs ${packPrice}. Return to the wallet to continue securely.`}
         />
-        <Notice>We’ll let you know when coin purchases are ready.</Notice>
         <Button title="Back to wallet" variant="secondary" onPress={() => go("/wallet")} />
       </Shell>
     );
@@ -355,42 +389,13 @@ export function Wallet({
             <Setting title="Selected pack" detail={coins(d.pack)} icon="plus" />
           <T size={12} color={c.muted}>Your coins are added only after payment is confirmed.</T>
         </Card>
-        {!!error && <Notice error>{error}</Notice>}
-        <Button
-          title={paymentLoading ? "Opening secure payment…" : `Pay ${packPrice}`}
-          disabled={paymentLoading || !selectedPack}
-          icon="credit-card"
-          onPress={() => {
-            if (!selectedPack) return;
-            setError("");
-            setPaymentLoading(true);
-            void (async () => {
-              try {
-                const idToken = await getIdentityToken();
-                const order = await createRazorpayOrder(idToken, selectedPack.id);
-                const remainingCoins = await launchRazorpayCheckout(
-                  idToken,
-                  order,
-                  `${selectedPack.coins} coins`,
-                );
-                if (typeof remainingCoins === "number") {
-                  await d.refreshWalletBalance();
-                  setReload(value => value + 1);
-                  go("/wallet");
-                }
-              } catch (paymentError) {
-                setError(paymentError instanceof Error ? paymentError.message : "Unable to complete payment. Please try again.");
-              } finally {
-                setPaymentLoading(false);
-              }
-            })();
-          }}
-        />
-        <Button
-          title="Change amount"
-          variant="secondary"
-          onPress={() => go("/wallet")}
-        />
+        {!!paymentError && <Notice error>{paymentError}</Notice>}
+        {pendingCashfreeOrder && !paymentLoading && (
+          <Notice>Payment confirmation can take a moment. Your coins are credited only after Cashfree verifies the payment.</Notice>
+        )}
+        <Button title={paymentLoading ? "Opening secure checkout…" : `Pay ${packPrice} with Cashfree`} disabled={paymentLoading || !selectedPack} icon="credit-card" onPress={() => void startPayment()} />
+        {pendingCashfreeOrder && !paymentLoading && <Button title="Check payment status" variant="secondary" onPress={() => void checkCashfreePayment(pendingCashfreeOrder).catch(error => setPaymentError(error instanceof Error ? error.message : "Could not check payment status."))} />}
+        <Button title="Change amount" variant="secondary" onPress={() => go("/wallet")} />
       </Shell>
     );
   return (

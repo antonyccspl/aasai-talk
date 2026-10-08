@@ -41,11 +41,11 @@ export const screenGroups: [string, [string, string][]][] = [
     ],
   ],
   [
-    "Wallet and Razorpay",
+    "Wallet and payments",
     [
       ["M22 · Wallet", "/wallet"],
       ["M23 · Recharge review", "/wallet/recharge"],
-      ["M24 · Razorpay handoff", "/wallet/checkout"],
+      ["M24 · Secure payment handoff", "/wallet/checkout"],
       ["M25 · Payment results", "/wallet/payment/demo"],
       ["M26 · Transaction history", "/wallet/transactions"],
       ["M27 · Transaction detail", "/wallet/transactions/TX-2401"],

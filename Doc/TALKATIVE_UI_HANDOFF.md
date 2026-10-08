@@ -4,7 +4,7 @@ Updated: 14 September 2026.
 
 ## What is delivered
 
-The Expo starter now contains a navigable mobile UI and responsive admin UI preview using the supplied dark charcoal/emerald visual references, Plus Jakarta Sans, JetBrains Mono, and Feather icons. Product naming is Talkative, participants are ordinary users, and payment screens use Razorpay.
+The Expo starter now contains a navigable mobile UI and responsive admin UI preview using the supplied dark charcoal/emerald visual references, Plus Jakarta Sans, JetBrains Mono, and Feather icons. Product naming is Talkative, participants are ordinary users, and payment checkout is temporarily unavailable pending a new gateway integration.
 
 The reusable screen specification is [TALKATIVE_UI_SPECIFICATION.md](TALKATIVE_UI_SPECIFICATION.md). It defines 46 mobile screen/overlay groups, 16 admin screens and nine deferred feature groups. The in-app screen library links to the mobile/admin groups, including failure states.
 
@@ -34,7 +34,7 @@ Open `http://127.0.0.1:8085/explore`, `/preview` for the screen library, or `/ad
 | `src/ui/store.tsx` | Shared in-memory demo records, favorites, blocks, profile, messages, calls and wallet state |
 | `src/ui/social.tsx` | Discovery, filters, favorites, profile, conversations, chat and attachment/media previews |
 | `src/ui/calls.tsx` | Incoming/outgoing, audio/video, results and history |
-| `src/ui/wallet.tsx` | Wallet, pack selection, Razorpay handoff/results and ledger screens |
+| `src/ui/wallet.tsx` | Wallet, pack selection, payment-unavailable state, and ledger screens |
 | `src/ui/account.tsx` | Onboarding, account, permissions, safety, notifications and service states |
 | `src/ui/admin.tsx` | Responsive admin preview across the 16 admin screen groups |
 | `src/ui/registry.ts` | Stable screen IDs and route links |
@@ -57,7 +57,7 @@ now uses Supabase phone OTP and onboarding profiles are persisted, but the
 workspace state is still sample data. No real calls, camera/microphone access,
 push delivery, media upload, payment, refund, or payout processing is performed.
 
-Connect Supabase Auth/data/RLS, RTC, native media and permission handling, push and Razorpay before replacing preview states with real service outcomes. Legal text and support contacts are visibly unconfigured. Remote reference portraits have an initials fallback. Rating and other deferred features remain outside the initial product scope; only the optional rating UI is previewed.
+Connect Supabase Auth/data/RLS, RTC, native media and permission handling, push, and the selected payment gateway before replacing preview states with real service outcomes. Legal text and support contacts are visibly unconfigured. Remote reference portraits have an initials fallback. Rating and other deferred features remain outside the initial product scope; only the optional rating UI is previewed.
 
 The admin UI is currently a web-responsive preview route inside the Expo project, with its own source module. The separate authenticated/deployable admin application in the development plan remains an integration/deployment step.
 

@@ -1,6 +1,6 @@
 begin;
 
--- Test-only top-ups until Razorpay verification is integrated. A future payment
+-- Test-only top-ups until a verified payment gateway is integrated. A future payment
 -- webhook must credit the wallet through a server-only equivalent, never from
 -- a mobile payment-success callback.
 create table if not exists public.phone_wallet_recharge_ledger (
