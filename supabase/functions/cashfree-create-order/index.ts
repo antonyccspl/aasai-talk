@@ -47,7 +47,6 @@ Deno.serve(async (request) => {
         order_id: providerOrderId, order_amount: pack.price_paise / 100, order_currency: "INR",
         customer_details: { customer_id: `at_${identity.phone.replace(/\D/g, "")}`, customer_phone: identity.phone.replace(/^\+91/, "") },
         order_meta: {
-          return_url: `aasai-talk://wallet/payment?order_id={order_id}`,
           // Cashfree's built-in NOTIFY_URL webhook policy uses this server-side
           // destination. It is never supplied by the app client.
           notify_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/cashfree-webhook`,
