@@ -31,6 +31,31 @@ const hostDate = (value: string) => {
   return parsed.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 };
 
+type PayoutAlertTone = "review" | "processing" | "success" | "info" | "error";
+
+function PayoutAlert({ tone, title, children }: { tone: PayoutAlertTone; title: string; children: React.ReactNode }) {
+  const style = {
+    review: { background: "#fff8df", border: "#f0d28a", accent: "#a56500", icon: "clock" as const },
+    processing: { background: "#edf8f4", border: "#b9e4d2", accent: "#087f5b", icon: "shield" as const },
+    success: { background: "#edfbf3", border: "#a7e3c2", accent: "#087f5b", icon: "check-circle" as const },
+    info: { background: "#eef4ff", border: "#bdd0f7", accent: "#315aa7", icon: "info" as const },
+    error: { background: "#fff0f1", border: "#f4c0c7", accent: c.error, icon: "alert-circle" as const },
+  }[tone];
+  return (
+    <View accessibilityLiveRegion="polite" style={{ backgroundColor: style.background, borderWidth: 1, borderColor: style.border, borderLeftWidth: 5, borderLeftColor: style.accent, borderRadius: 18, padding: 15, gap: 8 }}>
+      <Row style={{ alignItems: "flex-start" }}>
+        <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: `${style.accent}18`, alignItems: "center", justifyContent: "center" }}>
+          <Icon name={style.icon} size={17} color={style.accent} />
+        </View>
+        <View style={{ flex: 1, gap: 3 }}>
+          <T bold size={14} color={style.accent}>{title}</T>
+          <T size={12} color={c.secondary}>{children}</T>
+        </View>
+      </Row>
+    </View>
+  );
+}
+
 function DocumentUpload({
   label,
   kind,
@@ -461,6 +486,11 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
     return () => { active = false; clearInterval(timer); };
   }, [auth.demoPhone, d.hostStatus]);
   const availableEarnings = dashboard ? dashboard.total_earnings_paise / 100 : 0;
+  const requestedWithdrawalAmount = Number(withdrawalAmount);
+  const hasValidWithdrawalAmount = /^\d+(?:\.\d{1,2})?$/.test(withdrawalAmount.trim())
+    && Number.isFinite(requestedWithdrawalAmount)
+    && requestedWithdrawalAmount >= 100
+    && requestedWithdrawalAmount <= availableEarnings;
   const activeWithdrawal = withdrawals.find((item) => item.status === "pending" || item.status === "processing");
   if (d.hostStatus !== "approved" && !previewMode)
     return (
@@ -497,29 +527,12 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
         </Card>
       )}
       <T size={18} bold>Withdraw earnings</T>
-      {earningsError ? <Notice error>{earningsError}</Notice> : null}
+      {earningsError ? <PayoutAlert tone="error" title="We couldn’t load your earnings">{earningsError}</PayoutAlert> : null}
       {activeWithdrawal?.status === "pending" && (
-        <Card style={{ backgroundColor: "#fff8df", borderWidth: 1, borderColor: "#f0d28a" }}>
-          <Row>
-            <Icon name="clock" color="#b7791f" />
-            <View style={{ flex: 1, gap: 3 }}>
-              <T bold>Withdrawal request received</T>
-              <T size={12} color={c.secondary}>Your ₹{(activeWithdrawal.amount_paise / 100).toLocaleString("en-IN")} request is under review. We typically review and complete manual payouts within 2–3 business days.</T>
-            </View>
-          </Row>
-          <T size={11} color={c.muted}>Your earnings are safely reserved while this request is reviewed. You do not need to submit another request.</T>
-        </Card>
+        <PayoutAlert tone="review" title="Withdrawal request under review">Your ₹{(activeWithdrawal.amount_paise / 100).toLocaleString("en-IN")} request is being reviewed. Manual payouts are usually completed within 2–3 business days. Your earnings are safely reserved, so please don’t submit another request.</PayoutAlert>
       )}
       {activeWithdrawal?.status === "processing" && (
-        <Card style={{ backgroundColor: "#edf8f4", borderWidth: 1, borderColor: "#b9e4d2" }}>
-          <Row>
-            <Icon name="shield" color={c.mint} />
-            <View style={{ flex: 1, gap: 3 }}>
-              <T bold>Your withdrawal is being processed</T>
-              <T size={12} color={c.secondary}>We are preparing your ₹{(activeWithdrawal.amount_paise / 100).toLocaleString("en-IN")} manual payout. The status will update as soon as the transfer is completed.</T>
-            </View>
-          </Row>
-        </Card>
+        <PayoutAlert tone="processing" title="Your withdrawal is being processed">We are preparing your ₹{(activeWithdrawal.amount_paise / 100).toLocaleString("en-IN")} manual payout. The status will update once the transfer is completed.</PayoutAlert>
       )}
       {!payoutAccount ? <Card>
         <T bold size={17}>Add your payout destination</T>
@@ -532,7 +545,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
           <Field label="IFSC code" value={ifscCode} onChange={(value) => setIfscCode(value.toUpperCase())} placeholder="Example: HDFC0001234" />
         </> : <>
           <Field label="UPI ID" value={upiId} onChange={(value) => setUpiId(value.trim().toLowerCase())} placeholder="Example: name@bank" />
-          <Notice>Your UPI ID will be checked by our team before the first withdrawal.</Notice>
+          <PayoutAlert tone="info" title="Verification is required">Your UPI ID will be checked by our team before your first withdrawal.</PayoutAlert>
         </>}
         <Button title={busy ? "Saving…" : `Save ${payoutMethod === "upi" ? "UPI ID" : "bank account"}`} disabled={busy || !accountHolderName.trim() || (payoutMethod === "bank" ? (!accountNumber || accountNumber !== confirmAccountNumber || !ifscCode) : !upiId)} onPress={() => {
           setBusy(true); setPayoutMessage("");
@@ -549,17 +562,19 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
           </View>
           <Chip title={payoutAccount.status === "verified" ? "Verified" : payoutAccount.status === "rejected" ? "Needs update" : "Verification pending"} />
         </Row>
-        {payoutAccount.status === "verified" ? <T size={12} color={c.secondary}>Withdrawals are sent only to this verified {payoutAccount.payout_method === "upi" ? "UPI ID" : "bank account"}.</T> : <Notice error={payoutAccount.status === "rejected"}>{payoutAccount.verification_note || "Our team will verify these payout details before withdrawals are enabled."}</Notice>}
-        <Button title="Update payout destination" variant="secondary" onPress={() => { setPayoutAccount(null); setPayoutMethod(payoutAccount.payout_method); setAccountNumber(""); setConfirmAccountNumber(""); setIfscCode(payoutAccount.ifsc_code || ""); setUpiId(""); setAccountHolderName(payoutAccount.account_holder_name); }} />
+        {payoutAccount.status === "verified" ? <PayoutAlert tone="success" title="Payout destination verified">Withdrawals will be sent only to this verified {payoutAccount.payout_method === "upi" ? "UPI ID" : "bank account"}.</PayoutAlert> : payoutAccount.status === "rejected" ? <PayoutAlert tone="error" title="Payout details need correction">{payoutAccount.verification_note || "Please correct your payout details and submit them again for verification."}</PayoutAlert> : <PayoutAlert tone="review" title="Payout destination under review">Your payout details are locked while our team reviews them. Withdrawals unlock after verification, and we’ll notify you once it is complete.</PayoutAlert>}
+        {payoutAccount.status !== "pending_verification" && <Button title={payoutAccount.status === "rejected" ? "Correct payout destination" : "Change payout destination"} variant="secondary" onPress={() => { setPayoutAccount(null); setPayoutMethod(payoutAccount.payout_method); setAccountNumber(""); setConfirmAccountNumber(""); setIfscCode(payoutAccount.ifsc_code || ""); setUpiId(""); setAccountHolderName(payoutAccount.account_holder_name); }} />}
       </Card>}
-      {payoutMessage ? <Notice error={/unable|invalid|match/i.test(payoutMessage)}>{payoutMessage}</Notice> : null}
+      {payoutMessage ? <PayoutAlert tone={/unable|invalid|match|failed|couldn’t/i.test(payoutMessage) ? "error" : "success"} title={/submitted|completed/i.test(payoutMessage) ? "Request submitted" : "Payout update"}>{payoutMessage}</PayoutAlert> : null}
       {payoutAccount?.status === "verified" && <Card>
-        <T bold size={16}>Request a withdrawal</T>
-        <Field label="Amount in rupees" value={withdrawalAmount} onChange={setWithdrawalAmount} placeholder="Minimum ₹100" numeric />
+        <T bold size={16}>Choose your withdrawal amount</T>
+        <T size={12} color={c.secondary}>Enter exactly how much you would like to receive. Minimum withdrawal is ₹100.</T>
+        <Field label="How much would you like to withdraw? (₹)" value={withdrawalAmount} onChange={setWithdrawalAmount} placeholder="Example: 500" numeric error={withdrawalAmount && !hasValidWithdrawalAmount ? requestedWithdrawalAmount < 100 ? "Minimum withdrawal is ₹100." : requestedWithdrawalAmount > availableEarnings ? "This is more than your available earnings." : "Enter a valid amount, up to two decimal places." : undefined} />
         <T size={12} color={c.secondary}>Available to withdraw: ₹{availableEarnings.toLocaleString("en-IN")}</T>
-        <Button title={busy ? "Submitting…" : "Request withdrawal"} disabled={busy || !withdrawalAmount || Number(withdrawalAmount) < 100 || Number(withdrawalAmount) > availableEarnings} onPress={() => {
+        <PayoutAlert tone="info" title="Manual review before payment">Your request is reviewed before a manual payment is sent. Most verified withdrawals are completed within 2–3 business days.</PayoutAlert>
+        <Button title={busy ? "Submitting…" : hasValidWithdrawalAmount ? `Request ₹${requestedWithdrawalAmount.toLocaleString("en-IN")} withdrawal` : "Enter an amount to continue"} disabled={busy || !hasValidWithdrawalAmount} onPress={() => {
           setBusy(true); setPayoutMessage("");
-          void auth.getIdentityToken().then((token) => requestHostWithdrawal(token, Math.round(Number(withdrawalAmount) * 100)))
+          void auth.getIdentityToken().then((token) => requestHostWithdrawal(token, Math.round(requestedWithdrawalAmount * 100)))
             .then(() => Promise.all([fetchPhoneHostDashboard(auth.demoPhone!), loadPayouts()]))
             .then(([nextDashboard]) => { setDashboard(nextDashboard); setWithdrawalAmount(""); setPayoutMessage("Withdrawal request submitted for review."); })
             .catch((error) => setPayoutMessage(error instanceof Error ? error.message : "Unable to request withdrawal."))
