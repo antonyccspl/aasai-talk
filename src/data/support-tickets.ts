@@ -1,0 +1,8 @@
+import { supabasePublishableKey, supabaseUrl } from "./supabase-config";
+
+export type SupportMessage = { id: string; ticket_id: string; sender_type: "member" | "admin"; message: string; created_at: string };
+export type SupportTicket = { id: string; subject: string; category: "account" | "payments" | "calls" | "safety" | "other"; status: "open" | "in_review" | "waiting_for_member" | "resolved"; created_at: string; updated_at: string; resolved_at: string | null; messages: SupportMessage[] };
+async function request<T>(token:string, action:string, payload:Record<string,unknown>={}) { const response=await fetch(`${supabaseUrl}/functions/v1/support-tickets`,{method:"POST",headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({action,...payload})}); const body:unknown=await response.json().catch(()=>null); if(!response.ok) throw new Error(body&&typeof body==="object"&&"error" in body&&typeof body.error === "string"?body.error:"Support request failed."); return body as T; }
+export async function fetchSupportTickets(token:string) { const result=await request<{tickets:unknown}>(token,"list"); if(!Array.isArray(result.tickets)) throw new Error("Invalid support response."); return result.tickets as SupportTicket[]; }
+export async function createSupportTicket(token:string, subject:string, category:SupportTicket["category"], message:string) { return request<{ticket_id:string}>(token,"create",{subject,category,message}); }
+export async function replyToSupportTicket(token:string,ticketId:string,message:string) { return request<{ok:true}>(token,"reply",{ticket_id:ticketId,message}); }

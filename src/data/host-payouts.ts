@@ -15,8 +15,6 @@ export type HostWithdrawal = {
   id: string;
   amount_paise: number;
   status: "pending" | "in_review" | "processing" | "completed" | "rejected" | "failed";
-  payout_reference: string | null;
-  review_note: string | null;
   created_at: string;
   review_due_at?: string;
 };

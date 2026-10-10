@@ -42,6 +42,7 @@ import {
 } from "./components";
 import { coins, duration, people, personFor, talkTime, useDemo } from "./store";
 import { colors as c } from "./theme";
+import { useLanguage } from "./language";
 import { ZegoMedia } from "./zego-media";
 
 /**
@@ -107,9 +108,24 @@ class CallScreenBoundary extends Component<{ children: ReactNode }, { failed: bo
 export function CallScreen(props: CallScreenProps) {
   return (
     <CallScreenBoundary>
-      <CallScreenContent {...props} />
+      <CallScreenAccessGate {...props} />
     </CallScreenBoundary>
   );
+}
+
+function CallScreenAccessGate(props: CallScreenProps) {
+  const d = useDemo();
+  if (d.hostStatus === "approved" && props.mode === "outgoing")
+    return (
+      <Shell title="Calls">
+        <Notice>
+          Your Host account can receive member calls. Starting outgoing calls is
+          not available for Hosts.
+        </Notice>
+        <Button title="Go to Host dashboard" onPress={() => go("/explore")} />
+      </Shell>
+    );
+  return <CallScreenContent {...props} />;
 }
 
 function CallScreenContent({
@@ -1373,6 +1389,7 @@ function CallScreenContent({
 export function CallsList() {
   const auth = useAuth();
   const d = useDemo();
+  const { translate } = useLanguage();
   const isHost = d.hostStatus === "approved";
   const [filter, setFilter] = useState("All");
   const [menuCall, setMenuCall] = useState<string | null>(null);
@@ -1468,7 +1485,7 @@ export function CallsList() {
                   {person.name}
                 </T>
                 <T size={11} color={c.muted}>
-                  {`${call.incoming ? "Incoming" : "Outgoing"} · ${call.status[0].toUpperCase()}${call.status.slice(1)} · ${duration(call.duration_seconds)}`}
+                  {`${translate(call.incoming ? "Incoming" : "Outgoing")} · ${translate(call.status[0].toUpperCase() + call.status.slice(1))} · ${duration(call.duration_seconds)}`}
                 </T>
                 {!call.incoming && (
                   <T mono size={10} color={c.warning}>

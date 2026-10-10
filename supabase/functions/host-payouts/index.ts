@@ -54,7 +54,9 @@ Deno.serve(async (request) => {
     if (action === "status") {
       const [{ data: account, error: accountError }, { data: withdrawals, error: withdrawalsError }] = await Promise.all([
         admin.from("phone_host_payout_accounts").select("account_holder_name,account_number,ifsc_code,payout_method,upi_id,status,verification_note,updated_at").eq("host_phone", identity.phone).maybeSingle(),
-        admin.from("phone_host_withdrawals").select("id,amount_paise,status,payout_reference,review_note,created_at,review_due_at").eq("host_phone", identity.phone).order("created_at", { ascending: false }).limit(12),
+        // Payment references and staff notes are internal reconciliation data.
+        // Never return them to the member-facing application.
+        admin.from("phone_host_withdrawals").select("id,amount_paise,status,created_at,review_due_at").eq("host_phone", identity.phone).order("created_at", { ascending: false }).limit(12),
       ]);
       if (accountError || withdrawalsError) throw accountError || withdrawalsError;
       return response({

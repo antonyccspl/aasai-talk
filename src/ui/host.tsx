@@ -589,7 +589,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
         <T bold size={16}>Withdrawal history</T>
         {withdrawals.map((withdrawal) => <Row key={withdrawal.id} style={{ justifyContent: "space-between" }}>
           <View><T bold>₹{(withdrawal.amount_paise / 100).toLocaleString("en-IN")}</T><T size={11} color={c.secondary}>{hostDate(withdrawal.created_at)}</T></View>
-          <Chip title={withdrawal.status === "in_review" ? "In review" : withdrawal.status === "completed" ? "Amount sent" : withdrawal.status === "pending" ? "Pending" : withdrawal.status} />
+          <Chip title={withdrawal.status === "in_review" ? "In review" : withdrawal.status === "completed" ? "Payment confirmed" : withdrawal.status === "pending" ? "Request received" : withdrawal.status === "rejected" ? "Request declined" : withdrawal.status === "failed" ? "Payment issue" : withdrawal.status} />
         </Row>)}
       </Card>}
     </Shell>

@@ -8,6 +8,7 @@ import {
 } from "@/data/phone-safety";
   import { registerPushDevice, showPushTestNotification, updatePushPreferences } from "@/data/push-notifications";
 import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
+import { createSupportTicket, fetchSupportTickets, replyToSupportTicket, type SupportTicket } from "@/data/support-tickets";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -947,6 +948,21 @@ export function Settings({
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
   const [pushTest, setPushTest] = useState<"call" | "message" | "missed" | "safety">("call");
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [supportLoading, setSupportLoading] = useState(false);
+  const [supportBusy, setSupportBusy] = useState(false);
+  const [supportSubject, setSupportSubject] = useState("");
+  const [supportCategory, setSupportCategory] = useState<SupportTicket["category"]>("other");
+  const [supportMessage, setSupportMessage] = useState("");
+  const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
+  const [replyDraft, setReplyDraft] = useState("");
+  useEffect(() => {
+    if (mode !== "help" || !auth.demoPhone) return;
+    let active = true;
+    setSupportLoading(true);
+    void auth.getIdentityToken().then(fetchSupportTickets).then((value) => { if (active) setTickets(value); }).catch((error: unknown) => { if (active) setMessage(error instanceof Error ? error.message : "Unable to load support requests."); }).finally(() => { if (active) setSupportLoading(false); });
+    return () => { active = false; };
+  }, [mode, auth.demoPhone]);
   useEffect(() => {
     if (mode === "policies") void d.refreshPlatformData();
   }, [d.refreshPlatformData, mode]);
@@ -1194,52 +1210,54 @@ export function Settings({
       </Shell>
     );
   }
-  if (mode === "help")
-    return (
-      <Shell title="We’re here to help">
-        <T size={24} bold>
-          Let’s figure it out.
-        </T>
-        {[
-          "How do calls work?",
-          "Why is my recharge pending?",
-          "How do I block someone?",
-          "How can I delete my account?",
-        ].map((q, i) => (
-          <Card key={q}>
-            <Setting
-              title={q}
-              icon="help-circle"
-              onPress={() => setQuestion(question === q ? "" : q)}
-            />
-            {question === q && (
-              <T color={c.secondary}>
-                {
-                  [
-                    "Choose an available person, then select Audio or Video on their profile.",
-                    "A payment stays pending until it is verified. Check the status before trying another payment.",
-                    "Open the person’s profile and select Block. You can also report a concern.",
-                    "Open Settings, then Delete account. Review the information before confirming.",
-                  ][i]
-                }
-              </T>
-            )}
-          </Card>
-        ))}
-        <Button
-          title="Contact support"
-          variant="secondary"
-          onPress={() =>
-            setMessage(
-              d.appConfig
-                ? `Reach our support desk at ${d.appConfig.support_email} or call ${d.appConfig.support_phone}.`
-                : "Support details are temporarily unavailable. Please try again shortly.",
-            )
-          }
-        />
-        {message && <Notice>{message}</Notice>}
-      </Shell>
-    );
+  if (mode === "help") {
+    const loadTickets = async () => {
+      if (!auth.demoPhone) return;
+      setSupportLoading(true); setMessage("");
+      try { setTickets(await fetchSupportTickets(await auth.getIdentityToken())); }
+      catch (error) { setMessage(error instanceof Error ? error.message : "Unable to load support requests."); }
+      finally { setSupportLoading(false); }
+    };
+    const submitTicket = async () => {
+      if (!auth.demoPhone || supportBusy) return;
+      setSupportBusy(true); setMessage("");
+      try { await createSupportTicket(await auth.getIdentityToken(), supportSubject, supportCategory, supportMessage); setSupportSubject(""); setSupportMessage(""); setSupportCategory("other"); await loadTickets(); setMessage("Your support request has been sent. We will reply here."); }
+      catch (error) { setMessage(error instanceof Error ? error.message : "Unable to send your request."); }
+      finally { setSupportBusy(false); }
+    };
+    const sendReply = async () => {
+      if (!selectedTicket || !replyDraft.trim() || supportBusy) return;
+      setSupportBusy(true); setMessage("");
+      try { await replyToSupportTicket(await auth.getIdentityToken(), selectedTicket, replyDraft); setReplyDraft(""); await loadTickets(); }
+      catch (error) { setMessage(error instanceof Error ? error.message : "Unable to send your message."); }
+      finally { setSupportBusy(false); }
+    };
+    const current = tickets.find((ticket) => ticket.id === selectedTicket);
+    return <Shell title="Help & support">
+      <T size={24} bold>{current ? current.subject : "How can we help?"}</T>
+      <T color={c.secondary}>{current ? "Reply here if our team needs more details." : "Send a private request to our support team. You can follow every reply here."}</T>
+      {current ? <>
+        <Button title="Back to support requests" variant="secondary" onPress={() => setSelectedTicket(null)} />
+        <Card style={{ gap: 12 }}>
+          <Badge text={current.status === "in_review" ? "In review" : current.status === "waiting_for_member" ? "Reply needed" : current.status === "resolved" ? "Resolved" : "Sent"} />
+          {current.messages.map((item) => <View key={item.id} style={{ alignSelf: item.sender_type === "member" ? "flex-end" : "flex-start", maxWidth: "88%", padding: 13, borderRadius: 16, backgroundColor: item.sender_type === "member" ? c.high : c.low, gap: 4 }}><T bold size={12}>{item.sender_type === "member" ? "You" : "Aasai Talk support"}</T><T>{item.message}</T><T size={11} color={c.secondary}>{new Date(item.created_at).toLocaleString()}</T></View>)}
+          {current.status !== "resolved" && <><TextInput value={replyDraft} onChangeText={setReplyDraft} placeholder="Write a reply" multiline maxLength={2000} style={{ minHeight: 90, borderWidth: 1, borderColor: c.line, borderRadius: 16, padding: 13, color: c.ink, textAlignVertical: "top" }} /><Button title={supportBusy ? "Sending…" : "Send reply"} disabled={!replyDraft.trim() || supportBusy} onPress={() => void sendReply()} /></>}
+        </Card>
+      </> : <>
+        <Card style={{ gap: 12 }}>
+          <T bold size={18}>Start a support request</T>
+          <Field label="What do you need help with?" value={supportSubject} onChange={setSupportSubject} placeholder="Example: I need help with my recharge" />
+          <T size={13} color={c.secondary}>Choose a topic</T>
+          <Chips items={["Account", "Payments", "Calls", "Safety", "Other"]} selected={supportCategory[0].toUpperCase() + supportCategory.slice(1)} onChange={(value) => setSupportCategory(value.toLowerCase() as SupportTicket["category"])} />
+          <TextInput value={supportMessage} onChangeText={setSupportMessage} placeholder="Tell us what happened and include any useful details." multiline maxLength={2000} style={{ minHeight: 120, borderWidth: 1, borderColor: c.line, borderRadius: 16, padding: 13, color: c.ink, textAlignVertical: "top" }} />
+          <Button title={supportBusy ? "Sending…" : "Send to support"} disabled={supportBusy || supportSubject.trim().length < 3 || !supportMessage.trim()} onPress={() => void submitTicket()} />
+        </Card>
+        <Section title="Your support requests" />
+        {supportLoading ? <LoadingCards /> : tickets.length ? tickets.map((ticket) => <Card key={ticket.id}><Setting title={ticket.subject} detail={`${ticket.category} · ${ticket.status.replaceAll("_", " ")}`} icon="help-circle" onPress={() => setSelectedTicket(ticket.id)} /></Card>) : <Empty icon="help-circle" title="No support requests yet" message="When you need help, your requests and our replies will appear here." />}
+      </>}
+      {message && <Notice error={/unable|invalid|error/i.test(message)}>{message}</Notice>}
+    </Shell>;
+  }
   if (mode === "logout" || mode === "delete-account")
     return (
       <Shell title={mode === "logout" ? "Log out" : "Delete account"}>

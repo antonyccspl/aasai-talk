@@ -66,6 +66,7 @@ function formatChatTimestamp(value: string) {
 function HostDashboardHome() {
   const auth = useAuth();
   const d = useDemo();
+  const { translate } = useLanguage();
   const [dashboard, setDashboard] = useState<HostDashboard | null>(null);
   const [earningSlabs, setEarningSlabs] = useState<HostEarningSlab[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -132,7 +133,7 @@ function HostDashboardHome() {
     <Shell tab="Explore" refreshing={refreshing} onRefresh={refresh}>
       <Card style={{ borderLeftWidth: 3, borderLeftColor: c.mint }}>
         <T mono size={11} color={c.mint}>HOST DASHBOARD</T>
-        <T size={24} bold>{d.profile.name ? `Hi, ${d.profile.name}` : "Welcome back"}</T>
+        <T size={24} bold>{d.profile.name ? `${translate("Hi")}, ${d.profile.name}` : "Welcome back"}</T>
         <T color={c.secondary}>
           {dashboard?.active_calls ? `${dashboard.active_calls} call${dashboard.active_calls === 1 ? "" : "s"} live now` : "Your call activity and earnings, live from your account."}
         </T>
@@ -203,6 +204,34 @@ function HostDashboardHome() {
       })}
       {dashboard && !dashboard.recent_calls.length && <Empty icon="phone" title="No calls yet" message="Your completed and missed call activity will appear here." />}
       <Button title="Earnings & withdrawals" variant="secondary" icon="credit-card" onPress={() => go("/host/withdraw")} />
+    </Shell>
+  );
+}
+
+function HostDirectoryUnavailable({ title = "Host dashboard" }: { title?: string }) {
+  return (
+    <Shell title={title}>
+      <Card style={{ gap: 12 }}>
+        <View
+          style={{
+            width: 46,
+            height: 46,
+            borderRadius: 23,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: c.high,
+          }}
+        >
+          <Icon name="phone-call" color={c.mint} size={22} />
+        </View>
+        <T size={20} bold>Hosts receive calls</T>
+        <T color={c.secondary}>
+          Your Host account is set up to receive calls from members. Searching
+          the Host directory and starting outgoing calls are not available for
+          Hosts.
+        </T>
+        <Button title="Go to Host dashboard" onPress={() => go("/explore")} />
+      </Card>
     </Shell>
   );
 }
@@ -283,6 +312,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
     }
   }, [availabilityNoticeY, d, refreshPeople]);
   if (isHost && mode === "explore") return <HostDashboardHome />;
+  if (isHost) return <HostDirectoryUnavailable title={searching ? "Search people" : favorites ? "Favorites" : "Host dashboard"} />;
   const result = d.people.filter(
     (p) =>
       !d.blocked.includes(p.id) &&
@@ -496,6 +526,12 @@ function FilterGroup({
 }
 
 export function Filters() {
+  const d = useDemo();
+  if (d.hostStatus === "approved") return <HostDirectoryUnavailable title="Filters" />;
+  return <FiltersContent />;
+}
+
+function FiltersContent() {
   const d = useDemo();
   const [draft, setDraft] = useState(d.facets);
   const [error, setError] = useState("");
@@ -752,11 +788,7 @@ export function Conversations() {
     .filter((item) => item.person.name.toLowerCase().includes(query.toLowerCase()));
   return (
     <Shell tab="Messages">
-      <Section
-        title="Messages"
-        action="New chat"
-        onPress={() => go("/search")}
-      />
+      <Section title="Messages" />
       <Field
         label="Search conversations"
         placeholder="Find a conversation"

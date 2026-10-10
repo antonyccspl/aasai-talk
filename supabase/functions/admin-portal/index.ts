@@ -6,10 +6,10 @@ const headers = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const defaultPages: Record<string, string[]> = {
-  super_admin: ["Overview", "Performance", "Hosts", "Payouts", "Payments", "Users", "Reports", "Coin packs", "Admin access", "Audit log"],
+  super_admin: ["Overview", "Performance", "Hosts", "Payouts", "Payments", "Users", "Reports", "Support", "Coin packs", "Admin access", "Audit log"],
   finance_admin: ["Overview", "Payouts", "Payments", "Coin packs"],
-  moderator: ["Overview", "Hosts", "Users", "Reports"],
-  support: ["Overview", "Users"],
+  moderator: ["Overview", "Hosts", "Users", "Reports", "Support"],
+  support: ["Overview", "Users", "Support"],
 };
 
 function pageAccessFor(role: string, requested: unknown) {
@@ -121,19 +121,17 @@ Deno.serve(async (request) => {
       return reply({ ok: true, accounts: await listAdminAccounts(admin) });
     }
     if (action === "list_hosts") {
-      requireRole(role, ["super_admin", "moderator"]);
-      requirePage(pages, "Hosts");
-      const { data: applications, error } = await admin.from("host_applications").select("id,phone,status,application_profile,aadhaar_path,pan_path,submitted_at,reviewed_at,review_note").order("submitted_at", { ascending: false }).limit(100);
-      if (error) throw error;
-      const phones = (applications || []).map((item) => item.phone).filter((phone): phone is string => Boolean(phone));
-      const [{ data: profiles, error: profileError }, { data: accounts, error: accountError }] = await Promise.all([
-        phones.length ? admin.from("phone_profiles").select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at").in("phone", phones) : Promise.resolve({ data: [], error: null }),
-        role === "super_admin" && phones.length ? admin.from("phone_host_payout_accounts").select("host_phone,account_holder_name,payout_method,account_number,ifsc_code,upi_id,status,verification_note,verified_at,updated_at").in("host_phone", phones) : Promise.resolve({ data: [], error: null }),
-      ]);
-      if (profileError || accountError) throw profileError || accountError;
-      const profilesByPhone = new Map((profiles || []).map((profile) => [profile.phone, profile]));
-      const accountsByPhone = new Map((accounts || []).map((account) => [account.host_phone, account]));
-      return reply({ items: (applications || []).map((application) => ({ ...application, profile: profilesByPhone.get(application.phone), bank_account: role === "super_admin" ? accountsByPhone.get(application.phone) || null : null })) });
+      requireRole(role, ["super_admin", "moderator"]); requirePage(pages, "Hosts");
+      const [{ data: profiles, error: profileError }, { data: applications, error: applicationError }] = await Promise.all([
+        admin.from("phone_profiles").select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at").eq("gender", "Female").order("created_at", { ascending: false }).limit(250),
+        admin.from("host_applications").select("id,phone,status,application_profile,aadhaar_path,pan_path,submitted_at,reviewed_at,review_note").limit(250),
+      ]); if (profileError || applicationError) throw profileError || applicationError;
+      const phones=(profiles||[]).map((profile)=>profile.phone); const [{data:accounts,error:accountError},{data:compliance,error:complianceError}]=await Promise.all([
+        phones.length?admin.from("phone_host_payout_accounts").select("host_phone,account_holder_name,payout_method,account_number,ifsc_code,upi_id,status,verification_note,verified_at,updated_at").in("host_phone",phones):Promise.resolve({data:[],error:null}),
+        phones.length?admin.from("phone_host_compliance").select("host_phone,pan_last4,aadhaar_last4,pan_verified,aadhaar_verified,verified_at,updated_at").in("host_phone",phones):Promise.resolve({data:[],error:null}),
+      ]); if(accountError||complianceError) throw accountError||complianceError;
+      const applicationsByPhone=new Map((applications||[]).map((application)=>[application.phone,application])); const accountsByPhone=new Map((accounts||[]).map((account)=>[account.host_phone,account])); const complianceByPhone=new Map((compliance||[]).map((record)=>[record.host_phone,record])); const today=Date.now()-86400000;
+      return reply({items:(profiles||[]).map((profile)=>{const application=applicationsByPhone.get(profile.phone);return {...(application||{id:`lead:${profile.phone}`,phone:profile.phone,status:"new",submitted_at:profile.created_at,application_profile:{}}),profile,bank_account:accountsByPhone.get(profile.phone)||null,compliance:complianceByPhone.get(profile.phone)||null,is_new:Date.parse(profile.created_at)>=today};})});
     }
     if (action === "performance_reports") {
       requireSuperAdmin(role); requirePage(pages, "Performance");
@@ -179,6 +177,21 @@ Deno.serve(async (request) => {
       if (pages.includes("Reports")) { const {data:reports,error}=await admin.from("safety_reports").select("id,reported_user_name,reported_user_id,reason,status").or(`reported_user_name.ilike.${pattern},reported_user_id.ilike.${pattern}`).limit(12);if(error)throw error;for(const report of reports||[])items.push({kind:"Report",section:"Reports",query:report.reported_user_name||report.reported_user_id,title:report.reported_user_name||"Safety report",subtitle:`${report.reason} · ${report.status}`}); }
       return reply({ items: items.slice(0, 18) });
     }
+    if (action === "assist_host_onboarding") {
+      requireSuperAdmin(role); requirePage(pages, "Hosts");
+      const phone=typeof body.phone === "string"?body.phone:""; const holder=typeof body.account_holder_name === "string"?body.account_holder_name.trim().replace(/\s+/g," "):""; const method=body.payout_method === "upi" ? "upi" : body.payout_method === "bank" ? "bank" : ""; const upi=typeof body.upi_id === "string"?body.upi_id.trim().toLowerCase():""; const account=typeof body.account_number === "string"?body.account_number.replace(/\s/g,""):""; const ifsc=typeof body.ifsc_code === "string"?body.ifsc_code.trim().toUpperCase():""; const pan=typeof body.pan_number === "string"?body.pan_number.trim().toUpperCase():""; const aadhaar=typeof body.aadhaar_number === "string"?body.aadhaar_number.replace(/\s/g,""):""; const approve=body.approve === true; const payoutVerified=body.payout_verified === true;
+      if(!/^\+91\d{10}$/.test(phone)) throw new Error("Choose a valid female member."); const {data:profile,error:profileError}=await admin.from("phone_profiles").select("phone,display_name,username,gender,bio,languages,interests,avatar_url").eq("phone",phone).maybeSingle(); if(profileError||!profile||profile.gender!=="Female") throw profileError||new Error("Only female members can be enrolled as Hosts.");
+      if(!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)||!/^\d{12}$/.test(aadhaar)) throw new Error("Enter a valid PAN and 12-digit Aadhaar number.");
+      if(method && (holder.length<2||holder.length>120)) throw new Error("Enter the payout account holder name.");
+      if(method === "upi" && !/^[A-Za-z0-9._-]{2,255}@[A-Za-z][A-Za-z0-9._-]{1,64}$/.test(upi)) throw new Error("Enter a valid UPI ID.");
+      if(method === "bank" && (!/^\d{9,18}$/.test(account)||!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc))) throw new Error("Enter a valid bank account number and IFSC.");
+      if(!method) throw new Error("Choose a UPI ID or bank account for payouts.");
+      const now=new Date().toISOString(); const {data:existing}=await admin.from("host_applications").select("id,application_profile").eq("phone",phone).maybeSingle(); const existingProfile=existing?.application_profile&&typeof existing.application_profile==="object"?existing.application_profile:{}; const applicationProfile={...existingProfile,name:profile.display_name||"Host",bio:profile.bio||"",languages:profile.languages||[],interests:profile.interests||[],photo:profile.avatar_url||null,aadhaarDocument:"Verified by admin",panDocument:"Verified by admin",audio:true,video:true,audioRate:"2",videoRate:"5"};
+      const {error:applicationError}=await admin.from("host_applications").upsert({phone,status:approve?"approved":"pending",application_profile:applicationProfile,submitted_at:existing?undefined:now,reviewed_at:approve?now:null,review_note:approve?"Approved after assisted onboarding.":null},{onConflict:"phone"}); if(applicationError) throw applicationError;
+      const {error:complianceInsertError}=await admin.from("phone_host_compliance").upsert({host_phone:phone,pan_last4:pan.slice(-4),aadhaar_last4:aadhaar.slice(-4),pan_verified:true,aadhaar_verified:true,verified_by:user.id,verified_at:now,updated_at:now},{onConflict:"host_phone"}); if(complianceInsertError) throw complianceInsertError;
+      const {error:payoutError}=await admin.from("phone_host_payout_accounts").upsert({host_phone:phone,account_holder_name:holder,payout_method:method,account_number:method==="bank"?account:null,ifsc_code:method==="bank"?ifsc:null,upi_id:method==="upi"?upi:null,status:payoutVerified?"verified":"pending_verification",verification_note:null,verified_at:payoutVerified?now:null,updated_at:now},{onConflict:"host_phone"}); if(payoutError) throw payoutError;
+      await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:"host_assisted_onboarding",entity_type:"host_application",entity_id:phone,after_state:{approved:approve,payout_method:method,payout_verified:payoutVerified,pan_last4:pan.slice(-4),aadhaar_last4:aadhaar.slice(-4)}}); return reply({ok:true});
+    }
     if (action === "review_host") {
       requireRole(role, ["super_admin", "moderator"]); const id = typeof body.id === "string" ? body.id : ""; const status = typeof body.status === "string" ? body.status : "";
       requirePage(pages, "Hosts");
@@ -203,8 +216,34 @@ Deno.serve(async (request) => {
     if (action === "list_payouts") {
       requireRole(role, ["super_admin", "finance_admin"]); const { data: withdrawals, error } = await admin.from("phone_host_withdrawals").select("id,host_phone,amount_paise,status,payout_reference,review_note,account_snapshot,created_at,updated_at,review_started_at,review_due_at").order("created_at", { ascending:false }).limit(250); if (error) throw error;
       requirePage(pages, "Payouts");
-      const phones = (withdrawals || []).map((item) => item.host_phone); const [{ data: profiles, error: profileError }, { data: accounts, error: accountError }] = await Promise.all([admin.from("phone_profiles").select("phone,display_name,username,gender,avatar_url").in("phone", phones), admin.from("phone_host_payout_accounts").select("host_phone,account_holder_name,payout_method,account_number,ifsc_code,upi_id,status,verification_note,verified_at,updated_at").in("host_phone", phones)]); if (profileError || accountError) throw profileError || accountError;
+      const phones = (withdrawals || []).map((item) => item.host_phone); const [{ data: profiles, error: profileError }, { data: accounts, error: accountError }] = await Promise.all([admin.from("phone_profiles").select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at").in("phone", phones), admin.from("phone_host_payout_accounts").select("host_phone,account_holder_name,payout_method,account_number,ifsc_code,upi_id,status,verification_note,verified_at,updated_at").in("host_phone", phones)]); if (profileError || accountError) throw profileError || accountError;
       const profilesByPhone = new Map((profiles || []).map((profile) => [profile.phone, profile])); const accountsByPhone = new Map((accounts || []).map((account) => [account.host_phone, account])); return reply({ items:(withdrawals || []).map((withdrawal) => ({ ...withdrawal, profile: profilesByPhone.get(withdrawal.host_phone), bank_account: accountsByPhone.get(withdrawal.host_phone) || null })) });
+    }
+    if (action === "list_support_tickets") {
+      requireRole(role, ["super_admin", "moderator", "support"]); requirePage(pages, "Support");
+      const { data: tickets, error } = await admin.from("phone_support_tickets").select("id,phone,subject,category,status,created_at,updated_at,resolved_at").order("updated_at", { ascending: false }).limit(250); if (error) throw error;
+      const ids=(tickets||[]).map((ticket)=>ticket.id), phones=(tickets||[]).map((ticket)=>ticket.phone);
+      const [{data:messages,error:messageError},{data:profiles,error:profileError}]=await Promise.all([
+        ids.length?admin.from("phone_support_ticket_messages").select("id,ticket_id,sender_type,message,created_at").in("ticket_id",ids).order("created_at",{ascending:true}):Promise.resolve({data:[],error:null}),
+        phones.length?admin.from("phone_profiles").select("phone,display_name,username,gender,created_at").in("phone",phones):Promise.resolve({data:[],error:null}),
+      ]); if(messageError||profileError) throw messageError||profileError;
+      const messagesByTicket=new Map<string,unknown[]>(); for(const item of messages||[]){const list=messagesByTicket.get(item.ticket_id)||[];list.push(item);messagesByTicket.set(item.ticket_id,list);} const profilesByPhone=new Map((profiles||[]).map((profile)=>[profile.phone,profile]));
+      return reply({items:(tickets||[]).map((ticket)=>({...ticket,profile:profilesByPhone.get(ticket.phone),messages:messagesByTicket.get(ticket.id)||[]}))});
+    }
+    if (action === "reply_support_ticket") {
+      requireRole(role, ["super_admin", "moderator", "support"]); requirePage(pages, "Support");
+      const id=typeof body.id === "string"?body.id:"", text=typeof body.message === "string"?body.message.trim():"", resolve=body.resolve === true;
+      if(!id||text.length<1||text.length>2000) throw new Error("Enter a reply of up to 2,000 characters.");
+      const {data:before,error:beforeError}=await admin.from("phone_support_tickets").select("status,subject").eq("id",id).maybeSingle(); if(beforeError||!before) throw beforeError||new Error("Support request not found."); if(before.status === "resolved") throw new Error("This support request is already resolved.");
+      const now=new Date().toISOString(), status=resolve?"resolved":"waiting_for_member";
+      const {error:messageError}=await admin.from("phone_support_ticket_messages").insert({ticket_id:id,sender_type:"admin",admin_user_id:user.id,message:text}); if(messageError) throw messageError;
+      const {error:updateError}=await admin.from("phone_support_tickets").update({status,updated_at:now,resolved_at:resolve?now:null}).eq("id",id); if(updateError) throw updateError;
+      await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:resolve?"support_ticket_resolved":"support_ticket_replied",entity_type:"support_ticket",entity_id:id,before_state:before,after_state:{status}}); return reply({ok:true});
+    }
+    if (action === "review_support_ticket") {
+      requireRole(role, ["super_admin", "moderator", "support"]); requirePage(pages, "Support"); const id=typeof body.id === "string"?body.id:""; if(!id) throw new Error("Choose a support request.");
+      const {data:before,error:beforeError}=await admin.from("phone_support_tickets").select("status").eq("id",id).maybeSingle(); if(beforeError||!before) throw beforeError||new Error("Support request not found."); if(before.status === "resolved") throw new Error("This support request is already resolved.");
+      const {error}=await admin.from("phone_support_tickets").update({status:"in_review",updated_at:new Date().toISOString()}).eq("id",id); if(error) throw error; await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:"support_ticket_review_started",entity_type:"support_ticket",entity_id:id,before_state:before,after_state:{status:"in_review"}}); return reply({ok:true});
     }
     if (action === "review_payout") {
       requireRole(role, ["super_admin", "finance_admin"]); const id=typeof body.id === "string"?body.id:""; const status=typeof body.status === "string"?body.status:""; if(!id || !["in_review","completed","rejected","failed"].includes(status)) throw new Error("Choose a valid payout status.");
@@ -213,7 +252,7 @@ Deno.serve(async (request) => {
       if (status === "completed" && (!reference || !note)) throw new Error("A payout reference/UTR and reviewer note are required before completion.");
       const { error } = await admin.rpc("review_phone_host_withdrawal", { input_withdrawal_id:id, input_status:status, input_payout_reference:reference||null, input_review_note:note||null }); if(error) throw error; await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:"payout_reviewed",entity_type:"withdrawal",entity_id:id,after_state:{status,reference:reference||null,note:note||null}}); return reply({ok:true});
     }
-    if (action === "list_payments") { requireRole(role,["super_admin","finance_admin"]); requirePage(pages,"Payments"); const {data,error}=await admin.from("phone_payment_orders").select("id,phone,coins,amount_paise,currency,provider_order_id,provider_payment_id,status,created_at,captured_at,credited_at").order("created_at",{ascending:false}).limit(150); if(error)throw error; const phones=(data||[]).map((item)=>item.phone); const {data:profiles,error:profileError}=phones.length?await admin.from("phone_profiles").select("phone,display_name,username,avatar_url").in("phone",phones):{data:[],error:null}; if(profileError)throw profileError; const byPhone=new Map((profiles||[]).map((profile)=>[profile.phone,profile])); return reply({items:(data||[]).map((item)=>({...item,profile:byPhone.get(item.phone)}))}); }
+    if (action === "list_payments") { requireRole(role,["super_admin","finance_admin"]); requirePage(pages,"Payments"); const {data,error}=await admin.from("phone_payment_orders").select("id,phone,coins,amount_paise,currency,provider_order_id,provider_payment_id,status,created_at,captured_at,credited_at").order("created_at",{ascending:false}).limit(150); if(error)throw error; const phones=(data||[]).map((item)=>item.phone); const {data:profiles,error:profileError}=phones.length?await admin.from("phone_profiles").select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at").in("phone",phones):{data:[],error:null}; if(profileError)throw profileError; const byPhone=new Map((profiles||[]).map((profile)=>[profile.phone,profile])); return reply({items:(data||[]).map((item)=>({...item,profile:byPhone.get(item.phone)}))}); }
     if (action === "reconcile_payment") { requireRole(role,["super_admin","finance_admin"]); requirePage(pages,"Payments"); const id=typeof body.id==="string"?body.id:""; if(!id)throw new Error("Choose a payment order."); const {data:before,error:beforeError}=await admin.from("phone_payment_orders").select("status,credited_at,provider_payment_id").eq("id",id).maybeSingle(); if(beforeError||!before)throw beforeError||new Error("Payment order not found."); if(before.status!=="captured")throw new Error("Only a captured payment can be reconciled."); const {data,error}=await admin.rpc("credit_phone_wallet_payment",{input_payment_order_id:id}); if(error)throw error; await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:"payment_reconciled",entity_type:"payment_order",entity_id:id,before_state:before,after_state:data}); return reply({ok:true,result:data}); }
     if (action === "list_users") { requireRole(role,["super_admin","moderator","support"]); requirePage(pages,"Users"); const { data,error }=await admin.from("phone_profiles").select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at").order("created_at",{ascending:false}).limit(150); if(error)throw error; const phones=(data||[]).map((profile)=>profile.phone); const {data:statuses,error:statusError}=phones.length?await admin.from("phone_user_admin_status").select("phone,status,updated_at,archived_at").in("phone",phones):{data:[],error:null};if(statusError)throw statusError;const statusesByPhone=new Map((statuses||[]).map((status)=>[status.phone,status]));return reply({items:(data||[]).map((profile)=>({...profile,account_status:statusesByPhone.get(profile.phone)?.status||"active",account_status_updated_at:statusesByPhone.get(profile.phone)?.updated_at||null}))}); }
     if (action === "set_user_status") { requireRole(role,["super_admin","moderator"]); requirePage(pages,"Users"); const phone=typeof body.phone === "string"?body.phone:""; const status=typeof body.status === "string"?body.status:""; if(!phone||!["active","suspended","inactive","archived"].includes(status))throw new Error("Invalid user status."); const {error}=await admin.from("phone_user_admin_status").upsert({phone,status,reason:typeof body.reason === "string"?body.reason:null,updated_by:user.id,updated_at:new Date().toISOString(),archived_at:status==="archived"?new Date().toISOString():null},{onConflict:"phone"});if(error)throw error;await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:"user_status_changed",entity_type:"phone_user",entity_id:phone,after_state:{status}});return reply({ok:true}); }
