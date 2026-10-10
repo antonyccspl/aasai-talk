@@ -164,6 +164,61 @@ const marathi: Record<string, string> = {
   "Back to Explore": "शोधाकडे परत", "Call": "कॉल", "Audio": "ऑडिओ", "Video": "व्हिडिओ", "Message": "संदेश", "Send": "पाठवा", "On a call": "कॉलवर", "Away": "दूर आहेत",
 };
 
+// Shared product areas must use the same vocabulary across every supported
+// language. Keeping these phrases here (rather than inside individual pages)
+// prevents a new screen from silently falling back to English.
+const hostPayoutTranslations: Record<Exclude<AppLanguage, "en">, Record<string, string>> = {
+  ta: {
+    "Host earnings": "ஹோஸ்ட் வருமானம்", "Host earnings & withdrawals": "ஹோஸ்ட் வருமானம் மற்றும் பணம் எடுத்தல்", "View available earnings and request a withdrawal.": "கிடைக்கும் வருமானத்தைப் பார்த்து பணம் எடுக்கக் கோருங்கள்.",
+    "Become a Host": "ஹோஸ்டாக ஆகுங்கள்", "Host application": "ஹோஸ்ட் விண்ணப்பம்", "YOUR AVAILABLE EARNINGS": "உங்கள் கிடைக்கும் வருமானம்", "Ready for you to withdraw": "பணம் எடுக்கத் தயாராக உள்ளது", "Minimum withdrawal · ₹100": "குறைந்தபட்ச பணம் எடுத்தல் · ₹100", "PAYOUT STATUS": "பணம் பெறும் நிலை", "UPI ID verification": "UPI ID சரிபார்ப்பு", "Bank account verification": "வங்கி கணக்கு சரிபார்ப்பு", "Verified": "சரிபார்க்கப்பட்டது", "In review": "மதிப்பாய்வில்", "Action needed": "நடவடிக்கை தேவை", "Withdrawal requests": "பணம் எடுத்தல் கோரிக்கைகள்", "No requests yet": "இதுவரை கோரிக்கைகள் இல்லை", "Withdraw your earnings": "உங்கள் வருமானத்தை எடுக்கவும்", "Add your payout destination": "பணம் பெறும் விவரங்களைச் சேர்க்கவும்", "Choose a bank account or UPI ID. Your details stay private and must be verified before you can withdraw earnings.": "வங்கி கணக்கு அல்லது UPI ID-ஐத் தேர்ந்தெடுக்கவும். உங்கள் விவரங்கள் தனிப்பட்டவை; வருமானத்தை எடுப்பதற்கு முன் அவை சரிபார்க்கப்படும்.", "Bank account": "வங்கி கணக்கு", "Account holder name": "கணக்கு வைத்திருப்பவர் பெயர்", "Bank account number": "வங்கி கணக்கு எண்", "Re-enter account number": "கணக்கு எண்ணை மீண்டும் உள்ளிடவும்", "IFSC code": "IFSC குறியீடு", "Account numbers do not match.": "கணக்கு எண்கள் பொருந்தவில்லை.", "UPI ID": "UPI ID", "Verification is required": "சரிபார்ப்பு அவசியம்", "Your UPI ID will be checked by our team before your first withdrawal.": "உங்கள் முதல் பணம் எடுத்தலுக்கு முன் எங்கள் குழு உங்கள் UPI ID-ஐச் சரிபார்க்கும்.", "Payout destination verified": "பணம் பெறும் விவரங்கள் சரிபார்க்கப்பட்டன", "Verification pending": "சரிபார்ப்பு நிலுவையில் உள்ளது", "Payout destination under review": "பணம் பெறும் விவரங்கள் மதிப்பாய்வில் உள்ளன", "How much would you like to withdraw?": "எவ்வளவு பணம் எடுக்க விரும்புகிறீர்கள்?", "Enter the amount you want to receive. You can withdraw from ₹100 onwards.": "நீங்கள் பெற விரும்பும் தொகையை உள்ளிடவும். ₹100 முதல் பணம் எடுக்கலாம்.", "How much would you like to withdraw? (₹)": "எவ்வளவு பணம் எடுக்க விரும்புகிறீர்கள்? (₹)", "Example: 500": "உதாரணம்: 500", "What happens next": "அடுத்து என்ன நடக்கும்", "Withdrawal history": "பணம் எடுத்தல் வரலாறு", "Pending": "நிலுவையில்", "Amount sent": "தொகை அனுப்பப்பட்டது", "Change payout destination": "பணம் பெறும் விவரங்களை மாற்றவும்", "Correct payout destination": "பணம் பெறும் விவரங்களைச் சரிசெய்யவும்", "View application status": "விண்ணப்ப நிலையைப் பார்க்கவும்", "Withdrawals unlock after your Host application is approved.": "உங்கள் ஹோஸ்ட் விண்ணப்பம் அங்கீகரிக்கப்பட்ட பிறகு பணம் எடுக்கலாம்.", "Your application is pending review.": "உங்கள் விண்ணப்பம் மதிப்பாய்வில் உள்ளது.", "Saving…": "சேமிக்கப்படுகிறது…", "Sending request…": "கோரிக்கை அனுப்பப்படுகிறது…", "Enter an amount to continue": "தொடர தொகையை உள்ளிடவும்"
+  },
+  hi: { "Host earnings":"होस्ट कमाई", "Host earnings & withdrawals":"होस्ट कमाई और निकासी", "View available earnings and request a withdrawal.":"उपलब्ध कमाई देखें और निकासी का अनुरोध करें।", "Become a Host":"होस्ट बनें", "Host application":"होस्ट आवेदन", "YOUR AVAILABLE EARNINGS":"आपकी उपलब्ध कमाई", "Ready for you to withdraw":"निकासी के लिए तैयार", "Minimum withdrawal · ₹100":"न्यूनतम निकासी · ₹100", "PAYOUT STATUS":"भुगतान स्थिति", "UPI ID verification":"UPI ID सत्यापन", "Bank account verification":"बैंक खाता सत्यापन", "Verified":"सत्यापित", "In review":"समीक्षा में", "Action needed":"कार्रवाई आवश्यक", "Withdrawal requests":"निकासी अनुरोध", "No requests yet":"अभी कोई अनुरोध नहीं", "Withdraw your earnings":"अपनी कमाई निकालें", "Add your payout destination":"भुगतान विवरण जोड़ें", "Bank account":"बैंक खाता", "Account holder name":"खाताधारक का नाम", "Bank account number":"बैंक खाता नंबर", "Re-enter account number":"खाता नंबर फिर दर्ज करें", "IFSC code":"IFSC कोड", "UPI ID":"UPI ID", "Verification is required":"सत्यापन आवश्यक है", "Verification pending":"सत्यापन लंबित", "Payout destination verified":"भुगतान विवरण सत्यापित", "How much would you like to withdraw?":"आप कितनी राशि निकालना चाहते हैं?", "How much would you like to withdraw? (₹)":"आप कितनी राशि निकालना चाहते हैं? (₹)", "Example: 500":"उदाहरण: 500", "What happens next":"आगे क्या होगा", "Withdrawal history":"निकासी इतिहास", "Pending":"लंबित", "Amount sent":"राशि भेजी गई", "Change payout destination":"भुगतान विवरण बदलें", "Saving…":"सहेजा जा रहा है…", "Sending request…":"अनुरोध भेजा जा रहा है…", "Enter an amount to continue":"आगे बढ़ने के लिए राशि दर्ज करें" },
+  te: { "Host earnings":"హోస్ట్ ఆదాయాలు", "Host earnings & withdrawals":"హోస్ట్ ఆదాయాలు మరియు ఉపసంహరణలు", "View available earnings and request a withdrawal.":"అందుబాటులో ఉన్న ఆదాయాలను చూసి ఉపసంహరణను అభ్యర్థించండి.", "Become a Host":"హోస్ట్ అవ్వండి", "Withdrawal requests":"ఉపసంహరణ అభ్యర్థనలు", "No requests yet":"ఇంకా అభ్యర్థనలు లేవు", "Withdraw your earnings":"మీ ఆదాయాలను ఉపసంహరించండి", "Bank account":"బ్యాంక్ ఖాతా", "UPI ID":"UPI ID", "Verified":"ధృవీకరించబడింది", "In review":"సమీక్షలో", "Pending":"పెండింగ్", "Amount sent":"మొత్తం పంపబడింది", "How much would you like to withdraw?":"మీరు ఎంత ఉపసంహరించాలనుకుంటున్నారు?", "Example: 500":"ఉదాహరణ: 500", "Saving…":"సేవ్ అవుతోంది…", "Sending request…":"అభ్యర్థన పంపుతోంది…", "Enter an amount to continue":"కొనసాగడానికి మొత్తాన్ని నమోదు చేయండి" },
+  kn: { "Host earnings":"ಹೋಸ್ಟ್ ಗಳಿಕೆಗಳು", "Host earnings & withdrawals":"ಹೋಸ್ಟ್ ಗಳಿಕೆಗಳು ಮತ್ತು ಹಿಂಪಡೆಯುವಿಕೆಗಳು", "View available earnings and request a withdrawal.":"ಲಭ್ಯ ಗಳಿಕೆಗಳನ್ನು ನೋಡಿ ಹಿಂಪಡೆಯಲು ವಿನಂತಿಸಿ.", "Become a Host":"ಹೋಸ್ಟ್ ಆಗಿ", "Withdrawal requests":"ಹಿಂಪಡೆಯುವಿಕೆ ವಿನಂತಿಗಳು", "No requests yet":"ಇನ್ನೂ ವಿನಂತಿಗಳಿಲ್ಲ", "Withdraw your earnings":"ನಿಮ್ಮ ಗಳಿಕೆಯನ್ನು ಹಿಂಪಡೆಯಿರಿ", "Bank account":"ಬ್ಯಾಂಕ್ ಖಾತೆ", "UPI ID":"UPI ID", "Verified":"ಪರಿಶೀಲಿಸಲಾಗಿದೆ", "In review":"ಪರಿಶೀಲನೆಯಲ್ಲಿದೆ", "Pending":"ಬಾಕಿ", "Amount sent":"ಮೊತ್ತ ಕಳುಹಿಸಲಾಗಿದೆ", "How much would you like to withdraw?":"ನೀವು ಎಷ್ಟು ಹಿಂಪಡೆಯಲು ಬಯಸುತ್ತೀರಿ?", "Example: 500":"ಉದಾಹರಣೆ: 500", "Saving…":"ಉಳಿಸಲಾಗುತ್ತಿದೆ…", "Sending request…":"ವಿನಂತಿ ಕಳುಹಿಸಲಾಗುತ್ತಿದೆ…", "Enter an amount to continue":"ಮುಂದುವರಿಯಲು ಮೊತ್ತ ನಮೂದಿಸಿ" },
+  ml: { "Host earnings":"ഹോസ്റ്റ് വരുമാനം", "Host earnings & withdrawals":"ഹോസ്റ്റ് വരുമാനവും പിൻവലിക്കലും", "View available earnings and request a withdrawal.":"ലഭ്യമായ വരുമാനം കാണുകയും പിൻവലിക്കൽ അഭ്യർത്ഥിക്കുകയും ചെയ്യുക.", "Become a Host":"ഹോസ്റ്റ് ആകുക", "Withdrawal requests":"പിൻവലിക്കൽ അഭ്യർത്ഥനകൾ", "No requests yet":"ഇതുവരെ അഭ്യർത്ഥനകളില്ല", "Withdraw your earnings":"നിങ്ങളുടെ വരുമാനം പിൻവലിക്കുക", "Bank account":"ബാങ്ക് അക്കൗണ്ട്", "UPI ID":"UPI ID", "Verified":"പരിശോധിച്ചു", "In review":"പരിശോധനയിൽ", "Pending":"തീർപ്പാക്കാത്തത്", "Amount sent":"തുക അയച്ചു", "How much would you like to withdraw?":"എത്ര പിൻവലിക്കാൻ ആഗ്രഹിക്കുന്നു?", "Example: 500":"ഉദാഹരണം: 500", "Saving…":"സേവ് ചെയ്യുന്നു…", "Sending request…":"അഭ്യർത്ഥന അയക്കുന്നു…", "Enter an amount to continue":"തുടരാൻ തുക നൽകുക" },
+  bn: { "Host earnings":"হোস্ট আয়", "Host earnings & withdrawals":"হোস্ট আয় ও উত্তোলন", "View available earnings and request a withdrawal.":"উপলব্ধ আয় দেখুন এবং উত্তোলনের অনুরোধ করুন।", "Become a Host":"হোস্ট হন", "Withdrawal requests":"উত্তোলনের অনুরোধ", "No requests yet":"এখনও কোনো অনুরোধ নেই", "Withdraw your earnings":"আপনার আয় তুলুন", "Bank account":"ব্যাঙ্ক অ্যাকাউন্ট", "UPI ID":"UPI ID", "Verified":"যাচাইকৃত", "In review":"পর্যালোচনায়", "Pending":"অপেক্ষমাণ", "Amount sent":"টাকা পাঠানো হয়েছে", "How much would you like to withdraw?":"আপনি কত টাকা তুলতে চান?", "Example: 500":"উদাহরণ: 500", "Saving…":"সংরক্ষণ করা হচ্ছে…", "Sending request…":"অনুরোধ পাঠানো হচ্ছে…", "Enter an amount to continue":"চালিয়ে যেতে টাকা লিখুন" },
+  mr: { "Host earnings":"होस्ट कमाई", "Host earnings & withdrawals":"होस्ट कमाई आणि पैसे काढणे", "View available earnings and request a withdrawal.":"उपलब्ध कमाई पहा आणि पैसे काढण्याची विनंती करा.", "Become a Host":"होस्ट बना", "Withdrawal requests":"पैसे काढण्याच्या विनंत्या", "No requests yet":"अद्याप विनंत्या नाहीत", "Withdraw your earnings":"तुमची कमाई काढा", "Bank account":"बँक खाते", "UPI ID":"UPI ID", "Verified":"सत्यापित", "In review":"पुनरावलोकनात", "Pending":"प्रलंबित", "Amount sent":"रक्कम पाठवली", "How much would you like to withdraw?":"तुम्हाला किती रक्कम काढायची आहे?", "Example: 500":"उदाहरण: 500", "Saving…":"जतन करत आहे…", "Sending request…":"विनंती पाठवत आहे…", "Enter an amount to continue":"पुढे जाण्यासाठी रक्कम भरा" },
+};
+
+Object.assign(tamil, hostPayoutTranslations.ta);
+Object.assign(hindi, hostPayoutTranslations.hi);
+Object.assign(telugu, hostPayoutTranslations.te);
+Object.assign(kannada, hostPayoutTranslations.kn);
+Object.assign(malayalam, hostPayoutTranslations.ml);
+Object.assign(bengali, hostPayoutTranslations.bn);
+Object.assign(marathi, hostPayoutTranslations.mr);
+
+Object.assign(tamil, {
+  "Mobile number": "மொபைல் எண்",
+  "Enter mobile number": "மொபைல் எண்ணை உள்ளிடவும்",
+  "Talk. Laugh.\nMake a new friend.": "பேசுங்கள். சிரியுங்கள்.\nபுதிய நண்பரை உருவாக்குங்கள்.",
+  "Voice call with friendly people, anytime you feel like chatting.": "உங்களுக்கு பேச வேண்டும் என்று தோன்றும் போதெல்லாம் நட்பானவர்களுடன் குரல் அழைப்பு.",
+  "Log in or sign up": "உள்நுழையுங்கள் அல்லது பதிவு செய்யுங்கள்",
+  "Continue with your mobile number": "உங்கள் மொபைல் எண்ணுடன் தொடரவும்",
+  "Your number\nstays private": "உங்கள் எண்\nதனிப்பட்டதாக இருக்கும்",
+  "Connect with\nconfidence": "நம்பிக்கையுடன்\nஇணையுங்கள்",
+  "Meet new\nfriends": "புதிய\nநண்பர்களைச் சந்தியுங்கள்",
+  "Made for friendly conversations. 18+ only.": "நட்பான உரையாடல்களுக்காக. 18+ வயதினருக்கு மட்டும்.",
+  "Message": "செய்தி",
+  "Type a message…": "செய்தியை உள்ளிடவும்…",
+  "Search conversations": "உரையாடல்களைத் தேடுங்கள்",
+  "Find a conversation": "ஒரு உரையாடலைக் கண்டறியவும்",
+  "Name, city, or something in common": "பெயர், நகரம் அல்லது பொதுவான விருப்பம்",
+  "More filters": "மேலும் வடிகட்டிகள்",
+  "Messages": "செய்திகள்",
+  "New chat": "புதிய உரையாடல்",
+  "Your payout details are locked while our team reviews them. Withdrawals unlock after verification, and we’ll notify you once it is complete.": "எங்கள் குழு மதிப்பாய்வு செய்யும் வரை உங்கள் பணம் பெறும் விவரங்கள் பாதுகாப்பாக வைக்கப்படும். சரிபார்ப்புக்குப் பிறகு பணம் எடுக்கலாம்; முடிந்ததும் உங்களுக்குத் தெரிவிப்போம்.",
+  "Once you send your request, our team will check it and send your earnings within 2–3 business days.": "நீங்கள் கோரிக்கையை அனுப்பியதும், எங்கள் குழு அதைச் சரிபார்த்து 2–3 வேலை நாட்களுக்குள் உங்கள் வருமானத்தை அனுப்பும்.",
+  "Your UPI ID will be checked by our team before your first withdrawal.": "உங்கள் முதல் பணம் எடுத்தலுக்கு முன் எங்கள் குழு உங்கள் UPI ID-ஐச் சரிபார்க்கும்.",
+  "Name shown on the payout destination": "பணம் பெறும் விவரங்களில் உள்ள பெயர்",
+  "Enter account number": "கணக்கு எண்ணை உள்ளிடவும்",
+  "Enter account number again": "கணக்கு எண்ணை மீண்டும் உள்ளிடவும்",
+  "Example: HDFC0001234": "உதாரணம்: HDFC0001234",
+  "Example: name@bank": "உதாரணம்: name@bank",
+  "Save UPI ID": "UPI ID-ஐச் சேமிக்கவும்",
+  "Save bank account": "வங்கி கணக்கைச் சேமிக்கவும்",
+});
+
 const dictionaries: Partial<Record<AppLanguage, Record<string, string>>> = {
   ta: tamil, hi: hindi, te: telugu, kn: kannada, ml: malayalam, bn: bengali, mr: marathi,
 };

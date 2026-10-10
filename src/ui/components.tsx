@@ -400,6 +400,7 @@ export function Field({
   numeric?: boolean;
   secure?: boolean;
 }) {
+  const { translate } = useLanguage();
   const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 7 }}>
@@ -407,10 +408,10 @@ export function Field({
         {String(label)}
       </T>
       <TextInput
-        accessibilityLabel={label}
+        accessibilityLabel={translate(label)}
         value={value}
         onChangeText={onChange}
-        placeholder={placeholder}
+        placeholder={placeholder ? translate(placeholder) : undefined}
         placeholderTextColor={c.muted}
         secureTextEntry={secure}
         keyboardType={numeric ? "number-pad" : "default"}

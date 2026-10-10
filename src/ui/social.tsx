@@ -31,6 +31,7 @@ import {
 } from "./components";
 import { defaultFacets, people, personFor, useDemo } from "./store";
 import { colors as c } from "./theme";
+import { useLanguage } from "./language";
 
 const formatCallTime = (seconds: number) => {
   const hours = Math.floor(seconds / 3600);
@@ -801,6 +802,7 @@ export function Conversations() {
   );
 }
 export function Chat({ id }: { id: string }) {
+  const { translate } = useLanguage();
   const d = useDemo();
   const { refreshUnreadMessageCount, refreshUnreadNotificationCount, setOpenChatPhone } = d;
   const auth = useAuth();
@@ -949,8 +951,8 @@ export function Chat({ id }: { id: string }) {
             style={{ backgroundColor: c.high, padding: 6, borderRadius: 32 }}
           >
             <TextInput
-              accessibilityLabel="Message"
-              placeholder="Type a message…"
+              accessibilityLabel={translate("Message")}
+              placeholder={translate("Type a message…")}
               placeholderTextColor={c.muted}
               value={text}
               onChangeText={(v) => d.setDrafts((x) => ({ ...x, [id]: v }))}

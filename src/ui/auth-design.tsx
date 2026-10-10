@@ -2,12 +2,14 @@ import { Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800Ex
 import React, { createContext, useContext, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLanguage } from "./language";
 
 export const authColors = { background: "#fff8f3", ink: "#1c1c1c", muted: "#6b6b6b", line: "#eadfd6", brand: "#e23744" };
 const FontReady = createContext(false);
 export function AuthText({ children, size = 14, bold = false, color = authColors.ink }: { children: React.ReactNode; size?: number; bold?: boolean; color?: string }) {
   const ready = useContext(FontReady);
-  return <Text style={{ color, fontSize: size, lineHeight: size * 1.4, fontFamily: ready ? (bold ? "Figtree_700Bold" : "Figtree_400Regular") : undefined, fontWeight: ready ? undefined : bold ? "700" : "400" }}>{children}</Text>;
+  const { translate, usesIndicScript } = useLanguage();
+  return <Text style={{ color, fontSize: size, lineHeight: size * 1.4, fontFamily: usesIndicScript ? undefined : ready ? (bold ? "Figtree_700Bold" : "Figtree_400Regular") : undefined, fontWeight: usesIndicScript ? undefined : ready ? undefined : bold ? "700" : "400" }}>{typeof children === "string" ? translate(children) : children}</Text>;
 }
 
 export function AuthButton({ title, onPress, disabled, loading, variant }: { title: string; onPress: () => void; disabled?: boolean; loading?: boolean; variant?: "secondary"; icon?: string }) {
@@ -24,10 +26,11 @@ export function AuthButton({ title, onPress, disabled, loading, variant }: { tit
 export function AuthField({ value, onChange, error }: { label?: string; value: string; onChange: (value: string) => void; error?: string; numeric?: boolean; placeholder?: string }) {
   const [focused, setFocused] = useState(false);
   const ready = useContext(FontReady);
+  const { translate, usesIndicScript } = useLanguage();
   return <View>
     <View style={[styles.field, { borderColor: focused || error ? authColors.brand : authColors.line }]}>
       <View style={styles.country}><AuthText size={16} bold>🇮🇳 +91</AuthText></View>
-      <TextInput accessibilityLabel="Mobile number" value={value} onChangeText={onChange} keyboardType="phone-pad" autoComplete="tel-national" maxLength={10} placeholder="Enter mobile number" placeholderTextColor="#96908b" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={{ flex: 1, minWidth: 0, padding: 0, color: authColors.ink, fontSize: 16, fontFamily: ready ? "Figtree_600SemiBold" : undefined }} />
+      <TextInput accessibilityLabel={translate("Mobile number")} value={value} onChangeText={onChange} keyboardType="phone-pad" autoComplete="tel-national" maxLength={10} placeholder={translate("Enter mobile number")} placeholderTextColor="#96908b" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={{ flex: 1, minWidth: 0, padding: 0, color: authColors.ink, fontSize: 16, fontFamily: usesIndicScript ? undefined : ready ? "Figtree_600SemiBold" : undefined }} />
       {value.length === 10 && <View style={styles.check}><AuthText bold color="#fff">✓</AuthText></View>}
     </View>
     {!!error && <View accessibilityRole="alert" style={{ marginTop: 8 }}><AuthText size={12} color={authColors.brand}>{error}</AuthText></View>}
@@ -49,14 +52,14 @@ export function AuthFrame({ children, otp, phone }: { children: React.ReactNode;
             {[{ emoji: "😄", left: "6%", top: 18, size: 64, color: "#ffe1a8" }, { emoji: "🧑‍🎤", left: "32%", top: 0, size: 78, color: "#c9f2df" }, { emoji: "👩‍🦱", left: "64%", top: 22, size: 64, color: "#ffd0d6" }, { emoji: "🎧", left: "82%", top: -6, size: 52, color: "#d8dcff" }].map((a) => <View key={a.emoji} style={[styles.avatar, { left: a.left as `${number}%`, top: a.top, width: a.size, height: a.size, backgroundColor: a.color }]}><Text style={{ fontSize: Math.min(a.size * 0.42, 32) }}>{a.emoji}</Text></View>)}
             <View style={styles.pill}><View style={styles.dot} /><AuthText size={12} bold>A new friendship starts here</AuthText></View>
           </View>
-          <Text style={{ color: "#fff", fontSize: 30, lineHeight: 35, letterSpacing: -0.9, marginTop: 18, marginBottom: 8, fontFamily: ready ? "Figtree_800ExtraBold" : undefined, fontWeight: ready ? undefined : "800" }}>Talk. Laugh.{"\n"}Make a new friend.</Text>
+          <AuthText size={30} bold color="#fff">Talk. Laugh.{"\n"}Make a new friend.</AuthText>
           <AuthText size={15} color="#fff">Voice call with friendly people, anytime you feel like chatting.</AuthText>
         </View>
         <View style={styles.card}>
           <View style={{ gap: 4, marginBottom: 6 }}><AuthText size={19} bold>{otp ? "Enter verification code" : "Log in or sign up"}</AuthText><AuthText size={13.5} color={authColors.muted}>{otp ? `Enter the six-digit code for ${phone}` : "Continue with your mobile number"}</AuthText></View>
           {children}
         </View>
-        <View style={styles.trust}>{[["🔒", "Your number\nstays private"], ["🛡️", "Connect with\nconfidence"], ["🎉", "Meet new\nfriends"]].map(([emoji, label]) => <View key={emoji} style={{ flex: 1, alignItems: "center", gap: 4 }}><Text style={{ fontSize: 20 }}>{emoji}</Text><Text style={{ textAlign: "center", color: authColors.muted, fontSize: 12, lineHeight: 16, fontFamily: ready ? "Figtree_600SemiBold" : undefined }}>{label}</Text></View>)}</View>
+        <View style={styles.trust}>{[["🔒", "Your number\nstays private"], ["🛡️", "Connect with\nconfidence"], ["🎉", "Meet new\nfriends"]].map(([emoji, label]) => <View key={emoji} style={{ flex: 1, alignItems: "center", gap: 4 }}><Text style={{ fontSize: 20 }}>{emoji}</Text><View style={{ alignItems: "center" }}><AuthText size={12} bold color={authColors.muted}>{label}</AuthText></View></View>)}</View>
         <View style={styles.footer}><AuthText size={12} color={authColors.muted}>Made for friendly conversations. 18+ only.</AuthText></View>
       </View>
     </ScrollView>

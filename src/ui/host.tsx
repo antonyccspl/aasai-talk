@@ -523,7 +523,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
       {payoutAccount && (
         <Card style={{ padding: 14 }}>
           <T mono size={10} color={c.secondary}>PAYOUT STATUS</T>
-          <Setting title={`${payoutAccount.payout_method === "upi" ? "UPI ID" : "Bank account"} verification`} detail={payoutAccount.status === "verified" ? "Verified" : payoutAccount.status === "rejected" ? "Action needed" : "In review"} icon={payoutAccount.status === "verified" ? "check-circle" : "clock"} />
+          <Setting title={payoutAccount.payout_method === "upi" ? "UPI ID verification" : "Bank account verification"} detail={payoutAccount.status === "verified" ? "Verified" : payoutAccount.status === "rejected" ? "Action needed" : "In review"} icon={payoutAccount.status === "verified" ? "check-circle" : "clock"} />
           <Setting title="Withdrawal requests" detail={withdrawals.length ? `${withdrawals.filter((item) => ["pending", "in_review", "processing"].includes(item.status)).length} in progress` : "No requests yet"} icon="credit-card" />
         </Card>
       )}
