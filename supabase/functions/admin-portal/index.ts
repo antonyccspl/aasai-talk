@@ -25,6 +25,12 @@ function reply(body: Record<string, unknown>, status = 200) {
   return Response.json(body, { status, headers: { ...headers, "Cache-Control": "no-store" } });
 }
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string" && error.message.trim()) return error.message;
+  return "Admin access failed.";
+}
+
 function serviceClient() {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEYS");
@@ -186,8 +192,8 @@ Deno.serve(async (request) => {
       if(method === "upi" && !/^[A-Za-z0-9._-]{2,255}@[A-Za-z][A-Za-z0-9._-]{1,64}$/.test(upi)) throw new Error("Enter a valid UPI ID.");
       if(method === "bank" && (!/^\d{9,18}$/.test(account)||!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc))) throw new Error("Enter a valid bank account number and IFSC.");
       if(!method) throw new Error("Choose a UPI ID or bank account for payouts.");
-      const now=new Date().toISOString(); const {data:existing}=await admin.from("host_applications").select("id,application_profile").eq("phone",phone).maybeSingle(); const existingProfile=existing?.application_profile&&typeof existing.application_profile==="object"?existing.application_profile:{}; const applicationProfile={...existingProfile,name:profile.display_name||"Host",bio:profile.bio||"",languages:profile.languages||[],interests:profile.interests||[],photo:profile.avatar_url||null,aadhaarDocument:"Verified by admin",panDocument:"Verified by admin",audio:true,video:true,audioRate:"2",videoRate:"5"};
-      const {error:applicationError}=await admin.from("host_applications").upsert({phone,status:approve?"approved":"pending",application_profile:applicationProfile,submitted_at:existing?undefined:now,reviewed_at:approve?now:null,review_note:approve?"Approved after assisted onboarding.":null},{onConflict:"phone"}); if(applicationError) throw applicationError;
+      const now=new Date().toISOString(); const {data:existing,error:existingError}=await admin.from("host_applications").select("id,application_profile").eq("phone",phone).maybeSingle(); if(existingError) throw existingError; const existingProfile=existing?.application_profile&&typeof existing.application_profile==="object"?existing.application_profile:{}; const applicationProfile={...existingProfile,name:profile.display_name||"Host",bio:profile.bio||"",languages:profile.languages||[],interests:profile.interests||[],photo:profile.avatar_url||null,aadhaarDocument:"Verified by admin",panDocument:"Verified by admin",audio:true,video:true,audioRate:"2",videoRate:"5"};
+      const applicationChanges={status:approve?"approved":"pending",application_profile:applicationProfile,reviewed_at:approve?now:null,review_note:approve?"Approved after assisted onboarding.":null}; const applicationResult=existing?.id?await admin.from("host_applications").update(applicationChanges).eq("id",existing.id):await admin.from("host_applications").insert({...applicationChanges,phone,submitted_at:now}); if(applicationResult.error) throw applicationResult.error;
       const {error:complianceInsertError}=await admin.from("phone_host_compliance").upsert({host_phone:phone,pan_last4:pan.slice(-4),aadhaar_last4:aadhaar.slice(-4),pan_verified:true,aadhaar_verified:true,verified_by:user.id,verified_at:now,updated_at:now},{onConflict:"host_phone"}); if(complianceInsertError) throw complianceInsertError;
       const {error:payoutError}=await admin.from("phone_host_payout_accounts").upsert({host_phone:phone,account_holder_name:holder,payout_method:method,account_number:method==="bank"?account:null,ifsc_code:method==="bank"?ifsc:null,upi_id:method==="upi"?upi:null,status:payoutVerified?"verified":"pending_verification",verification_note:null,verified_at:payoutVerified?now:null,updated_at:now},{onConflict:"host_phone"}); if(payoutError) throw payoutError;
       await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:"host_assisted_onboarding",entity_type:"host_application",entity_id:phone,after_state:{approved:approve,payout_method:method,payout_verified:payoutVerified,pan_last4:pan.slice(-4),aadhaar_last4:aadhaar.slice(-4)}}); return reply({ok:true});
@@ -333,6 +339,6 @@ Deno.serve(async (request) => {
     }
     return reply({ admin: { id: user.id, email: user.email, role, pages } });
   } catch (error) {
-    return reply({ error: error instanceof Error ? error.message : "Admin access failed." }, 403);
+    return reply({ error: errorMessage(error) }, 403);
   }
 });
