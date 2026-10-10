@@ -41,7 +41,7 @@ export function AuthFrame({ children, otp, phone }: { children: React.ReactNode;
   const inset = useSafeAreaInsets();
   const [ready] = useFonts({ Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold });
   return <FontReady.Provider value={ready}><KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, paddingBottom: inset.bottom }}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: Math.max(inset.bottom, 10) }}>
       <View style={styles.container}>
         <View style={[styles.hero, { paddingTop: inset.top + 16 }]}>
           <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -69,19 +69,19 @@ export function AuthFrame({ children, otp, phone }: { children: React.ReactNode;
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: authColors.background },
   container: { width: "100%", maxWidth: 430, alignSelf: "center", flexGrow: 1 },
-  hero: { backgroundColor: authColors.brand, paddingHorizontal: 22, paddingBottom: 52, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden" },
+  hero: { backgroundColor: authColors.brand, paddingHorizontal: 22, paddingBottom: 38, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: "hidden" },
   logo: { flexDirection: "row", alignItems: "center", gap: 8 },
   logoIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
-  bubbles: { height: 78, marginTop: 14, marginBottom: 4 },
+  bubbles: { height: 70, marginTop: 10, marginBottom: 2 },
   avatar: { position: "absolute", borderRadius: 99, borderWidth: 3, borderColor: "#ffffffeb", alignItems: "center", justifyContent: "center", overflow: "hidden", elevation: 5 },
   pill: { position: "absolute", bottom: -5, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingVertical: 7, paddingHorizontal: 12, borderRadius: 99, elevation: 5 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#3ecf8e" },
-  card: { marginTop: -28, marginHorizontal: 18, backgroundColor: "#fff", borderRadius: 24, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 18, gap: 12, boxShadow: "0 10px 30px rgba(226,55,68,0.14)" },
+  card: { marginTop: -22, marginHorizontal: 18, backgroundColor: "#fff", borderRadius: 22, paddingHorizontal: 18, paddingTop: 17, paddingBottom: 16, gap: 10, boxShadow: "0 10px 30px rgba(226,55,68,0.14)" },
   field: { flexDirection: "row", alignItems: "center", height: 54, borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 14, gap: 10, backgroundColor: authColors.background },
   country: { paddingRight: 10, borderRightWidth: 1.5, borderColor: authColors.line },
   check: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#3ecf8e", alignItems: "center", justifyContent: "center" },
   button: { minHeight: 52, borderRadius: 16, backgroundColor: authColors.brand, alignItems: "center", justifyContent: "center", padding: 12, boxShadow: "0 8px 20px rgba(226,55,68,0.22)" },
   secondary: { minHeight: 44, backgroundColor: "#fff", borderWidth: 1.5, borderColor: authColors.line, boxShadow: "none" },
-  trust: { flexDirection: "row", marginHorizontal: 24, marginTop: 16, gap: 8 },
-  footer: { alignItems: "center", marginTop: 12, padding: 14 },
+  trust: { flexDirection: "row", marginHorizontal: 24, marginTop: 12, gap: 8 },
+  footer: { alignItems: "center", marginTop: 8, padding: 10 },
 });

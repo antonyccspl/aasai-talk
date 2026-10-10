@@ -492,7 +492,9 @@ export function Auth({ mode }: { mode: string }) {
           {Platform.OS === "web" && (
             <View
               nativeID="aasai-firebase-recaptcha"
-              style={{ minHeight: 62, alignItems: "center" }}
+              // Firebase mounts its verification challenge here only after the user
+              // continues. Do not reserve a visible empty area before that happens.
+              style={{ alignItems: "center" }}
             />
           )}
           <AuthButton
