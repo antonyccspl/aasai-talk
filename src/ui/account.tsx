@@ -759,21 +759,21 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
             return setError("Use a 3–20 character username with letters, numbers, or underscores.");
           if (city.length < 2 || city.length > 80 || /[\r\n]/.test(city))
             return setError("Enter a valid city.");
-          if (
-            !isEligibleBirthday(form.dob) ||
-            !["Female", "Male"].includes(form.gender) ||
-            !form.languages.length ||
-            form.languages.length > 4 ||
-            !form.interests.length ||
-            form.interests.length > 6 ||
-            form.bio.trim().length > 500 ||
-            (onboarding && form.bio.trim().length < 12)
-          )
-            return setError(
-              onboarding
-                ? "Add a short bio, then choose an eligible date of birth, gender, language, and interest."
-                : "Choose an eligible date of birth, gender, language, and interest. Keep your bio under 500 characters.",
-            );
+          const bio = form.bio.trim();
+          if (bio.length > 500)
+            return setError("Keep your bio to 500 characters or fewer.");
+          if (!isEligibleBirthday(form.dob))
+            return setError("Choose a valid date of birth. You must be 18 or older.");
+          if (!["Female", "Male"].includes(form.gender))
+            return setError("Choose Male or Female to continue.");
+          if (!form.languages.length)
+            return setError("Choose at least one language.");
+          if (form.languages.length > 4)
+            return setError("Choose up to 4 languages.");
+          if (!form.interests.length)
+            return setError("Choose at least one interest.");
+          if (form.interests.length > 6)
+            return setError("Choose up to 6 interests.");
           if (onboarding) {
             d.setProfile({ ...form, name, city, bio: form.bio.trim() });
             setError("");
