@@ -381,8 +381,8 @@ export function Auth({ mode }: { mode: string }) {
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  height: 54,
-                  borderRadius: 14,
+                  height: 48,
+                  borderRadius: 13,
                   backgroundColor: authColors.background,
                   borderWidth: 1.5,
                   borderColor: index === code.length ? authColors.brand : authColors.line,
@@ -492,7 +492,7 @@ export function Auth({ mode }: { mode: string }) {
           {Platform.OS === "web" && (
             <View
               nativeID="aasai-firebase-recaptcha"
-              style={{ minHeight: 78, alignItems: "center" }}
+              style={{ minHeight: 62, alignItems: "center" }}
             />
           )}
           <AuthButton

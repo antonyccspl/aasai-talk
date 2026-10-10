@@ -43,17 +43,17 @@ export function AuthFrame({ children, otp, phone }: { children: React.ReactNode;
   return <FontReady.Provider value={ready}><KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, paddingBottom: inset.bottom }}>
       <View style={styles.container}>
-        <View style={[styles.hero, { paddingTop: inset.top + 22 }]}>
+        <View style={[styles.hero, { paddingTop: inset.top + 16 }]}>
           <View pointerEvents="none" style={StyleSheet.absoluteFill}>
             {Array.from({ length: 64 }, (_, i) => { const t = i / 63; return <View key={i} style={{ position: "absolute", left: 0, right: 0, top: `${i * 100 / 64}%`, height: "1.7%", backgroundColor: `rgb(${Math.round(255 - 54 * t)},${Math.round(90 - 48 * t)},${Math.round(95 - 40 * t)})` }} />; })}
           </View>
           <View style={styles.logo}><View style={styles.logoIcon}><Text style={{ fontSize: 18 }}>📞</Text></View><AuthText size={20} bold color="#fff">Aasai Talk</AuthText></View>
           <View style={styles.bubbles} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            {[{ emoji: "😄", left: "6%", top: 18, size: 64, color: "#ffe1a8" }, { emoji: "🧑‍🎤", left: "32%", top: 0, size: 78, color: "#c9f2df" }, { emoji: "👩‍🦱", left: "64%", top: 22, size: 64, color: "#ffd0d6" }, { emoji: "🎧", left: "82%", top: -6, size: 52, color: "#d8dcff" }].map((a) => <View key={a.emoji} style={[styles.avatar, { left: a.left as `${number}%`, top: a.top, width: a.size, height: a.size, backgroundColor: a.color }]}><Text style={{ fontSize: Math.min(a.size * 0.42, 32) }}>{a.emoji}</Text></View>)}
-            <View style={styles.pill}><View style={styles.dot} /><AuthText size={12} bold>A new friendship starts here</AuthText></View>
+            {[{ emoji: "😄", left: "10%", top: 16, size: 46, color: "#ffe1a8" }, { emoji: "🧑‍🎤", left: "35%", top: 0, size: 58, color: "#c9f2df" }, { emoji: "👩‍🦱", left: "61%", top: 18, size: 46, color: "#ffd0d6" }, { emoji: "🎧", left: "79%", top: 2, size: 40, color: "#d8dcff" }].map((a) => <View key={a.emoji} style={[styles.avatar, { left: a.left as `${number}%`, top: a.top, width: a.size, height: a.size, backgroundColor: a.color }]}><Text style={{ fontSize: Math.min(a.size * 0.42, 26) }}>{a.emoji}</Text></View>)}
+            <View style={styles.pill}><View style={styles.dot} /><AuthText size={11} bold>Private number. Real connections.</AuthText></View>
           </View>
-          <AuthText size={30} bold color="#fff">Talk. Laugh.{"\n"}Make a new friend.</AuthText>
-          <AuthText size={15} color="#fff">Voice call with friendly people, anytime you feel like chatting.</AuthText>
+          <AuthText size={25} bold color="#fff">Talk. Laugh.{"\n"}Feel connected.</AuthText>
+          <AuthText size={13.5} color="#fff">Friendly conversations, whenever you want them.</AuthText>
         </View>
         <View style={styles.card}>
           <View style={{ gap: 4, marginBottom: 6 }}><AuthText size={19} bold>{otp ? "Enter verification code" : "Log in or sign up"}</AuthText><AuthText size={13.5} color={authColors.muted}>{otp ? `Enter the six-digit code for ${phone}` : "Continue with your mobile number"}</AuthText></View>
@@ -69,19 +69,19 @@ export function AuthFrame({ children, otp, phone }: { children: React.ReactNode;
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: authColors.background },
   container: { width: "100%", maxWidth: 430, alignSelf: "center", flexGrow: 1 },
-  hero: { backgroundColor: authColors.brand, paddingHorizontal: 22, paddingBottom: 86, borderBottomLeftRadius: 40, borderBottomRightRadius: 40, overflow: "hidden" },
+  hero: { backgroundColor: authColors.brand, paddingHorizontal: 22, paddingBottom: 52, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden" },
   logo: { flexDirection: "row", alignItems: "center", gap: 8 },
   logoIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
-  bubbles: { height: 120, marginTop: 22, marginBottom: 6 },
+  bubbles: { height: 78, marginTop: 14, marginBottom: 4 },
   avatar: { position: "absolute", borderRadius: 99, borderWidth: 3, borderColor: "#ffffffeb", alignItems: "center", justifyContent: "center", overflow: "hidden", elevation: 5 },
-  pill: { position: "absolute", bottom: -6, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingVertical: 8, paddingHorizontal: 14, borderRadius: 99, elevation: 5 },
+  pill: { position: "absolute", bottom: -5, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingVertical: 7, paddingHorizontal: 12, borderRadius: 99, elevation: 5 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#3ecf8e" },
-  card: { marginTop: -58, marginHorizontal: 18, backgroundColor: "#fff", borderRadius: 28, paddingHorizontal: 18, paddingTop: 22, paddingBottom: 20, gap: 14, boxShadow: "0 10px 30px rgba(226,55,68,0.14)" },
-  field: { flexDirection: "row", alignItems: "center", height: 58, borderWidth: 1.5, borderRadius: 18, paddingHorizontal: 14, gap: 10, backgroundColor: authColors.background },
+  card: { marginTop: -28, marginHorizontal: 18, backgroundColor: "#fff", borderRadius: 24, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 18, gap: 12, boxShadow: "0 10px 30px rgba(226,55,68,0.14)" },
+  field: { flexDirection: "row", alignItems: "center", height: 54, borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 14, gap: 10, backgroundColor: authColors.background },
   country: { paddingRight: 10, borderRightWidth: 1.5, borderColor: authColors.line },
   check: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#3ecf8e", alignItems: "center", justifyContent: "center" },
-  button: { minHeight: 56, borderRadius: 18, backgroundColor: authColors.brand, alignItems: "center", justifyContent: "center", padding: 12, boxShadow: "0 8px 20px rgba(226,55,68,0.22)" },
-  secondary: { minHeight: 48, backgroundColor: "#fff", borderWidth: 1.5, borderColor: authColors.line, boxShadow: "none" },
-  trust: { flexDirection: "row", marginHorizontal: 18, marginTop: 22, gap: 8 },
-  footer: { alignItems: "center", marginTop: "auto", padding: 22 },
+  button: { minHeight: 52, borderRadius: 16, backgroundColor: authColors.brand, alignItems: "center", justifyContent: "center", padding: 12, boxShadow: "0 8px 20px rgba(226,55,68,0.22)" },
+  secondary: { minHeight: 44, backgroundColor: "#fff", borderWidth: 1.5, borderColor: authColors.line, boxShadow: "none" },
+  trust: { flexDirection: "row", marginHorizontal: 24, marginTop: 16, gap: 8 },
+  footer: { alignItems: "center", marginTop: 12, padding: 14 },
 });
