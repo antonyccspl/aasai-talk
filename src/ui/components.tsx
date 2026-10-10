@@ -247,10 +247,12 @@ export function Chip({
   title,
   selected,
   onPress,
+  compact = false,
 }: {
   title: string;
   selected?: boolean;
   onPress?: () => void;
+  compact?: boolean;
 }) {
   return (
     <Pressable
@@ -263,11 +265,18 @@ export function Chip({
           backgroundColor: selected ? c.text : onPress ? c.low : c.high,
           borderWidth: onPress ? 1.5 : 0,
           borderColor: selected ? c.text : c.line,
-          minHeight: onPress ? 40 : 24,
+          minHeight: onPress ? (compact ? 34 : 40) : 24,
+          paddingHorizontal: compact ? 11 : 12,
+          paddingVertical: compact ? 3 : 4,
+          // Prevent a chip in a horizontal ScrollView from being stretched to
+          // the height of its surrounding screen on web.
+          alignSelf: "center",
+          flexGrow: 0,
+          flexShrink: 0,
         },
       ]}
     >
-      <T size={onPress ? 13.5 : 12.5} mono color={selected ? c.ink : c.secondary}>
+      <T size={onPress ? (compact ? 12 : 13.5) : 12.5} mono color={selected ? c.ink : c.secondary}>
         {title}
       </T>
     </Pressable>
@@ -277,16 +286,33 @@ export function Chips({
   items,
   selected,
   onChange,
+  compact = false,
 }: {
   items: string[];
   selected: string;
   onChange: (v: string) => void;
+  compact?: boolean;
 }) {
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+      // React Native Web stretches children on the cross axis inside a
+      // horizontal ScrollView unless we explicitly size and center the row.
+      // Keep all filter/status tabs compact and consistently pill-shaped.
+      style={{
+        width: "100%",
+        height: compact ? 38 : 48,
+        flexGrow: 0,
+        flexShrink: 0,
+        alignSelf: "flex-start",
+      }}
+      contentContainerStyle={{
+        alignItems: "center",
+        gap: compact ? 7 : 8,
+        paddingVertical: compact ? 2 : 4,
+        paddingRight: compact ? 10 : 0,
+      }}
     >
       {items.map((item) => (
         <Chip
@@ -294,6 +320,7 @@ export function Chips({
           title={item}
           selected={item === selected}
           onPress={() => onChange(item)}
+          compact={compact}
         />
       ))}
     </ScrollView>
@@ -705,7 +732,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
   if (grid) {
     const backgrounds = ["#c73543", "#6046c2", "#127e79", "#b95422"];
     const available = effectiveStatus === "Available";
-    return <View style={{ width: "48%", flexGrow: 1, minHeight: 224, borderRadius: 26, padding: 14, overflow: "hidden", backgroundColor: backgrounds[index % backgrounds.length], justifyContent: "flex-end" }}>
+    return <View style={{ width: "100%", minHeight: 208, borderRadius: 24, padding: 14, overflow: "hidden", backgroundColor: backgrounds[index % backgrounds.length], justifyContent: "flex-end" }}>
       <View pointerEvents="none" style={{ position: "absolute", width: 190, height: 190, borderRadius: 95, top: -70, right: -50, backgroundColor: "#ffffff15" }} />
       {showPhoto ? <>
         <Image source={{ uri: person.photo }} resizeMode="cover" accessibilityLabel={`${person.name} profile photo`} style={StyleSheet.absoluteFill} onError={() => setFailedPhoto(person.photo ?? null)} />

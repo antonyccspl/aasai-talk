@@ -483,11 +483,14 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
         actionIcon={favorites ? undefined : "sliders"}
         onPress={() => go("/filters")}
       />
-      {mode === "explore" && <Chips items={["All", "Available", "Hindi", "Tamil", "English"]} selected={d.filter} onChange={d.setFilter} />}
+      {mode === "explore" && <Chips compact items={["All", "Available", "Hindi", "Tamil", "English"]} selected={d.filter} onChange={d.setFilter} />}
       {directoryLoading ? <LoadingCards count={mode === "explore" ? 4 : 3} /> : mode === "explore" ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-          {result.map((p, index) => <UserCard key={p.id} person={p} grid index={index} />)}
-          {result.length % 2 === 1 && <View style={{ width: "48%", flexGrow: 1 }} />}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: result.length === 1 ? "center" : "flex-start", gap: 14 }}>
+          {result.map((p, index) => (
+            <View key={p.id} style={{ width: wideLayout ? "48%" : "100%", maxWidth: wideLayout ? 520 : undefined }}>
+              <UserCard person={p} grid index={index} />
+            </View>
+          ))}
         </View>
       ) : wideLayout ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "stretch", gap: 12 }}>
