@@ -236,10 +236,53 @@ function HostDirectoryUnavailable({ title = "Host dashboard" }: { title?: string
   );
 }
 
+function HostJourneyHome() {
+  const d = useDemo();
+  const pending = d.hostStatus === "pending";
+  return (
+    <Shell tab="Explore">
+      <Card style={{ backgroundColor: "#3b2740", borderWidth: 1, borderColor: "#69476d", gap: 14 }}>
+        <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+          <View style={{ backgroundColor: "#f6d6b2", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 }}>
+            <T mono size={10} bold color="#492c31">HOST DASHBOARD</T>
+          </View>
+          <View style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "#56385d", borderWidth: 1, borderColor: "#795b80" }}>
+            <Icon name={pending ? "clock" : "star"} color="#ffd49a" size={21} />
+          </View>
+        </Row>
+        <View style={{ gap: 5 }}>
+          <T bold size={22} color="#ffffff">{pending ? "Your Host application is under review" : "Start your Host journey"}</T>
+          <T size={13} color="#f2dff2">
+            {pending
+              ? "We are checking your details. We’ll notify you as soon as your Host account is ready."
+              : "Complete your verification to receive calls and earn through audio and video conversations."}
+          </T>
+        </View>
+        <Row style={{ flexWrap: "wrap", gap: 7 }}>
+          {(pending ? ["Application submitted", "Review in progress"] : ["Profile verification", "Secure payouts", "Flexible hours"]).map((item) => (
+            <View key={item} style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: "#56385d" }}><T mono size={10} color="#ffffff">{item}</T></View>
+          ))}
+        </Row>
+        <Button title={pending ? "View application status" : "Complete Host application"} icon={pending ? "clock" : "arrow-right"} onPress={() => go(pending ? "/host/status" : "/host/apply")} />
+      </Card>
+      <Card>
+        <T size={18} bold>{pending ? "What happens next" : "Become ready to receive calls"}</T>
+        <T color={c.secondary}>
+          {pending
+            ? "Our team will verify your profile and payout details. Once approved, your dashboard, earnings, and Host call tools will unlock here."
+            : "Add the required Host details, a profile photo, verification documents, and a payout method. You can check your progress any time."}
+        </T>
+      </Card>
+      <Button title="Need help? Contact support" variant="secondary" icon="help-circle" onPress={() => go("/settings/help")} />
+    </Shell>
+  );
+}
+
 export function Discovery({ mode = "explore" }: { mode?: string }) {
   const d = useDemo();
   const refreshPeople = useRefreshPeople();
-  const isHost = d.hostStatus === "approved";
+  const isHostAccount = d.profile.gender === "Female";
+  const isHost = isHostAccount && d.hostStatus === "approved";
   const wideLayout = useWindowDimensions().width >= 768;
   const [refreshing, setRefreshing] = useState(false);
   const [directoryLoading, setDirectoryLoading] = useState(true);
@@ -249,7 +292,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
   const searching = mode === "search";
   const favorites = mode === "favorites";
   useEffect(() => {
-    if ((mode !== "search" && mode !== "explore" && mode !== "favorites") || (isHost && mode === "explore"))
+    if ((mode !== "search" && mode !== "explore" && mode !== "favorites") || isHostAccount)
       return;
     let mounted = true;
     let loading = false;
@@ -290,7 +333,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
       mounted = false;
       clearInterval(interval);
     };
-  }, [availabilityNoticeY, isHost, mode, refreshPeople]);
+  }, [availabilityNoticeY, isHostAccount, mode, refreshPeople]);
   const refreshPeopleList = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -312,7 +355,8 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
     }
   }, [availabilityNoticeY, d, refreshPeople]);
   if (isHost && mode === "explore") return <HostDashboardHome />;
-  if (isHost) return <HostDirectoryUnavailable title={searching ? "Search people" : favorites ? "Favorites" : "Host dashboard"} />;
+  if (isHostAccount && mode === "explore") return <HostJourneyHome />;
+  if (isHostAccount) return <HostDirectoryUnavailable title={searching ? "Search people" : favorites ? "Favorites" : "Host dashboard"} />;
   const result = d.people.filter(
     (p) =>
       !d.blocked.includes(p.id) &&
@@ -411,26 +455,6 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
           </Pressable>
         </Animated.View>
       )}
-      {mode === "explore" && d.profile.gender === "Female" && d.hostStatus !== "approved" && (
-        <Card style={{ backgroundColor: "#3b2740", borderWidth: 1, borderColor: "#69476d", overflow: "hidden", gap: 14 }}>
-          <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
-            <View style={{ backgroundColor: "#f6d6b2", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 }}>
-              <T mono size={10} bold color="#492c31">HOST PROGRAM</T>
-            </View>
-            <View style={{ width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: "#56385d", borderWidth: 1, borderColor: "#795b80" }}>
-              <Icon name="star" color="#ffd49a" size={23} />
-            </View>
-          </Row>
-          <View style={{ gap: 5 }}>
-            <T bold size={22} color="#ffffff">{d.hostStatus === "pending" ? "Your Host journey has started" : "Meet people. Earn on your time."}</T>
-            <T size={13} color="#f2dff2">{d.hostStatus === "pending" ? "Our team is reviewing your details. We’ll notify you when there is an update." : "Become a verified Aasai Talk Host and earn through meaningful audio and video conversations."}</T>
-          </View>
-          {d.hostStatus !== "pending" && <Row style={{ flexWrap: "wrap", gap: 7 }}>
-            {["Flexible hours", "Safe verification", "Weekly withdrawals"].map((benefit) => <View key={benefit} style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: "#56385d" }}><T mono size={10} color="#ffffff">{benefit}</T></View>)}
-          </Row>}
-          <Button title={d.hostStatus === "pending" ? "Track application" : "Start your Host application"} icon={d.hostStatus === "pending" ? "clock" : "arrow-right"} onPress={() => go(d.hostStatus === "pending" ? "/host/status" : "/host/apply")} />
-        </Card>
-      )}
       {searching && (
         <>
           <Field
@@ -527,7 +551,7 @@ function FilterGroup({
 
 export function Filters() {
   const d = useDemo();
-  if (d.hostStatus === "approved") return <HostDirectoryUnavailable title="Filters" />;
+  if (d.profile.gender === "Female") return <HostDirectoryUnavailable title="Filters" />;
   return <FiltersContent />;
 }
 
@@ -639,8 +663,9 @@ function FiltersContent() {
   );
 }
 export function UserProfile({ id }: { id: string }) {
-  const p = personFor(id);
   const d = useDemo();
+  if (d.profile.gender === "Female") return <HostDirectoryUnavailable title="Host dashboard" />;
+  const p = personFor(id);
   const blocked = d.blocked.includes(id);
   const isApprovedHost = d.hostStatus === "approved";
   return (

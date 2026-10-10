@@ -207,6 +207,7 @@ export function Wallet({
     );
   };
   const isApprovedHost = d.hostStatus === "approved";
+  const isFemaleMember = d.profile.gender === "Female";
   const checkCashfreePayment = useCallback(async (orderId: string) => {
     const token = await getIdentityToken();
     const result = await getCashfreePaymentStatus(token, orderId);
@@ -252,15 +253,41 @@ export function Wallet({
       setPaymentLoading(false);
     }
   }, [getIdentityToken, selectedPack, waitForCashfreePayment]);
-  if (isApprovedHost)
+  if (isFemaleMember)
     return (
       <Shell title="Wallet">
         <Empty
-          icon="shield"
-          title="Wallet unavailable for Hosts"
-          message="Host accounts do not purchase coins. Your earnings and withdrawals are available in the Host area."
-          action="Open Host status"
-          onPress={() => go("/host/status")}
+          icon={isApprovedHost ? "trending-up" : "star"}
+          title={
+            isApprovedHost
+              ? "Your Host area is ready"
+              : d.hostStatus === "pending"
+                ? "Your Host application is being reviewed"
+                : "Become an Aasai Talk Host"
+          }
+          message={
+            isApprovedHost
+              ? "Hosts earn from conversations and manage withdrawals in the Host area."
+              : d.hostStatus === "pending"
+                ? "We will notify you when your application has been reviewed."
+                : "Female members do not purchase coins. Apply to become a verified Host and earn through conversations."
+          }
+          action={
+            isApprovedHost
+              ? "Open Host earnings"
+              : d.hostStatus === "pending"
+                ? "View application status"
+                : "Start Host application"
+          }
+          onPress={() =>
+            go(
+              isApprovedHost
+                ? "/host/withdraw"
+                : d.hostStatus === "pending"
+                  ? "/host/status"
+                  : "/host/apply",
+            )
+          }
         />
       </Shell>
     );

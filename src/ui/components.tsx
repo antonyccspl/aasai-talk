@@ -946,6 +946,8 @@ export function Shell({
   const d = useDemo();
   const scrollRef = useRef<ScrollView>(null);
   const isApprovedHost = d.hostStatus === "approved";
+  const isHostAccount = d.profile.gender === "Female";
+  const canBuyCoins = d.profile.gender === "Male" && d.paid && !isApprovedHost;
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 220);
@@ -973,10 +975,10 @@ export function Shell({
     ? Math.min(960, Math.max(430, viewportWidth - 48))
     : 430;
   const tabs: [string, IconName, string][] = [
-    ["Explore", "compass", "/explore"],
-    ["Calls", "phone", "/calls"],
+    [isHostAccount ? "Dashboard" : "Explore", isHostAccount ? "grid" : "compass", "/explore"],
+    ...(!isHostAccount || isApprovedHost ? [["Calls", "phone", "/calls"] as [string, IconName, string]] : []),
     ["Messages", "message-square", "/messages"],
-    ...(d.paid && !isApprovedHost
+    ...(canBuyCoins
       ? [["Wallet", "credit-card", "/wallet"] as [string, IconName, string]]
       : []),
   ];
@@ -1024,7 +1026,7 @@ export function Shell({
             )}
             {!immersive && (
               <>
-                {d.paid && !isApprovedHost && !title && (
+                {canBuyCoins && !title && (
                   <Pressable
                     onPress={() => go("/wallet")}
                     style={[

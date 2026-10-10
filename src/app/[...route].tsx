@@ -19,11 +19,13 @@ import {
 } from "@/ui/social";
 import { Wallet } from "@/ui/wallet";
 import { ModeratorOps } from "@/ui/moderator-ops";
+import { useDemo } from "@/ui/store";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import React from "react";
 
 export default function Route() {
   const { loading, authenticated, demoPhone } = useAuth();
+  const profile = useDemo().profile;
   const params = useLocalSearchParams<{
     route: string[];
     type?: string;
@@ -44,6 +46,8 @@ export default function Route() {
     !(root === "settings" && action === "policies")
   )
     return <Redirect href="/auth/login" />;
+  if (profile.gender === "Female" && ["search", "favorites", "filters", "user"].includes(root))
+    return <Redirect href="/explore" />;
   const key = `${parts.join("/")}:${params.session || ""}`;
   let screen: React.ReactNode;
   if (root === "auth") screen = <Auth mode={action} />;
