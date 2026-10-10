@@ -1,6 +1,19 @@
 import { supabase } from "./supabase";
 import { submitProfilePhotoForModeration } from "./content-moderation";
 
+function describeDatabaseError(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string" &&
+    error.message.trim()
+  )
+    return error.message;
+  return fallback;
+}
+
 export type UserProfile = {
   name: string;
   username: string;
@@ -84,7 +97,10 @@ export async function saveDemoProfile(phone: string, profile: UserProfile, idTok
       photo,
     },
   });
-  if (error) throw error;
+  if (error)
+    throw new Error(
+      describeDatabaseError(error, "We could not save your profile. Please try again."),
+    );
   return photo;
 }
 
