@@ -19,7 +19,7 @@ import { ActivityIndicator, Animated, AppState, Modal, Platform, Pressable, Scro
 import type { NotificationResponse } from "expo-notifications";
 import { colors } from "@/ui/theme";
 import { Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold, useFonts } from "@expo-google-fonts/figtree";
-import { Stack, router } from "expo-router";
+import { Stack, router, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 
@@ -38,6 +38,7 @@ function activeSpecialOffers(packs: CoinPack[]) {
 function SpecialOfferWelcome() {
   const { authenticated, demoPhone } = useAuth();
   const { profile, setPack } = useDemo();
+  const pathname = usePathname();
   const { width } = useWindowDimensions();
   const [offers, setOffers] = useState<CoinPack[]>([]);
   const [visible, setVisible] = useState(false);
@@ -46,7 +47,11 @@ function SpecialOfferWelcome() {
   const carouselRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    if (!authenticated || !demoPhone || profile.gender !== "Male") {
+    const onboardingActive = pathname === "/auth" || pathname.startsWith("/auth/");
+    const eligibleMember = profile.gender === "Male"
+      && profile.guidelinesAccepted === true
+      && profile.adultAgeConfirmed === true;
+    if (!authenticated || !demoPhone || onboardingActive || !eligibleMember) {
       campaignRef.current = "";
       setVisible(false);
       setOffers([]);
@@ -75,7 +80,7 @@ function SpecialOfferWelcome() {
       mounted = false;
       controller.abort();
     };
-  }, [authenticated, demoPhone, profile.gender]);
+  }, [authenticated, demoPhone, pathname, profile.gender, profile.guidelinesAccepted, profile.adultAgeConfirmed]);
 
   const dismiss = (openWallet = false) => {
     setVisible(false);
