@@ -111,6 +111,9 @@ export async function fetchDemoProfile(phone: string): Promise<UserProfile | nul
   if (error) throw error;
   if (!data || typeof data !== "object") return null;
   const profile = data as Record<string, unknown>;
+  // A phone identity is created before its owner finishes onboarding. Its
+  // profile is therefore legitimately empty or partial at this point and
+  // must take the user to profile setup, not fail authenticated refresh.
   if (
     typeof profile.name !== "string" ||
     typeof profile.username !== "string" ||
@@ -121,7 +124,7 @@ export async function fetchDemoProfile(phone: string): Promise<UserProfile | nul
     typeof profile.gender !== "string" ||
     typeof profile.city !== "string"
   )
-    throw new Error("Saved phone profile has an invalid format.");
+    return null;
   return {
     name: profile.name,
     username: profile.username,
