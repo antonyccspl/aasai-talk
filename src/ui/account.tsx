@@ -115,6 +115,56 @@ function OnboardingProgress({ step, label }: { step: number; label: string }) {
   );
 }
 
+function AgreementCheckbox({
+  checked,
+  label,
+  onPress,
+}: {
+  checked: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityLabel={label}
+      accessibilityState={{ checked }}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        minHeight: 56,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 16,
+        borderWidth: 1.5,
+        borderColor: checked ? c.mint : c.line,
+        backgroundColor: checked ? c.high : c.low,
+        opacity: pressed ? 0.72 : 1,
+      })}
+    >
+      <View
+        style={{
+          width: 23,
+          height: 23,
+          borderRadius: 7,
+          alignItems: "center",
+          justifyContent: "center",
+          borderWidth: 2,
+          borderColor: checked ? c.mint : c.secondary,
+          backgroundColor: checked ? c.mint : "transparent",
+        }}
+      >
+        {checked && <Icon name="check" size={16} color={c.ink} />}
+      </View>
+      <T bold size={14} style={{ flex: 1 }}>
+        {label}
+      </T>
+    </Pressable>
+  );
+}
+
 export function Auth({ mode }: { mode: string }) {
   const d = useDemo();
   const auth = useAuth();
@@ -146,16 +196,24 @@ export function Auth({ mode }: { mode: string }) {
   if (mode === "guidelines")
     return (
       <Shell title="Community promise" immersive>
-        <OnboardingProgress step={6} label="Almost there" />
+        <OnboardingProgress step={5} label="Almost there" />
         <T size={27} bold>Help keep Aasai Talk kind.</T>
-        <T color={c.secondary}>Be genuine, respect boundaries, and never ask for money or share someone’s private information.</T>
+        <T color={c.secondary}>Be genuine, respect boundaries, and keep private information private.</T>
         <Card style={{ gap: 10 }}>
           <Row><Icon name="shield" color={c.mint} /><T bold>Our community standards</T></Row>
           <T size={13} color={c.secondary}>Harassment, scams, impersonation, and sexual exploitation are not allowed. You can block or report anyone at any time.</T>
           <Button title="Read community guidelines" variant="secondary" onPress={() => go("/settings/policies/community")} />
         </Card>
-        <Chip title="I confirm that I am 18 years or older" selected={adultAgeConfirmed} onPress={() => setAdultAgeConfirmed((value) => !value)} />
-        <Chip title="I agree to follow the community guidelines" selected={guidelinesAccepted} onPress={() => setGuidelinesAccepted((value) => !value)} />
+        <AgreementCheckbox
+          checked={adultAgeConfirmed}
+          label="I confirm that I am 18 years or older"
+          onPress={() => setAdultAgeConfirmed((value) => !value)}
+        />
+        <AgreementCheckbox
+          checked={guidelinesAccepted}
+          label="I agree to follow the community guidelines"
+          onPress={() => setGuidelinesAccepted((value) => !value)}
+        />
         <T size={12} color={c.secondary}>Aasai Talk is for adults only. Both confirmations are required to create an account.</T>
         <Button title="Continue" disabled={!guidelinesAccepted || !adultAgeConfirmed} onPress={() => { d.setProfile({ ...d.profile, guidelinesAccepted: true, adultAgeConfirmed: true }); go("/auth/complete"); }} />
       </Shell>
@@ -338,11 +396,18 @@ export function Auth({ mode }: { mode: string }) {
           title={busy ? "Finishing setup…" : "Continue to Aasai Talk"}
           disabled={busy}
           onPress={() => {
+            setError("");
             setBusy(true);
+            const completedProfile = {
+              ...d.profile,
+              guidelinesAccepted: true,
+              adultAgeConfirmed: true,
+            };
+            d.setProfile(completedProfile);
             void (auth.demoPhone
-              ? auth.getIdentityToken().then((token) => saveDemoProfile(auth.demoPhone!, { ...d.profile, guidelinesAccepted: true, adultAgeConfirmed: true }, token))
+              ? auth.getIdentityToken().then((token) => saveDemoProfile(auth.demoPhone!, completedProfile, token))
               : auth.user
-                ? saveOwnProfile(d.profile)
+                ? saveOwnProfile(completedProfile)
                 : Promise.reject(new Error("Phone session is missing.")))
               .then((approvedPhoto) => {
                 if (approvedPhoto) d.setPhoto(approvedPhoto);
@@ -364,6 +429,7 @@ export function Auth({ mode }: { mode: string }) {
               .finally(() => setBusy(false));
           }}
         />
+        {error && <Notice error>{error}</Notice>}
       </Shell>
     );
   return (
@@ -777,7 +843,7 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           if (onboarding) {
             d.setProfile({ ...form, name, city, bio: form.bio.trim() });
             setError("");
-            go("/auth/permissions");
+            go("/auth/guidelines");
             return;
           }
           setBusy(true);
@@ -889,49 +955,35 @@ export function Profile() {
   );
 }
 export function Permissions({ onboarding }: { onboarding?: boolean }) {
-  const [state, setState] = useState<Record<string, string>>({});
+  const permissions = [
+    ["mic", "Microphone", "Asked only when you start an audio or video call."],
+    ["video", "Camera", "Asked only when you start or accept a video call."],
+    ["bell", "Notifications", "Optional. Turn these on when you want call and message alerts."],
+    ["image", "Photos and media", "Asked only when you choose a profile picture or share media."],
+  ] as const;
   return (
     <Shell
       title={onboarding ? "Make room for conversations" : "App permissions"}
     >
+      {onboarding && <OnboardingProgress step={5} label="One quick note" />}
+      <T size={24} bold>Permissions, when you need them.</T>
       <T color={c.secondary}>
-        You stay in control. Permission is requested when you use a feature.
+        You can set up your account now. Aasai Talk asks for access only when you choose a feature that needs it.
       </T>
-      {(
-        ["Microphone", "Camera", "Notifications", "Photos and media"] as const
-      ).map((name, i) => (
-        <Card key={name}>
-          <Row>
-            <Icon
-              name={(["mic", "video", "bell", "image"] as const)[i]}
-              color={c.mint}
-            />
-            <T size={20} bold>
-              {name}
-            </T>
+      <Card style={{ gap: 14 }}>
+        {permissions.map(([icon, title, detail]) => (
+          <Row key={title} style={{ alignItems: "flex-start", gap: 12 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: c.high }}>
+              <Icon name={icon} color={c.mint} size={19} />
+            </View>
+            <View style={{ flex: 1, gap: 3 }}>
+              <T bold>{title}</T>
+              <T size={12.5} color={c.secondary}>{detail}</T>
+            </View>
           </Row>
-          <T color={c.secondary}>
-            {
-              [
-                "Let the other person hear you on a call.",
-                "See each other during a video conversation.",
-                "Know when someone calls or sends a message.",
-                "Share a photo or update your profile.",
-              ][i]
-            }
-          </T>
-          <Badge
-            text={state[name] || "Not requested"}
-            warning={state[name] === "Denied"}
-          />
-          <Chips
-            items={["Allowed", "Denied", "Settings required"]}
-            selected={state[name]}
-            onChange={(v) => setState((x) => ({ ...x, [name]: v }))}
-          />
-        </Card>
-      ))}
-      <Notice>Review the permissions used by Aasai Talk.</Notice>
+        ))}
+      </Card>
+      <Notice>You can change an allowed permission anytime in your phone settings.</Notice>
       {onboarding && (
         <Button
           title="Continue"
