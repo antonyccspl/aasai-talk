@@ -8,10 +8,11 @@ import {
 } from "@/data/phone-safety";
   import { registerPushDevice, showPushTestNotification, updatePushPreferences } from "@/data/push-notifications";
 import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
+import { profileInterests, profileLanguages } from "@/data/profile-options";
 import { createSupportTicket, fetchSupportTickets, replyToSupportTicket, type SupportTicket } from "@/data/support-tickets";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, TextInput, View } from "react-native";
 import { AuthButton, authColors, AuthField, AuthFrame, AuthText } from "./auth-design";
 import {
@@ -43,6 +44,10 @@ function latestEligibleBirthday() {
   const date = new Date();
   date.setFullYear(date.getFullYear() - 18);
   return date;
+}
+
+function dateInputValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function isEligibleBirthday(value: string) {
@@ -554,19 +559,17 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
   };
   return (
     <Shell title={onboarding ? "Create your profile" : "Edit profile"}>
-      <Row>
-        <Avatar size={68} name={form.name} />
-        <View style={{ flex: 1 }}>
-          <T size={20} bold>
-            Your kind of connection
-          </T>
-          <Button
-            title="Change photo"
-            variant="secondary"
-            onPress={() => setAvatar(!avatar)}
-          />
-        </View>
-      </Row>
+      {onboarding && <View style={{ gap: 3, marginBottom: 2 }}><T size={22} bold>Set up your profile</T><T size={13} color={c.secondary}>Add the details people need to recognise you.</T></View>}
+      <Card style={{ padding: 13, gap: 10 }}>
+        <Row style={{ alignItems: "center", gap: 12 }}>
+          <Avatar size={52} name={form.name} />
+          <View style={{ flex: 1, gap: 1 }}>
+            <T bold size={15}>Profile photo <T size={12} color={c.secondary}>(optional)</T></T>
+            <T size={12} color={c.secondary}>You can add or change this anytime.</T>
+          </View>
+          <Button title={photo ? "Change" : "Add photo"} variant="secondary" onPress={() => setAvatar(!avatar)} style={{ minHeight: 42, paddingHorizontal: 13 }} />
+        </Row>
+      </Card>
       {avatar && (
         <PhotoPicker
           uri={photo}
@@ -586,17 +589,27 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           onChange={(v) => change(key, v)}
         />
       ))}
-      <Card>
-        <T size={13} color={c.secondary}>
-          Date of birth
-        </T>
+      <Card style={{ padding: 14, gap: 8 }}>
+        <T size={13} color={c.secondary}>Date of birth</T>
         {Platform.OS === "web" ? (
-          <Field
-            label="Date of birth (YYYY-MM-DD)"
-            value={form.dob}
-            onChange={(value) => change("dob", value)}
-            placeholder="YYYY-MM-DD"
-          />
+          createElement("input", {
+            type: "date",
+            value: form.dob,
+            max: dateInputValue(latestEligibleBirthday()),
+            "aria-label": "Date of birth",
+            onChange: (event: { target: { value: string } }) => change("dob", event.target.value),
+            style: {
+              width: "100%",
+              height: 50,
+              border: `1.5px solid ${c.line}`,
+              borderRadius: 14,
+              padding: "0 14px",
+              background: c.surface,
+              color: c.text,
+              fontSize: 16,
+              boxSizing: "border-box",
+            },
+          })
         ) : (
           <Button
             title={form.dob || "Choose date of birth"}
@@ -628,13 +641,13 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
       />
       <Section title="Gender" />
       <Chips
-        items={["Female", "Male"]}
+        items={["Male", "Female"]}
         selected={form.gender}
         onChange={(v) => change("gender", v)}
       />
       <Section title="Languages" />
       <Row style={{ flexWrap: "wrap" }}>
-        {["Hindi", "English", "Kannada", "Tamil"].map((x) => (
+        {profileLanguages.map((x) => (
           <Chip
             key={x}
             title={x}
@@ -652,7 +665,7 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
       </Row>
       <Section title="Interests" />
       <Row style={{ flexWrap: "wrap" }}>
-        {["Music", "Travel", "Poetry", "Books", "Coffee", "Movies"].map((x) => (
+        {profileInterests.map((x) => (
           <Chip
             key={x}
             title={x}
@@ -746,8 +759,6 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
             return setError("Use a 3–20 character username with letters, numbers, or underscores.");
           if (city.length < 2 || city.length > 80 || /[\r\n]/.test(city))
             return setError("Enter a valid city.");
-          if (onboarding && !photo)
-            return setError("Add a clear profile photo before continuing.");
           if (
             !isEligibleBirthday(form.dob) ||
             !["Female", "Male"].includes(form.gender) ||

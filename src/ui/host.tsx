@@ -4,6 +4,7 @@ import { uploadHostVerificationDocument } from "@/data/host-documents";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
 import { fetchHostPayoutStatus, requestHostWithdrawal, saveHostPayoutAccount, type HostPayoutAccount, type HostWithdrawal } from "@/data/host-payouts";
 import { fetchHostDailyCallSummary, fetchHostDailyCallTime, type HostDailyCallSummary } from "@/data/host-metrics";
+import { profileInterests, profileLanguages } from "@/data/profile-options";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -163,8 +164,8 @@ export function HostApplication() {
       </Shell>
     );
   function next() {
-    if (step === 1 && (!form.name.trim() || !form.bio.trim()))
-      return setError("Enter a display name and short bio.");
+    if (step === 1 && (!form.name.trim() || !form.bio.trim() || !d.photo))
+      return setError("Add a clear profile photo, display name, and short bio.");
     if (step === 2 && !form.languages.length)
       return setError("Choose at least one language.");
     if (step === 3 && !form.interests.length)
@@ -211,29 +212,8 @@ export function HostApplication() {
       {(step === 2 || step === 3) && (
         <Row style={{ flexWrap: "wrap" }}>
           {(step === 2
-            ? [
-                "English",
-                "Tamil",
-                "Hindi",
-                "Telugu",
-                "Malayalam",
-                "Kannada",
-                "Bengali",
-                "Other",
-              ]
-            : [
-                "Music",
-                "Movies",
-                "Travel",
-                "Gaming",
-                "Food",
-                "Sports",
-                "Fitness",
-                "Fashion",
-                "Books",
-                "Comedy",
-                "Technology",
-              ]
+            ? profileLanguages
+            : profileInterests
           ).map((item) => {
             const key = step === 2 ? "languages" : "interests";
             return (
@@ -305,6 +285,10 @@ export function HostApplication() {
           <Button
             title="Submit"
             onPress={() => {
+              if (!d.photo) {
+                setError("Add a clear profile photo before submitting your Host application.");
+                return;
+              }
               if (!auth.demoPhone) {
                 setError("Please sign in again before submitting your application.");
                 return;
