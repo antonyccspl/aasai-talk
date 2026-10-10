@@ -12,6 +12,7 @@ export type UserProfile = {
   city: string;
   photo?: string;
   guidelinesAccepted?: boolean;
+  adultAgeConfirmed?: boolean;
 };
 
 type ProfileRow = {
@@ -44,6 +45,7 @@ export async function fetchOwnProfile(): Promise<UserProfile | null> {
     gender: data.gender,
     city: data.city,
     guidelinesAccepted: true,
+    adultAgeConfirmed: true,
   };
 }
 
@@ -119,5 +121,6 @@ export async function fetchDemoProfile(phone: string): Promise<UserProfile | nul
     city: profile.city,
     photo: typeof profile.photo === "string" ? profile.photo : undefined,
     guidelinesAccepted: true,
+    adultAgeConfirmed: true,
   };
 }

@@ -39,6 +39,14 @@ import {
 import { colors as c, fonts } from "./theme";
 export type IconName = React.ComponentProps<typeof Feather>["name"];
 export const go = (path: string) => router.push(path as never);
+/** Return to the screen the member actually came from, with a safe fallback for direct links. */
+export const back = (fallback = "/explore") => {
+  if (router.canGoBack()) {
+    router.back();
+    return;
+  }
+  router.replace(fallback as never);
+};
 /** Brief native acknowledgement for deliberate controls; web keeps visual feedback only. */
 const pressFeedback = () => {
   if (Platform.OS !== "web") Vibration.vibrate(8);
@@ -988,11 +996,7 @@ export function Shell({
                   icon="arrow-left"
                   label="Go back"
                   onPress={() =>
-                    router.replace(
-                      title === "Create your profile"
-                        ? "/auth/login"
-                        : "/explore",
-                    )
+                    back(title === "Create your profile" ? "/auth/login" : "/explore")
                   }
                 />
                 <T bold size={18} numberOfLines={1} style={{ flex: 1 }}>

@@ -131,6 +131,7 @@ export function Auth({ mode }: { mode: string }) {
   const [dob, setDob] = useState(d.profile.dob);
   const [showDate, setShowDate] = useState(false);
   const [guidelinesAccepted, setGuidelinesAccepted] = useState(false);
+  const [adultAgeConfirmed, setAdultAgeConfirmed] = useState(false);
   const otpInput = useRef<TextInput>(null);
   const otpPhone = params.phone || phone;
   if (mode === "splash") return <Welcome />;
@@ -147,8 +148,10 @@ export function Auth({ mode }: { mode: string }) {
           <T size={13} color={c.secondary}>Harassment, scams, impersonation, and sexual exploitation are not allowed. You can block or report anyone at any time.</T>
           <Button title="Read community guidelines" variant="secondary" onPress={() => go("/settings/policies/community")} />
         </Card>
+        <Chip title="I confirm that I am 18 years or older" selected={adultAgeConfirmed} onPress={() => setAdultAgeConfirmed((value) => !value)} />
         <Chip title="I agree to follow the community guidelines" selected={guidelinesAccepted} onPress={() => setGuidelinesAccepted((value) => !value)} />
-        <Button title="Continue" disabled={!guidelinesAccepted} onPress={() => go("/auth/complete")} />
+        <T size={12} color={c.secondary}>Aasai Talk is for adults only. Both confirmations are required to create an account.</T>
+        <Button title="Continue" disabled={!guidelinesAccepted || !adultAgeConfirmed} onPress={() => { d.setProfile({ ...d.profile, guidelinesAccepted: true, adultAgeConfirmed: true }); go("/auth/complete"); }} />
       </Shell>
     );
   if (mode === "photo")
@@ -331,7 +334,7 @@ export function Auth({ mode }: { mode: string }) {
           onPress={() => {
             setBusy(true);
             void (auth.demoPhone
-              ? auth.getIdentityToken().then((token) => saveDemoProfile(auth.demoPhone!, { ...d.profile, guidelinesAccepted: true }, token))
+              ? auth.getIdentityToken().then((token) => saveDemoProfile(auth.demoPhone!, { ...d.profile, guidelinesAccepted: true, adultAgeConfirmed: true }, token))
               : auth.user
                 ? saveOwnProfile(d.profile)
                 : Promise.reject(new Error("Phone session is missing.")))

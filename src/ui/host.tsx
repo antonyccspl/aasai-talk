@@ -491,7 +491,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
     && Number.isFinite(requestedWithdrawalAmount)
     && requestedWithdrawalAmount >= 100
     && requestedWithdrawalAmount <= availableEarnings;
-  const activeWithdrawal = withdrawals.find((item) => item.status === "pending" || item.status === "processing");
+  const activeWithdrawal = withdrawals.find((item) => ["pending", "in_review", "processing"].includes(item.status));
   if (d.hostStatus !== "approved" && !previewMode)
     return (
       <Shell title="Host earnings">
@@ -508,28 +508,32 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
   return (
     <Shell title="Host earnings">
       {previewMode && <Notice>Your application is pending review.</Notice>}
-      <Card>
-        <T size={12} color={c.secondary}>
-          AVAILABLE HOST EARNINGS
-        </T>
-        <T size={30} bold>
-          {dashboard ? `₹${availableEarnings.toLocaleString("en-IN")}` : "Loading…"}
-        </T>
-        <T size={12} color={c.secondary}>
-          Minimum withdrawal: ₹100
-        </T>
+      <Card style={{ backgroundColor: "#2a1b37", borderWidth: 1, borderColor: "#493056", padding: 22, gap: 16, overflow: "hidden" }}>
+        <View style={{ position: "absolute", width: 180, height: 180, borderRadius: 90, right: -70, top: -70, backgroundColor: "#ffffff0d" }} />
+        <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+          <View style={{ gap: 5 }}>
+            <T mono size={10} bold color="#d9c7e6">YOUR AVAILABLE EARNINGS</T>
+            <T size={34} bold color="#ffffff">{dashboard ? `₹${availableEarnings.toLocaleString("en-IN")}` : "Loading…"}</T>
+            <T size={12} color="#e5d8ed">Ready for you to withdraw</T>
+          </View>
+          <View style={{ width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#ffffff18", borderWidth: 1, borderColor: "#ffffff30" }}><Icon name="credit-card" size={23} color="#ffd49a" /></View>
+        </Row>
+        <View style={{ alignSelf: "flex-start", paddingHorizontal: 11, paddingVertical: 7, borderRadius: 999, backgroundColor: "#ffffff14" }}><T size={11} bold color="#ffffff">Minimum withdrawal · ₹100</T></View>
       </Card>
       {payoutAccount && (
         <Card style={{ padding: 14 }}>
           <T mono size={10} color={c.secondary}>PAYOUT STATUS</T>
           <Setting title={`${payoutAccount.payout_method === "upi" ? "UPI ID" : "Bank account"} verification`} detail={payoutAccount.status === "verified" ? "Verified" : payoutAccount.status === "rejected" ? "Action needed" : "In review"} icon={payoutAccount.status === "verified" ? "check-circle" : "clock"} />
-          <Setting title="Withdrawal requests" detail={withdrawals.length ? `${withdrawals.filter((item) => ["pending", "processing"].includes(item.status)).length} in progress` : "No requests yet"} icon="credit-card" />
+          <Setting title="Withdrawal requests" detail={withdrawals.length ? `${withdrawals.filter((item) => ["pending", "in_review", "processing"].includes(item.status)).length} in progress` : "No requests yet"} icon="credit-card" />
         </Card>
       )}
-      <T size={18} bold>Withdraw earnings</T>
+      <T size={19} bold>Withdraw your earnings</T>
       {earningsError ? <PayoutAlert tone="error" title="We couldn’t load your earnings">{earningsError}</PayoutAlert> : null}
       {activeWithdrawal?.status === "pending" && (
         <PayoutAlert tone="review" title="Withdrawal request under review">Your ₹{(activeWithdrawal.amount_paise / 100).toLocaleString("en-IN")} request is being reviewed. Manual payouts are usually completed within 2–3 business days. Your earnings are safely reserved, so please don’t submit another request.</PayoutAlert>
+      )}
+      {activeWithdrawal?.status === "in_review" && (
+        <PayoutAlert tone="processing" title="Your withdrawal is being checked">Our team is checking the details for your ₹{(activeWithdrawal.amount_paise / 100).toLocaleString("en-IN")} request. We’ll update you once the payment has been sent.</PayoutAlert>
       )}
       {activeWithdrawal?.status === "processing" && (
         <PayoutAlert tone="processing" title="Your withdrawal is being processed">We are preparing your ₹{(activeWithdrawal.amount_paise / 100).toLocaleString("en-IN")} manual payout. The status will update once the transfer is completed.</PayoutAlert>
@@ -567,12 +571,12 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
       </Card>}
       {payoutMessage ? <PayoutAlert tone={/unable|invalid|match|failed|couldn’t/i.test(payoutMessage) ? "error" : "success"} title={/submitted|completed/i.test(payoutMessage) ? "Request submitted" : "Payout update"}>{payoutMessage}</PayoutAlert> : null}
       {payoutAccount?.status === "verified" && <Card>
-        <T bold size={16}>Choose your withdrawal amount</T>
-        <T size={12} color={c.secondary}>Enter exactly how much you would like to receive. Minimum withdrawal is ₹100.</T>
+        <T bold size={18}>How much would you like to withdraw?</T>
+        <T size={12} color={c.secondary}>Enter the amount you want to receive. You can withdraw from ₹100 onwards.</T>
         <Field label="How much would you like to withdraw? (₹)" value={withdrawalAmount} onChange={setWithdrawalAmount} placeholder="Example: 500" numeric error={withdrawalAmount && !hasValidWithdrawalAmount ? requestedWithdrawalAmount < 100 ? "Minimum withdrawal is ₹100." : requestedWithdrawalAmount > availableEarnings ? "This is more than your available earnings." : "Enter a valid amount, up to two decimal places." : undefined} />
         <T size={12} color={c.secondary}>Available to withdraw: ₹{availableEarnings.toLocaleString("en-IN")}</T>
-        <PayoutAlert tone="info" title="Manual review before payment">Your request is reviewed before a manual payment is sent. Most verified withdrawals are completed within 2–3 business days.</PayoutAlert>
-        <Button title={busy ? "Submitting…" : hasValidWithdrawalAmount ? `Request ₹${requestedWithdrawalAmount.toLocaleString("en-IN")} withdrawal` : "Enter an amount to continue"} disabled={busy || !hasValidWithdrawalAmount} onPress={() => {
+        <PayoutAlert tone="info" title="What happens next">Once you send your request, our team will check it and send your earnings within 2–3 business days.</PayoutAlert>
+        <Button title={busy ? "Sending request…" : hasValidWithdrawalAmount ? `Request ₹${requestedWithdrawalAmount.toLocaleString("en-IN")}` : "Enter an amount to continue"} disabled={busy || !hasValidWithdrawalAmount} onPress={() => {
           setBusy(true); setPayoutMessage("");
           void auth.getIdentityToken().then((token) => requestHostWithdrawal(token, Math.round(requestedWithdrawalAmount * 100)))
             .then(() => Promise.all([fetchPhoneHostDashboard(auth.demoPhone!), loadPayouts()]))
@@ -585,7 +589,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
         <T bold size={16}>Withdrawal history</T>
         {withdrawals.map((withdrawal) => <Row key={withdrawal.id} style={{ justifyContent: "space-between" }}>
           <View><T bold>₹{(withdrawal.amount_paise / 100).toLocaleString("en-IN")}</T><T size={11} color={c.secondary}>{hostDate(withdrawal.created_at)}</T></View>
-          <Chip title={withdrawal.status} />
+          <Chip title={withdrawal.status === "in_review" ? "In review" : withdrawal.status === "completed" ? "Amount sent" : withdrawal.status === "pending" ? "Pending" : withdrawal.status} />
         </Row>)}
       </Card>}
     </Shell>

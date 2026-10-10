@@ -22,6 +22,7 @@ import { Component, useCallback, useEffect, useRef, useState, type ReactNode } f
 import { Animated, AppState, Modal, Platform, Pressable, useWindowDimensions, Vibration, View } from "react-native";
 import {
     Avatar,
+    back,
     Badge,
     Button,
     Card,
@@ -97,7 +98,7 @@ class CallScreenBoundary extends Component<{ children: ReactNode }, { failed: bo
         <Notice error>
           We could not open this call. Please return to calls and try again.
         </Notice>
-        <Button title="Back to calls" icon="arrow-left" onPress={() => router.replace("/calls" as never)} />
+        <Button title="Back to calls" icon="arrow-left" onPress={() => back("/calls")} />
       </Shell>
     );
   }
@@ -856,7 +857,7 @@ function CallScreenContent({
               <Button
                 title="Back to people"
                 icon="arrow-left"
-                onPress={() => router.replace("/search" as never)}
+                onPress={() => back("/search")}
               />
             ) : (
             <View style={{ gap: 10 }}>
