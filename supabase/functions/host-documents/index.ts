@@ -4,6 +4,12 @@ import { verifyFirebasePhoneToken } from "../_shared/firebase-auth.ts";
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const allowedTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string" && error.message.trim()) return error.message;
+  return "Unable to upload the verification document.";
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return Response.json({ error: "POST required." }, { status: 405, headers: corsHeaders });
@@ -20,5 +26,5 @@ Deno.serve(async (request) => {
     const ext = file.type === "application/pdf" ? "pdf" : file.type.split("/")[1]; const path = `${identity.phone.replace(/\D/g, "")}/${kind}-${crypto.randomUUID()}.${ext}`;
     const { error: uploadError } = await admin.storage.from("host-verification").upload(path, new Uint8Array(await file.arrayBuffer()), { contentType: file.type, upsert: false }); if (uploadError) throw uploadError;
     return Response.json({ path, name: file.name }, { headers: corsHeaders });
-  } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Document upload failed." }, { status: 500, headers: corsHeaders }); }
+  } catch (error) { console.error("Host verification document upload failed:", error); return Response.json({ error: errorMessage(error) }, { status: 500, headers: corsHeaders }); }
 });
