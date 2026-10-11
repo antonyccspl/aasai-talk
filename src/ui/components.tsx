@@ -151,7 +151,7 @@ export function Card({
   style?: ViewStyle;
 }) {
   return (
-    <View style={[s.card, { backgroundColor: c.low }, style]}>{children}</View>
+    <View style={[s.card, style]}>{children}</View>
   );
 }
 export function Button({
@@ -191,7 +191,7 @@ export function Button({
                 : c.low,
           borderWidth: variant === "secondary" ? 1.5 : 0,
           borderColor: c.line,
-          boxShadow: variant === "primary" ? "0 8px 20px rgba(226,55,68,0.20)" : "none",
+          boxShadow: "none",
           opacity: disabled ? 0.4 : pressed ? 0.72 : 1,
           transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
         },
@@ -262,9 +262,9 @@ export function Chip({
       style={[
         s.chip,
         {
-          backgroundColor: selected ? c.text : onPress ? c.low : c.high,
+          backgroundColor: selected ? c.mint : onPress ? c.low : c.high,
           borderWidth: onPress ? 1.5 : 0,
-          borderColor: selected ? c.text : c.line,
+          borderColor: selected ? c.mint : c.line,
           minHeight: onPress ? (compact ? 34 : 40) : 24,
           paddingHorizontal: compact ? 11 : 12,
           paddingVertical: compact ? 3 : 4,
@@ -455,7 +455,7 @@ export function Field({
             borderColor: error ? c.error : focused ? c.mint : c.line,
             backgroundColor: c.surface,
             color: c.text,
-            boxShadow: focused ? "0 0 0 3px rgba(226,55,68,0.10)" : "none",
+            boxShadow: "none",
           },
         ]}
       />
@@ -730,7 +730,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
         : c.error;
   const presenceLabel = presenceText(effectiveStatus);
   if (grid) {
-    const backgrounds = ["#c73543", "#6046c2", "#127e79", "#b95422"];
+    const backgrounds = ["#2b145d", "#5830b9", "#7b45f5", "#c53ca0"];
     const available = effectiveStatus === "Available";
     return <View style={{ width: "100%", minHeight: 208, borderRadius: 24, padding: 14, overflow: "hidden", backgroundColor: backgrounds[index % backgrounds.length], justifyContent: "flex-end" }}>
       <View pointerEvents="none" style={{ position: "absolute", width: 190, height: 190, borderRadius: 95, top: -70, right: -50, backgroundColor: "#ffffff15" }} />
@@ -1018,7 +1018,12 @@ export function Shell({
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={[s.frame, { backgroundColor: c.background, maxWidth: frameMaxWidth }]}>
+        <View style={[s.frame, { backgroundColor: c.background, maxWidth: frameMaxWidth, overflow: "hidden" }]}>
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <View style={{ position: "absolute", width: 240, height: 240, borderRadius: 120, top: 108, right: -156, backgroundColor: "rgba(123,69,245,0.055)" }} />
+            <View style={{ position: "absolute", width: 184, height: 184, borderRadius: 92, top: 430, left: -126, backgroundColor: "rgba(237,63,181,0.045)" }} />
+            <View style={{ position: "absolute", width: 126, height: 126, borderRadius: 63, bottom: 104, right: -58, backgroundColor: "rgba(97,48,201,0.05)" }} />
+          </View>
           <Row style={s.header}>
             {title ? (
               <>
@@ -1231,14 +1236,14 @@ export function Shell({
 export const s = StyleSheet.create({
   safe: { flex: 1, minHeight: 0, backgroundColor: c.background },
   frame: { flex: 1, minHeight: 0, width: "100%", maxWidth: 430, alignSelf: "center" },
-  header: { minHeight: 76, paddingHorizontal: 20, gap: 8, backgroundColor: c.background, borderBottomWidth: 1, borderBottomColor: "rgba(240,224,214,0.72)" },
+  header: { minHeight: 76, paddingHorizontal: 20, gap: 8, backgroundColor: c.background, borderBottomWidth: 1, borderBottomColor: c.line },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   content: { padding: 20, gap: 18 },
-  card: { backgroundColor: c.low, borderRadius: 24, borderWidth: 1, borderColor: c.line, padding: 17, gap: 14, boxShadow: "0 10px 26px rgba(97,47,28,0.075)" },
+  card: { backgroundColor: "transparent", borderRadius: 0, borderWidth: 0, borderBottomWidth: 1, borderColor: c.line, paddingHorizontal: 0, paddingVertical: 18, gap: 14, boxShadow: "none" },
   button: {
     overflow: "hidden",
     minHeight: 56,
-    borderRadius: 18,
+    borderRadius: 12,
     paddingHorizontal: 18,
     paddingVertical: 11,
     flexDirection: "row",
@@ -1267,20 +1272,22 @@ export const s = StyleSheet.create({
     color: c.text,
     backgroundColor: c.surface,
     borderWidth: 1.5,
-    borderRadius: 18,
+    borderRadius: 12,
     padding: 13,
   },
   setting: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: c.low,
-    padding: 14,
+    backgroundColor: "transparent",
+    paddingVertical: 14,
+    paddingHorizontal: 0,
     minHeight: 60,
-    borderRadius: 18,
-    borderWidth: 1,
+    borderRadius: 0,
+    borderWidth: 0,
+    borderBottomWidth: 1,
     borderColor: c.line,
-    boxShadow: "0 8px 18px rgba(97,47,28,0.055)",
+    boxShadow: "none",
   },
   emptyIcon: {
     width: 80,
@@ -1300,23 +1307,24 @@ export const s = StyleSheet.create({
   },
   dock: {
     position: "absolute",
-    bottom: 14,
-    left: 16,
-    right: 16,
+    bottom: 0,
+    left: 0,
+    right: 0,
     padding: 8,
-    borderRadius: 28,
-    borderWidth: 1,
+    borderRadius: 0,
+    borderWidth: 0,
+    borderTopWidth: 1,
     borderColor: c.line,
     backgroundColor: c.low,
     flexDirection: "row",
-    elevation: 8,
-    boxShadow: "0 14px 32px rgba(80,30,20,0.18)",
+    elevation: 0,
+    boxShadow: "none",
   },
   tab: {
     overflow: "hidden",
     flex: 1,
     minHeight: 56,
-    borderRadius: 20,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     gap: 3,

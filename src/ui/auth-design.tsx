@@ -4,7 +4,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLanguage } from "./language";
 
-export const authColors = { background: "#fff8f3", ink: "#1c1c1c", muted: "#6b6b6b", line: "#eadfd6", brand: "#e23744" };
+export const authColors = { background: "#f8f7ff", ink: "#19122d", muted: "#675f7a", line: "#e3def0", brand: "#7444ef" };
 const FontReady = createContext(false);
 export function AuthText({ children, size = 14, bold = false, color = authColors.ink }: { children: React.ReactNode; size?: number; bold?: boolean; color?: string }) {
   const ready = useContext(FontReady);
@@ -45,7 +45,7 @@ export function AuthFrame({ children, otp, phone }: { children: React.ReactNode;
       <View style={styles.container}>
         <View style={[styles.hero, { paddingTop: inset.top + 16 }]}>
           <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-            {Array.from({ length: 64 }, (_, i) => { const t = i / 63; return <View key={i} style={{ position: "absolute", left: 0, right: 0, top: `${i * 100 / 64}%`, height: "1.7%", backgroundColor: `rgb(${Math.round(255 - 54 * t)},${Math.round(90 - 48 * t)},${Math.round(95 - 40 * t)})` }} />; })}
+            {Array.from({ length: 64 }, (_, i) => { const t = i / 63; return <View key={i} style={{ position: "absolute", left: 0, right: 0, top: `${i * 100 / 64}%`, height: "1.7%", backgroundColor: `rgb(${Math.round(42 + 90 * t)},${Math.round(20 + 22 * t)},${Math.round(92 + 126 * t)})` }} />; })}
           </View>
           <View style={styles.logo}><View style={styles.logoIcon}><Text style={{ fontSize: 18 }}>📞</Text></View><AuthText size={20} bold color="#fff">Aasai Talk</AuthText></View>
           <View style={styles.bubbles} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -69,18 +69,18 @@ export function AuthFrame({ children, otp, phone }: { children: React.ReactNode;
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: authColors.background },
   container: { width: "100%", maxWidth: 430, alignSelf: "center", flexGrow: 1 },
-  hero: { backgroundColor: authColors.brand, paddingHorizontal: 22, paddingBottom: 38, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: "hidden" },
+  hero: { backgroundColor: authColors.brand, paddingHorizontal: 22, paddingBottom: 34, overflow: "hidden" },
   logo: { flexDirection: "row", alignItems: "center", gap: 8 },
   logoIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   bubbles: { height: 70, marginTop: 10, marginBottom: 2 },
   avatar: { position: "absolute", borderRadius: 99, borderWidth: 3, borderColor: "#ffffffeb", alignItems: "center", justifyContent: "center", overflow: "hidden", elevation: 5 },
   pill: { position: "absolute", bottom: -5, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingVertical: 7, paddingHorizontal: 12, borderRadius: 99, elevation: 5 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#3ecf8e" },
-  card: { marginTop: -22, marginHorizontal: 18, backgroundColor: "#fff", borderRadius: 22, paddingHorizontal: 18, paddingTop: 17, paddingBottom: 16, gap: 10, boxShadow: "0 10px 30px rgba(226,55,68,0.14)" },
-  field: { flexDirection: "row", alignItems: "center", height: 54, borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 14, gap: 10, backgroundColor: authColors.background },
+  card: { marginHorizontal: 22, borderTopWidth: 1, borderColor: authColors.line, paddingHorizontal: 0, paddingTop: 22, paddingBottom: 16, gap: 10 },
+  field: { flexDirection: "row", alignItems: "center", height: 54, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, gap: 10, backgroundColor: "transparent" },
   country: { paddingRight: 10, borderRightWidth: 1.5, borderColor: authColors.line },
   check: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#3ecf8e", alignItems: "center", justifyContent: "center" },
-  button: { minHeight: 52, borderRadius: 16, backgroundColor: authColors.brand, alignItems: "center", justifyContent: "center", padding: 12, boxShadow: "0 8px 20px rgba(226,55,68,0.22)" },
+  button: { minHeight: 52, borderRadius: 12, backgroundColor: authColors.brand, alignItems: "center", justifyContent: "center", padding: 12, boxShadow: "none" },
   secondary: { minHeight: 44, backgroundColor: "#fff", borderWidth: 1.5, borderColor: authColors.line, boxShadow: "none" },
   trust: { flexDirection: "row", marginHorizontal: 24, marginTop: 12, gap: 8 },
   footer: { alignItems: "center", marginTop: 8, padding: 10 },

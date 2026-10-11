@@ -14,7 +14,10 @@ export function Welcome() {
     <View style={{ width: "100%", maxWidth: 560, alignSelf: "center", flexGrow: 1 }}>
       <View style={{ backgroundColor: c.mint, paddingTop: inset.top + 18, paddingHorizontal: 22, paddingBottom: 48, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden", alignItems: "center" }}>
         <View pointerEvents="none" style={{ position: "absolute", inset: 0 }}>
-          {Array.from({ length: 64 }, (_, i) => <View key={i} style={{ position: "absolute", left: 0, right: 0, top: `${i * 100 / 64}%`, height: "1.7%", backgroundColor: `rgb(${255 - Math.round(i * 59 / 63)},${90 - Math.round(i * 48 / 63)},${95 - Math.round(i * 40 / 63)})` }} />)}
+          {Array.from({ length: 64 }, (_, i) => {
+            const t = i / 63;
+            return <View key={i} style={{ position: "absolute", left: 0, right: 0, top: `${i * 100 / 64}%`, height: "1.7%", backgroundColor: `rgb(${Math.round(35 + 89 * t)},${Math.round(17 + 36 * t)},${Math.round(78 + 142 * t)})` }} />;
+          })}
         </View>
         <View style={{ position: "absolute", width: 138, height: 138, borderRadius: 69, right: -46, top: -42, backgroundColor: "#ffffff1a" }} />
         <View style={{ position: "absolute", width: 96, height: 96, borderRadius: 48, left: -32, bottom: 18, backgroundColor: "#ffffff1a" }} />

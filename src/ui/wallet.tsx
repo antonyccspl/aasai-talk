@@ -24,6 +24,7 @@ import { fetchPhoneWalletActivity, PhoneWalletActivity } from "../data/wallet";
 import { createCashfreeOrder, getCashfreePaymentStatus } from "../data/cashfree";
 import { startCashfreeCheckout } from "../data/cashfree-checkout";
 import { colors as c } from "./theme";
+import { BrandGradient } from "./brand-gradient";
 
 type WalletTransaction = {
   id: string;
@@ -472,7 +473,8 @@ export function Wallet({
             />
           </Card>
         )}
-      <Card style={{ padding: wideLayout ? 18 : 17, backgroundColor: c.text, gap: 0 }}>
+      <Card style={{ padding: wideLayout ? 18 : 17, backgroundColor: c.mint, overflow: "hidden", gap: 0 }}>
+        <BrandGradient />
         <Row style={{ justifyContent: "space-between" }}>
           <View style={{ gap: 3 }}>
             <T mono size={11} bold color="#ffffffaa">AVAILABLE BALANCE</T>
