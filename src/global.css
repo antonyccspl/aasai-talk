@@ -22,3 +22,10 @@ body,
   display: flex;
   min-height: 0;
 }
+
+/* React Native Web renders real HTML inputs. Their browser-default focus ring
+   appears inside our custom fields and clashes with the outer focus state. */
+input:focus,
+textarea:focus {
+  outline: none;
+}

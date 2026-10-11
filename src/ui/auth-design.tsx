@@ -30,7 +30,7 @@ export function AuthField({ value, onChange, error }: { label?: string; value: s
   return <View>
     <View style={[styles.field, { borderColor: focused || error ? authColors.brand : authColors.line }]}>
       <View style={styles.country}><AuthText size={16} bold>🇮🇳 +91</AuthText></View>
-      <TextInput accessibilityLabel={translate("Mobile number")} value={value} onChangeText={onChange} keyboardType="phone-pad" autoComplete="tel-national" maxLength={10} placeholder={translate("Enter mobile number")} placeholderTextColor="#96908b" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={{ flex: 1, minWidth: 0, padding: 0, color: authColors.ink, fontSize: 16, fontFamily: usesIndicScript ? undefined : ready ? "Figtree_600SemiBold" : undefined }} />
+      <TextInput accessibilityLabel={translate("Mobile number")} value={value} onChangeText={onChange} keyboardType="phone-pad" autoComplete="tel-national" maxLength={10} placeholder={translate("Enter mobile number")} placeholderTextColor="#96908b" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={[{ flex: 1, minWidth: 0, padding: 0, color: authColors.ink, fontSize: 16, fontFamily: usesIndicScript ? undefined : ready ? "Figtree_600SemiBold" : undefined }, Platform.OS === "web" ? ({ outlineStyle: "none", outlineWidth: 0, outlineColor: "transparent" } as never) : undefined]} />
       {value.length === 10 && <View style={styles.check}><AuthText bold color="#fff">✓</AuthText></View>}
     </View>
     {!!error && <View accessibilityRole="alert" style={{ marginTop: 8 }}><AuthText size={12} color={authColors.brand}>{error}</AuthText></View>}
