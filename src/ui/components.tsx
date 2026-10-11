@@ -741,7 +741,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
       <View style={{ position: "absolute", top: 12, left: 12, flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, backgroundColor: "#00000047", paddingHorizontal: 10, paddingVertical: 5 }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: available ? "#5dffb0" : statusColor }} /><T size={11} bold color="#fff">{presenceText(effectiveStatus)}</T></View>
       <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}`} onPress={() => go(`/user/${person.id}`)} style={{ paddingTop: 100, paddingBottom: 10 }}>
         <T size={16.5} bold color="#fff" numberOfLines={1}>{person.name}, {person.age}</T>
-        <T size={12} color="#fff" numberOfLines={1}>{person.city} · {person.languages[0]}</T>
+        <T size={12} color="#fff" numberOfLines={2}>{person.city} · {person.languages.join(" · ")}</T>
       </Pressable>
       <View style={{ flexDirection: "row", gap: 7 }}>
         {(["audio", "video"] as const).map((type) => <Pressable key={type} accessibilityRole="button" accessibilityLabel={`${type} call with ${person.name}`} accessibilityState={{ disabled: !available }} disabled={!available} onPress={() => go(`/calls/outgoing/${person.id}?type=${type}`)} style={{ flex: 1, minHeight: 38, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor: type === "audio" ? "#fff" : "#ffffff40", opacity: available ? 1 : 0.5 }}>
