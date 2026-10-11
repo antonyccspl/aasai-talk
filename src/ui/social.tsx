@@ -138,7 +138,18 @@ function HostDashboardHome() {
   const todayMetricCardStyle = { ...metricCardStyle, minHeight: 132 };
   return (
     <Shell tab="Explore" refreshing={refreshing} onRefresh={refresh}>
-      <Card style={{ borderLeftWidth: 3, borderLeftColor: c.mint, paddingLeft: 16, paddingRight: 16 }}>
+      <Card style={{
+        backgroundColor: c.low,
+        borderWidth: 1,
+        borderColor: c.line,
+        borderLeftWidth: 4,
+        borderLeftColor: c.mint,
+        borderRadius: 18,
+        paddingVertical: 20,
+        paddingLeft: 18,
+        paddingRight: 20,
+        gap: 10,
+      }}>
         <T mono size={11} color={c.mint}>HOST DASHBOARD</T>
         <T size={24} bold>{d.profile.name ? `${translate("Hi")}, ${d.profile.name}` : "Welcome back"}</T>
         <T color={c.secondary}>
