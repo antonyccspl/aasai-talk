@@ -125,9 +125,20 @@ function HostDashboardHome() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to refresh your dashboard."); }
     finally { setRefreshing(false); }
   };
+  const metricCardStyle = {
+    flex: 1,
+    minHeight: 104,
+    backgroundColor: c.low,
+    borderWidth: 1,
+    borderColor: c.line,
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+  };
+  const todayMetricCardStyle = { ...metricCardStyle, minHeight: 132 };
   return (
     <Shell tab="Explore" refreshing={refreshing} onRefresh={refresh}>
-      <Card style={{ borderLeftWidth: 3, borderLeftColor: c.mint }}>
+      <Card style={{ borderLeftWidth: 3, borderLeftColor: c.mint, paddingLeft: 16, paddingRight: 16 }}>
         <T mono size={11} color={c.mint}>HOST DASHBOARD</T>
         <T size={24} bold>{d.profile.name ? `${translate("Hi")}, ${d.profile.name}` : "Welcome back"}</T>
         <T color={c.secondary}>
@@ -137,13 +148,13 @@ function HostDashboardHome() {
       {error ? <Notice error>{error}</Notice> : null}
       <Section title="Today" />
       <Row>
-        <Card style={{ flex: 1, minHeight: 106 }}>
+        <Card style={todayMetricCardStyle}>
           <Icon name="phone-call" color={c.mint} />
           <T mono size={10} color={c.secondary}>CONNECTED CALLS</T>
           <T size={25} bold>{dashboard ? dashboard.today_calls : "—"}</T>
           <T size={11} color={c.muted}>{dashboard ? formatCallTime(dashboard.today_seconds) : "Loading…"}</T>
         </Card>
-        <Card style={{ flex: 1, minHeight: 106 }}>
+        <Card style={todayMetricCardStyle}>
           <Icon name="trending-up" color={c.mint} />
           <T mono size={10} color={c.secondary}>EARNED TODAY</T>
           <T size={25} bold>{dashboard ? formatRupees(dashboard.today_earnings_paise) : "—"}</T>
@@ -152,21 +163,21 @@ function HostDashboardHome() {
       </Row>
       <Section title="All time" />
       <Row>
-        <Card style={{ flex: 1 }}>
+        <Card style={metricCardStyle}>
           <T mono size={10} color={c.secondary}>TOTAL CALLS</T>
           <T size={23} bold>{dashboard ? dashboard.total_calls : "—"}</T>
         </Card>
-        <Card style={{ flex: 1 }}>
+        <Card style={metricCardStyle}>
           <T mono size={10} color={c.secondary}>TOTAL EARNINGS</T>
           <T size={23} bold>{dashboard ? formatRupees(dashboard.total_earnings_paise) : "—"}</T>
         </Card>
       </Row>
       <Row>
-        <Card style={{ flex: 1 }}>
+        <Card style={metricCardStyle}>
           <T mono size={10} color={c.secondary}>TOTAL WITHDRAWN</T>
           <T size={23} bold>{dashboard ? formatRupees(dashboard.total_withdrawn_paise) : "—"}</T>
         </Card>
-        <Card style={{ flex: 1 }}>
+        <Card style={metricCardStyle}>
           <T mono size={10} color={c.secondary}>AVAILABLE EARNINGS</T>
           <T size={23} bold>{dashboard ? formatRupees(dashboard.available_earnings_paise) : "—"}</T>
         </Card>

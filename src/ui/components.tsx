@@ -1239,7 +1239,7 @@ export const s = StyleSheet.create({
   header: { minHeight: 76, paddingHorizontal: 20, gap: 8, backgroundColor: c.background, borderBottomWidth: 1, borderBottomColor: c.line },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   content: { padding: 20, gap: 14 },
-  card: { backgroundColor: "transparent", borderRadius: 0, borderWidth: 0, borderBottomWidth: 1, borderColor: c.line, paddingHorizontal: 0, paddingVertical: 18, gap: 14, boxShadow: "none" },
+  card: { backgroundColor: "transparent", borderRadius: 0, borderWidth: 0, borderColor: c.line, paddingHorizontal: 0, paddingVertical: 18, gap: 14, boxShadow: "none" },
   button: {
     overflow: "hidden",
     minHeight: 56,
