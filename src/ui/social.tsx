@@ -29,15 +29,11 @@ import {
     T,
     UserCard,
 } from "./components";
-import { defaultFacets, people, personFor, useDemo } from "./store";
+import { defaultFacets, formatTalkDuration, people, personFor, useDemo } from "./store";
 import { colors as c } from "./theme";
 import { useLanguage } from "./language";
 
-const formatCallTime = (seconds: number) => {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
-};
+const formatCallTime = formatTalkDuration;
 const formatRupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
 function chatDateKey(value: string) {
@@ -163,6 +159,16 @@ function HostDashboardHome() {
         <Card style={{ flex: 1 }}>
           <T mono size={10} color={c.secondary}>TOTAL EARNINGS</T>
           <T size={23} bold>{dashboard ? formatRupees(dashboard.total_earnings_paise) : "—"}</T>
+        </Card>
+      </Row>
+      <Row>
+        <Card style={{ flex: 1 }}>
+          <T mono size={10} color={c.secondary}>TOTAL WITHDRAWN</T>
+          <T size={23} bold>{dashboard ? formatRupees(dashboard.total_withdrawn_paise) : "—"}</T>
+        </Card>
+        <Card style={{ flex: 1 }}>
+          <T mono size={10} color={c.secondary}>AVAILABLE EARNINGS</T>
+          <T size={23} bold>{dashboard ? formatRupees(dashboard.available_earnings_paise) : "—"}</T>
         </Card>
       </Row>
       <Section title="Host earning rates" />

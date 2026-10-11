@@ -24,7 +24,7 @@ import {
   Setting,
   T,
 } from "./components";
-import { money, people, useDemo } from "./store";
+import { formatTalkDuration, money, people, useDemo } from "./store";
 import { colors as c } from "./theme";
 
 const nav = [
@@ -221,8 +221,8 @@ export function Admin({
               `Total Profiles · ${d.people.length}`,
               `Available Now · ${d.people.filter((p) => p.status === "Available").length}`,
               `Call Sessions · ${d.calls.length}`,
-              `Audio Minutes · ${Math.round(d.calls.filter((c) => c.type === "audio").reduce((s, c) => s + c.seconds, 0) / 60)} mins`,
-              `Video Minutes · ${Math.round(d.calls.filter((c) => c.type === "video").reduce((s, c) => s + c.seconds, 0) / 60)} mins`,
+              `Audio talk time · ${formatTalkDuration(d.calls.filter((c) => c.type === "audio").reduce((s, c) => s + c.seconds, 0))}`,
+              `Video talk time · ${formatTalkDuration(d.calls.filter((c) => c.type === "video").reduce((s, c) => s + c.seconds, 0))}`,
               `Wallet Volume · ₹${d.transactions.filter((t) => t.kind === "Recharges").reduce((s, t) => s + t.amount, 0)}`,
             ].map((x) => (
               <Setting key={x} title={x} icon="bar-chart-2" />

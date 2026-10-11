@@ -1469,6 +1469,12 @@ export function Settings({
         icon="globe"
         onPress={() => go("/settings/language")}
       />
+      <Setting
+        title="Help & support"
+        detail="Send a private request and follow our replies."
+        icon="help-circle"
+        onPress={() => go("/settings/help")}
+      />
       {[
         ["Privacy policy", "settings/policies/privacy"],
         ["Terms and conditions", "settings/policies/terms"],

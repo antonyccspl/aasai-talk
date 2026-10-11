@@ -6,6 +6,7 @@ export type HostDashboard = {
   today_earnings_paise: number;
   total_calls: number;
   total_earnings_paise: number;
+  total_withdrawn_paise: number;
   available_earnings_paise: number;
   active_calls: number;
   missed_calls: number;
@@ -24,7 +25,7 @@ export async function fetchPhoneHostDashboard(phone: string) {
   if (error) throw new Error(error.message);
   if (!data || typeof data !== "object") throw new Error("Invalid host dashboard response.");
   const row = data as Record<string, unknown>;
-  const counts = ["today_calls", "today_seconds", "today_earnings_paise", "total_calls", "total_earnings_paise", "available_earnings_paise", "active_calls", "missed_calls"];
+  const counts = ["today_calls", "today_seconds", "today_earnings_paise", "total_calls", "total_earnings_paise", "total_withdrawn_paise", "available_earnings_paise", "active_calls", "missed_calls"];
   if (!counts.every((key) => typeof row[key] === "number" && (row[key] as number) >= 0) || !Array.isArray(row.recent_calls))
     throw new Error("Invalid host dashboard response.");
   if (!row.recent_calls.every((item) => {

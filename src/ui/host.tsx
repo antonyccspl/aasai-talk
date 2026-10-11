@@ -23,7 +23,7 @@ import {
     T,
 } from "./components";
 import { PhotoPicker } from "./photo-picker";
-import { useDemo } from "./store";
+import { formatTalkDuration, useDemo } from "./store";
 import { colors as c } from "./theme";
 
 const hostDate = (value: string) => {
@@ -412,9 +412,7 @@ export function HostStatus() {
         <Card>
           <T size={12} color={c.secondary}>TODAY'S HOST CALL TIME</T>
           <T size={30} bold>
-            {dailyCallTime
-              ? `${Math.floor(dailyCallTime.seconds / 3600)}h ${Math.floor((dailyCallTime.seconds % 3600) / 60)}m`
-              : "Loading…"}
+            {dailyCallTime ? formatTalkDuration(dailyCallTime.seconds) : "Loading…"}
           </T>
           <T color={c.secondary}>
             {dailyCallTime ? `${dailyCallTime.calls} connected call${dailyCallTime.calls === 1 ? "" : "s"} today` : "Loading call activity…"}
@@ -425,7 +423,7 @@ export function HostStatus() {
             <Row key={item.date} style={{ justifyContent: "space-between" }}>
               <T>{hostDate(item.date)}</T>
               <T color={c.secondary}>
-                {Math.floor(item.seconds / 3600)}h {Math.floor((item.seconds % 3600) / 60)}m · {item.calls} call{item.calls === 1 ? "" : "s"}
+                {formatTalkDuration(item.seconds)} · {item.calls} call{item.calls === 1 ? "" : "s"}
               </T>
             </Row>
           ))}

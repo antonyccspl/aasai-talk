@@ -705,6 +705,17 @@ export const duration = (seconds: number) =>
   `${Math.floor(seconds / 60)
     .toString()
     .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
+/** Exact connected talk time for summaries and reports. */
+export const formatTalkDuration = (seconds: number) => {
+  const safeSeconds = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = (safeSeconds % 3600) / 60;
+  const minuteText = minutes.toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  });
+  return hours ? `${hours}h ${minuteText}m` : `${minuteText} min`;
+};
 /** Remaining talk time for active calls, displayed as hours:minutes:seconds. */
 export const talkTime = (seconds: number) => {
   const remaining = Math.max(0, Math.floor(seconds));
