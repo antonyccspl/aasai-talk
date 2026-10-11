@@ -25,7 +25,7 @@ export function startCashfreeCheckout({ orderId, paymentSessionId }: CheckoutInp
     try {
       CFPaymentGatewayService.setCallback(callback);
       CFPaymentGatewayService.doWebPayment(
-        new CFSession(paymentSessionId, orderId, CFEnvironment.SANDBOX),
+        new CFSession(paymentSessionId, orderId, CFEnvironment.PRODUCTION),
       );
     } catch (error) {
       CFPaymentGatewayService.removeCallback();

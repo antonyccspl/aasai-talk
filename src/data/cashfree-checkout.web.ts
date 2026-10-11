@@ -33,5 +33,5 @@ function loadCashfreeSdk() {
 export async function startCashfreeCheckout({ paymentSessionId }: CheckoutInput) {
   await loadCashfreeSdk();
   if (!window.Cashfree) throw new Error("Cashfree checkout could not load.");
-  window.Cashfree({ mode: "sandbox" }).checkout({ paymentSessionId, redirectTarget: "_modal" });
+  window.Cashfree({ mode: "production" }).checkout({ paymentSessionId, redirectTarget: "_modal" });
 }
