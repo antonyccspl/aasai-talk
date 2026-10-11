@@ -1300,7 +1300,7 @@ export function Settings({
         <Card style={{ gap: 12 }}>
           <Badge text={current.status === "in_review" ? "In review" : current.status === "waiting_for_member" ? "Reply needed" : current.status === "resolved" ? "Resolved" : "Sent"} />
           {current.messages.map((item) => <View key={item.id} style={{ alignSelf: item.sender_type === "member" ? "flex-end" : "flex-start", maxWidth: "88%", padding: 13, borderRadius: 16, backgroundColor: item.sender_type === "member" ? c.high : c.low, gap: 4 }}><T bold size={12}>{item.sender_type === "member" ? "You" : "Aasai Talk support"}</T><T>{item.message}</T><T size={11} color={c.secondary}>{new Date(item.created_at).toLocaleString()}</T></View>)}
-          {current.status !== "resolved" && <><TextInput value={replyDraft} onChangeText={setReplyDraft} placeholder="Write a reply" multiline maxLength={2000} style={{ minHeight: 90, borderWidth: 1, borderColor: c.line, borderRadius: 16, padding: 13, color: c.ink, textAlignVertical: "top" }} /><Button title={supportBusy ? "Sending…" : "Send reply"} disabled={!replyDraft.trim() || supportBusy} onPress={() => void sendReply()} /></>}
+          {current.status !== "resolved" && <><TextInput value={replyDraft} onChangeText={setReplyDraft} placeholder="Write a reply" placeholderTextColor={c.muted} selectionColor={c.mint} multiline maxLength={2000} style={{ minHeight: 90, borderWidth: 1, borderColor: c.line, borderRadius: 16, padding: 13, color: c.text, backgroundColor: c.low, textAlignVertical: "top" }} /><Button title={supportBusy ? "Sending…" : "Send reply"} disabled={!replyDraft.trim() || supportBusy} onPress={() => void sendReply()} /></>}
         </Card>
       </> : <>
         <Card style={{ gap: 12 }}>
@@ -1308,7 +1308,7 @@ export function Settings({
           <Field label="What do you need help with?" value={supportSubject} onChange={setSupportSubject} placeholder="Example: I need help with my recharge" />
           <T size={13} color={c.secondary}>Choose a topic</T>
           <Chips items={["Account", "Payments", "Calls", "Safety", "Other"]} selected={supportCategory[0].toUpperCase() + supportCategory.slice(1)} onChange={(value) => setSupportCategory(value.toLowerCase() as SupportTicket["category"])} />
-          <TextInput value={supportMessage} onChangeText={setSupportMessage} placeholder="Tell us what happened and include any useful details." multiline maxLength={2000} style={{ minHeight: 120, borderWidth: 1, borderColor: c.line, borderRadius: 16, padding: 13, color: c.ink, textAlignVertical: "top" }} />
+          <TextInput value={supportMessage} onChangeText={setSupportMessage} placeholder="Tell us what happened and include any useful details." placeholderTextColor={c.muted} selectionColor={c.mint} multiline maxLength={2000} style={{ minHeight: 120, borderWidth: 1, borderColor: c.line, borderRadius: 16, padding: 13, color: c.text, backgroundColor: c.low, textAlignVertical: "top" }} />
           <Button title={supportBusy ? "Sending…" : "Send to support"} disabled={supportBusy || supportSubject.trim().length < 3 || !supportMessage.trim()} onPress={() => void submitTicket()} />
         </Card>
         <Section title="Your support requests" />
