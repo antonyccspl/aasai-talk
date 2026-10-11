@@ -19,6 +19,7 @@ import { ActivityIndicator, Animated, AppState, Modal, Platform, Pressable, Scro
 import type { NotificationResponse } from "expo-notifications";
 import { colors } from "@/ui/theme";
 import { Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold, useFonts } from "@expo-google-fonts/figtree";
+import { Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold } from "@expo-google-fonts/poppins";
 import { Stack, router, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
@@ -107,9 +108,9 @@ function SpecialOfferWelcome() {
           <View pointerEvents="none" style={{ position: "absolute", width: 190, height: 190, borderRadius: 95, backgroundColor: "#e7b743", opacity: 0.14, right: -80, top: -85 }} />
           <View pointerEvents="none" style={{ position: "absolute", width: 95, height: 95, borderRadius: 48, backgroundColor: "#ff5a62", opacity: 0.13, left: -38, bottom: 80 }} />
           <View style={{ alignItems: "flex-start", gap: 4 }}>
-            <Text style={{ color: "#f4c652", fontSize: 12, fontWeight: "800", letterSpacing: 0.8 }}>LIMITED-TIME BONUS</Text>
-            <Text style={{ color: "#ffffff", fontSize: compact ? 23 : 26, lineHeight: compact ? 30 : 34, fontWeight: "800" }}>Your extra coins are here</Text>
-            <Text style={{ color: "#d9d3cf", fontSize: 13, lineHeight: 19 }}>Pick a special pack and receive up to +{maxBonus.toLocaleString("en-IN")} bonus coins.</Text>
+            <Text style={{ color: "#f4c652", fontFamily: "Poppins_800ExtraBold", fontSize: 12, letterSpacing: 0.8 }}>LIMITED-TIME BONUS</Text>
+            <Text style={{ color: "#ffffff", fontFamily: "Poppins_800ExtraBold", fontSize: compact ? 23 : 26, lineHeight: compact ? 30 : 34 }}>Your extra coins are here</Text>
+            <Text style={{ color: "#d9d3cf", fontFamily: "Poppins_400Regular", fontSize: 13, lineHeight: 19 }}>Pick a special pack and receive up to +{maxBonus.toLocaleString("en-IN")} bonus coins.</Text>
           </View>
           <ScrollView
             ref={carouselRef}
@@ -122,13 +123,13 @@ function SpecialOfferWelcome() {
           >
             {offers.map((offer) => (
               <View key={offer.id} style={{ width: cardWidth, borderRadius: 20, backgroundColor: "#fff8ed", padding: compact ? 16 : 18, alignItems: "center", gap: 3 }}>
-                <Text style={{ color: "#ad6e12", fontSize: 11, fontWeight: "800", letterSpacing: 0.7 }}>SPECIAL OFFER</Text>
-                <Text style={{ color: colors.text, fontSize: compact ? 34 : 38, lineHeight: compact ? 43 : 48, fontWeight: "800" }}>{offer.coins.toLocaleString("en-IN")}</Text>
-                <Text style={{ color: colors.secondary, fontSize: 13, fontWeight: "700" }}>coins</Text>
+                <Text style={{ color: "#ad6e12", fontFamily: "Poppins_800ExtraBold", fontSize: 11, letterSpacing: 0.7 }}>SPECIAL OFFER</Text>
+                <Text style={{ color: colors.text, fontFamily: "Poppins_800ExtraBold", fontSize: compact ? 34 : 38, lineHeight: compact ? 43 : 48 }}>{offer.coins.toLocaleString("en-IN")}</Text>
+                <Text style={{ color: colors.secondary, fontFamily: "Poppins_700Bold", fontSize: 13 }}>coins</Text>
                 <View style={{ marginTop: 5, borderRadius: 999, backgroundColor: "#ffe1a4", paddingHorizontal: 12, paddingVertical: 5 }}>
-                  <Text style={{ color: "#965905", fontSize: 12, fontWeight: "800" }}>+{offer.bonus_coins.toLocaleString("en-IN")} bonus coins</Text>
+                  <Text style={{ color: "#965905", fontFamily: "Poppins_800ExtraBold", fontSize: 12 }}>+{offer.bonus_coins.toLocaleString("en-IN")} bonus coins</Text>
                 </View>
-                <Text style={{ color: colors.mint, fontSize: 16, fontWeight: "800", marginTop: 4 }}>₹{(offer.price_paise / 100).toLocaleString("en-IN")}</Text>
+                <Text style={{ color: colors.mint, fontFamily: "Poppins_800ExtraBold", fontSize: 16, marginTop: 4 }}>₹{(offer.price_paise / 100).toLocaleString("en-IN")}</Text>
               </View>
             ))}
           </ScrollView>
@@ -161,12 +162,12 @@ function SpecialOfferWelcome() {
               </Pressable>
             )}
           </View>
-          {offers.length > 1 && <Text style={{ color: "#d9d3cf", fontSize: 12, textAlign: "center" }}>Swipe to see the next offer</Text>}
+          {offers.length > 1 && <Text style={{ color: "#d9d3cf", fontFamily: "Poppins_400Regular", fontSize: 12, textAlign: "center" }}>Swipe to see the next offer</Text>}
           <Pressable accessibilityRole="button" onPress={() => dismiss(true)} style={{ minHeight: 48, borderRadius: 15, backgroundColor: colors.mint, alignItems: "center", justifyContent: "center" }}>
-            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>Choose this offer</Text>
+            <Text style={{ color: "#fff", fontFamily: "Poppins_800ExtraBold", fontSize: 15 }}>Choose this offer</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => dismiss(false)} style={{ minHeight: 34, alignItems: "center", justifyContent: "center" }}>
-            <Text style={{ color: colors.secondary, fontSize: 13, fontWeight: "700" }}>Not now</Text>
+            <Text style={{ color: colors.secondary, fontFamily: "Poppins_700Bold", fontSize: 13 }}>Not now</Text>
           </Pressable>
         </View>
       </View>
@@ -581,7 +582,16 @@ function AppNavigator() {
 
 export default function Layout() {
   // Load bundled fonts without blocking navigation or authentication startup.
-  useFonts({ Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold });
+  useFonts({
+    Figtree_400Regular,
+    Figtree_600SemiBold,
+    Figtree_700Bold,
+    Figtree_800ExtraBold,
+    Poppins_400Regular,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+    Poppins_800ExtraBold,
+  });
   return (
     <AuthProvider>
       <SampleWorkspaceProvider>
