@@ -727,7 +727,7 @@ export function UserProfile({ id }: { id: string }) {
           )}
           {d.paid && !isApprovedHost && (
             <T mono size={11} color={c.muted}>
-              Audio {d.callSlabs.find(row => row.call_type === 'AUDIO')?.diamonds_per_minute ?? '—'} diamonds/min · Video {d.callSlabs.find(row => row.call_type === 'VIDEO')?.diamonds_per_minute ?? '—'} diamonds/min
+              Audio {d.callSlabs.find(row => row.call_type === 'AUDIO')?.diamonds_per_minute ?? '—'} hearts/min · Video {d.callSlabs.find(row => row.call_type === 'VIDEO')?.diamonds_per_minute ?? '—'} hearts/min
             </T>
           )}
           <Button

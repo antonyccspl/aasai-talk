@@ -52,7 +52,7 @@ export const COINS_PER_DIAMOND = 10;
 export const coins = (amount: number) =>
   `${new Intl.NumberFormat("en-IN").format(Math.abs(amount))} coins`;
 export const diamonds = (amount: number) =>
-  `${amount} ${amount === 1 ? "diamond" : "diamonds"}`;
+  `${amount} ${amount === 1 ? "heart" : "hearts"}`;
 export const rupeesForCoins = (amount: number) => amount * 2;
 export type Person = DirectoryPerson;
 export let people: Person[] = [];

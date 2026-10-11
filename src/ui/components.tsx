@@ -127,10 +127,10 @@ export function CoinStack({ size = 28 }: { size?: number }) {
 export function DiamondMark({ size = 14, color = "#5de6e7" }: { size?: number; color?: string }) {
   return (
     <FontAwesome6
-      name="gem"
+      name="heart"
       size={size}
       color={color}
-      accessibilityLabel="Diamond"
+      accessibilityLabel="Heart"
     />
   );
 }
@@ -819,7 +819,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
         <Row>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Audio call with ${person.name}, ${audioRate === undefined ? "rate unavailable" : `${audioRate} diamonds per minute`}`}
+            accessibilityLabel={`Audio call with ${person.name}, ${audioRate === undefined ? "rate unavailable" : `${audioRate} hearts per minute`}`}
             onPress={() => go(`/calls/outgoing/${person.id}?type=audio`)}
             style={[
               s.button,
@@ -844,13 +844,13 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
                   ? "…"
                   : audioRate === undefined
                     ? "—"
-                    : `${audioRate} diamonds/min`}
+                    : `${audioRate} hearts/min`}
               </T>
             </Row>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Video call with ${person.name}, ${videoRate === undefined ? "rate unavailable" : `${videoRate} diamonds per minute`}`}
+            accessibilityLabel={`Video call with ${person.name}, ${videoRate === undefined ? "rate unavailable" : `${videoRate} hearts per minute`}`}
             onPress={() => go(`/calls/outgoing/${person.id}?type=video`)}
             style={[
               s.button,
@@ -876,7 +876,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
                   ? "…"
                   : videoRate === undefined
                     ? "—"
-                    : `${videoRate} diamonds/min`}
+                    : `${videoRate} hearts/min`}
               </T>
             </Row>
           </Pressable>
@@ -1020,9 +1020,9 @@ export function Shell({
       >
         <View style={[s.frame, { backgroundColor: c.background, maxWidth: frameMaxWidth, overflow: "hidden" }]}>
           <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-            <View style={{ position: "absolute", width: 240, height: 240, borderRadius: 120, top: 108, right: -156, backgroundColor: "rgba(123,69,245,0.055)" }} />
-            <View style={{ position: "absolute", width: 184, height: 184, borderRadius: 92, top: 430, left: -126, backgroundColor: "rgba(237,63,181,0.045)" }} />
-            <View style={{ position: "absolute", width: 126, height: 126, borderRadius: 63, bottom: 104, right: -58, backgroundColor: "rgba(97,48,201,0.05)" }} />
+            <View style={{ position: "absolute", width: 240, height: 240, borderRadius: 120, top: 108, right: -156, backgroundColor: "rgba(123,69,245,0.022)" }} />
+            <View style={{ position: "absolute", width: 184, height: 184, borderRadius: 92, top: 430, left: -126, backgroundColor: "rgba(237,63,181,0.018)" }} />
+            <View style={{ position: "absolute", width: 126, height: 126, borderRadius: 63, bottom: 104, right: -58, backgroundColor: "rgba(97,48,201,0.02)" }} />
           </View>
           <Row style={s.header}>
             {title ? (
@@ -1238,7 +1238,7 @@ export const s = StyleSheet.create({
   frame: { flex: 1, minHeight: 0, width: "100%", maxWidth: 430, alignSelf: "center" },
   header: { minHeight: 76, paddingHorizontal: 20, gap: 8, backgroundColor: c.background, borderBottomWidth: 1, borderBottomColor: c.line },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
-  content: { padding: 20, gap: 18 },
+  content: { padding: 20, gap: 14 },
   card: { backgroundColor: "transparent", borderRadius: 0, borderWidth: 0, borderBottomWidth: 1, borderColor: c.line, paddingHorizontal: 0, paddingVertical: 18, gap: 14, boxShadow: "none" },
   button: {
     overflow: "hidden",
@@ -1280,11 +1280,11 @@ export const s = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     backgroundColor: "transparent",
-    paddingVertical: 14,
-    paddingHorizontal: 0,
-    minHeight: 60,
-    borderRadius: 0,
-    borderWidth: 0,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    minHeight: 62,
+    borderRadius: 14,
+    borderWidth: 1,
     borderBottomWidth: 1,
     borderColor: c.line,
     boxShadow: "none",
