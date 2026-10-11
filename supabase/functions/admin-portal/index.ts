@@ -147,20 +147,37 @@ Deno.serve(async (request) => {
       const days = [7,30,90].includes(Number(body.days)) ? Number(body.days) : 30;
       const since = body.all_time === true ? "" : start || new Date(Date.now() - days * 86400000).toISOString();
       const apply = <T>(query: T & { gte:(column:string,value:string)=>T; lte:(column:string,value:string)=>T }) => { let scoped=query; if(since) scoped=scoped.gte("created_at",since); if(end) scoped=scoped.lte("created_at",end); return scoped; };
-      const [{data:calls,error:callError},{data:ledger,error:ledgerError},{data:profiles,error:profileError},{data:payments,error:paymentError},{data:payouts,error:payoutError},{data:reports,error:reportError}] = await Promise.all([
+      const [{data:calls,error:callError},{data:legacyLedger,error:legacyLedgerError},{data:minuteCharges,error:minuteChargesError},{data:modeSwitchCharges,error:modeSwitchChargesError},{data:hostEarnings,error:hostEarningsError},{data:profiles,error:profileError},{data:payments,error:paymentError},{data:payouts,error:payoutError},{data:reports,error:reportError}] = await Promise.all([
         apply(admin.from("call_sessions").select("id,caller_phone,host_phone,call_type,status,duration_seconds,created_at")),
         apply(admin.from("phone_wallet_ledger").select("phone,call_session_id,coin_delta,earnings_delta_paise,created_at")),
+        apply(admin.from("phone_call_minute_ledger").select("phone,call_session_id,coin_delta,created_at")),
+        apply(admin.from("phone_call_mode_switch_ledger").select("phone,call_session_id,coin_delta,created_at")),
+        apply(admin.from("phone_host_earnings_ledger").select("host_phone,earnings_paise,created_at")),
         admin.from("phone_profiles").select("phone,display_name,username,avatar_url,gender"),
         apply(admin.from("phone_payment_orders").select("id,phone,coins,status,amount_paise,provider_payment_id,created_at,captured_at,credited_at")),
         apply(admin.from("phone_host_withdrawals").select("id,host_phone,status,amount_paise,payout_reference,review_note,created_at,updated_at")),
         apply(admin.from("safety_reports").select("id,reporter_name,reported_user_name,reason,status,resolution_note,created_at")),
       ]);
-      if(callError||ledgerError||profileError||paymentError||payoutError||reportError) throw callError||ledgerError||profileError||paymentError||payoutError||reportError;
+      if(callError||legacyLedgerError||minuteChargesError||modeSwitchChargesError||hostEarningsError||profileError||paymentError||payoutError||reportError) throw callError||legacyLedgerError||minuteChargesError||modeSwitchChargesError||hostEarningsError||profileError||paymentError||payoutError||reportError;
       const byPhone = new Map((profiles||[]).map((profile)=>[profile.phone,profile]));
       const hosts = new Map<string,{phone:string;talk_seconds:number;earned_paise:number;calls:number;audio_calls:number;video_calls:number}>();
       const users = new Map<string,{phone:string;talk_seconds:number;spent_coins:number;calls:number;audio_calls:number;video_calls:number}>();
       for (const call of calls||[]) { const seconds=Math.max(0,Number(call.duration_seconds||0)); const host=hosts.get(call.host_phone)||{phone:call.host_phone,talk_seconds:0,earned_paise:0,calls:0,audio_calls:0,video_calls:0}; host.talk_seconds+=seconds;host.calls+=1;if(call.call_type==="audio")host.audio_calls+=1;else host.video_calls+=1;hosts.set(call.host_phone,host); const caller=users.get(call.caller_phone)||{phone:call.caller_phone,talk_seconds:0,spent_coins:0,calls:0,audio_calls:0,video_calls:0};caller.talk_seconds+=seconds;caller.calls+=1;if(call.call_type==="audio")caller.audio_calls+=1;else caller.video_calls+=1;users.set(call.caller_phone,caller); }
-      for (const row of ledger||[]) { const host=hosts.get(row.phone); if(host) host.earned_paise+=Number(row.earnings_delta_paise||0); const user=users.get(row.phone); if(user) user.spent_coins+=Math.max(0,-Number(row.coin_delta||0)); }
+      // New calls charge each billable minute (and a video upgrade) immediately.  Older
+      // sessions have one settlement row instead.  Prefer the current charge ledgers
+      // and only retain a legacy settlement when that session has no current charges.
+      const currentChargeSessions = new Set<string>();
+      const addCurrentCharge = (row:{phone:string;call_session_id:string|null;coin_delta:number|null}) => {
+        if (row.call_session_id) currentChargeSessions.add(`${row.phone}:${row.call_session_id}`);
+        const user=users.get(row.phone); if(user) user.spent_coins+=Math.max(0,-Number(row.coin_delta||0));
+      };
+      for (const row of minuteCharges||[]) addCurrentCharge(row);
+      for (const row of modeSwitchCharges||[]) addCurrentCharge(row);
+      for (const row of legacyLedger||[]) {
+        const key=row.call_session_id ? `${row.phone}:${row.call_session_id}` : "";
+        if (!key || !currentChargeSessions.has(key)) { const user=users.get(row.phone); if(user) user.spent_coins+=Math.max(0,-Number(row.coin_delta||0)); }
+      }
+      for (const row of hostEarnings||[]) { const host=hosts.get(row.host_phone); if(host) host.earned_paise+=Number(row.earnings_paise||0); }
       const decorate=(record:{phone:string;talk_seconds?:number})=>({...record,talk_minutes:Math.round(Number(record.talk_seconds||0)/6)/10,profile:byPhone.get(record.phone)||null});
       const totalSeconds=(calls||[]).reduce((total,call)=>total+Math.max(0,Number(call.duration_seconds||0)),0); const completedCalls=(calls||[]).filter((call)=>call.status==="ended" && Number(call.duration_seconds||0)>0).length; const audioCalls=(calls||[]).filter((call)=>call.call_type==="audio").length; const videoCalls=(calls||[]).filter((call)=>call.call_type==="video").length;
       const capturedPayments=(payments||[]).filter((payment)=>payment.status==="captured"); const failedPayments=(payments||[]).filter((payment)=>payment.status==="failed");
@@ -328,13 +345,13 @@ Deno.serve(async (request) => {
       const [{ data: payments, error: paymentError }, { data: minutes, error: minutesError }, { data: earnings, error: earningsError }, { count: newUsers, error: newUsersError }] = await Promise.all([
         applyRange(admin.from("phone_payment_orders").select("amount_paise,coins").eq("status", "captured"), "captured_at"),
         applyRange(admin.from("phone_call_minute_ledger").select("id"), "created_at"),
-        applyRange(admin.from("phone_wallet_ledger").select("earnings_delta_paise").gt("earnings_delta_paise", 0), "created_at"),
+        applyRange(admin.from("phone_host_earnings_ledger").select("earnings_paise"), "created_at"),
         applyRange(admin.from("phone_profiles").select("phone", { count: "exact", head: true }), "created_at"),
       ]);
       if (paymentError || minutesError || earningsError || newUsersError) throw paymentError || minutesError || earningsError || newUsersError;
       const revenue_paise = (payments || []).reduce((total, payment) => total + Number(payment.amount_paise || 0), 0);
       const coins_sold = (payments || []).reduce((total, payment) => total + Number(payment.coins || 0), 0);
-      const host_earnings_paise = (earnings || []).reduce((total, row) => total + Number(row.earnings_delta_paise || 0), 0);
+      const host_earnings_paise = (earnings || []).reduce((total, row) => total + Number(row.earnings_paise || 0), 0);
       return reply({ metrics: { hosts_pending: hostsPending.count || 0, active_hosts: activeHosts.count || 0, payouts_pending: payoutsPending.count || 0, safety_pending: safetyPending.count || 0, users_total: usersTotal.count || 0, payments_pending: paymentsPending.count || 0, revenue_paise, coins_sold, call_minutes: (minutes || []).length, host_earnings_paise, new_users: newUsers || 0, range_days: body.all_time === true ? 0 : days, range_start: requestedStart || null, range_end: requestedEnd || null } });
     }
     return reply({ admin: { id: user.id, email: user.email, role, pages } });

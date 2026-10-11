@@ -207,6 +207,7 @@ function CallScreenContent({
   const [mediaStatus, setMediaStatus] = useState("Getting your call ready…");
   const [mediaRetryKey, setMediaRetryKey] = useState(0);
   const [networkQuality, setNetworkQuality] = useState<CallNetworkQuality>("unknown");
+  const [showVideoSafetyReminder, setShowVideoSafetyReminder] = useState(true);
   const connectingRef = useRef(false);
   const actionRef = useRef(false);
   const closedRef = useRef(false);
@@ -1068,9 +1069,45 @@ function CallScreenContent({
       )}
       {video && !ringing ? (
         <View style={{ width: "100%", gap: 10 }}>
-          <Notice>
-            Keep video respectful: nudity and sexual content are not allowed. Turn off your camera, end the call, or use Safety to report a concern.
-          </Notice>
+          {showVideoSafetyReminder && (
+            <View
+              accessibilityLiveRegion="polite"
+              style={{
+                flexDirection: "row",
+                alignItems: "flex-start",
+                gap: 10,
+                backgroundColor: c.successSurface,
+                padding: 14,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: c.line,
+                borderLeftWidth: 4,
+                borderLeftColor: c.mint,
+              }}
+            >
+              <T size={13} color={c.secondary} style={{ flex: 1, lineHeight: 20 }}>
+                Keep video respectful: nudity and sexual content are not allowed. Turn off your camera, end the call, or use Safety to report a concern.
+              </T>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss video safety reminder"
+                hitSlop={10}
+                onPress={() => setShowVideoSafetyReminder(false)}
+                style={({ pressed }) => ({
+                  width: 30,
+                  height: 30,
+                  marginTop: -4,
+                  marginRight: -4,
+                  borderRadius: 15,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: pressed ? c.high : "transparent",
+                })}
+              >
+                <Icon name="x" size={19} color={c.secondary} />
+              </Pressable>
+            </View>
+          )}
           <Card
             style={{
             // Adapt to compact screens instead of reserving a fixed desktop-like
@@ -1645,17 +1682,6 @@ export function CallDetail({
         <Badge text={displayStatus} />
       </View>
       {summaryError ? <Notice error>{summaryError}</Notice> : null}
-      {result && (
-        <Card style={{ padding: 14, borderLeftWidth: 3, borderLeftColor: summary?.connected ? c.mint : c.secondary }}>
-          <T mono size={10} color={c.secondary}>CALL RECEIPT</T>
-          <T size={13} bold>{summary?.connected ? "Connected and settled" : "No connected-call charge"}</T>
-          <T size={11} color={c.secondary}>
-            {summary?.connected
-              ? "The final duration and coin amount are confirmed by the server."
-              : "This call did not connect, so no conversation charge was applied."}
-          </T>
-        </Card>
-      )}
       <Card>
         <Setting
           title="Duration"

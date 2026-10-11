@@ -893,18 +893,12 @@ export function Profile() {
           {d.profile.name}
         </T>
         <T color={c.muted}>@{d.profile.username}</T>
-        <Badge
-          text={
-            approvedHost
-              ? inCall ? "Busy on another call" : "Online"
-              : d.active
-                ? "Busy · in a call"
-                : d.available
-                  ? "Available for a conversation"
-                  : "Unavailable"
-          }
-          warning={approvedHost ? inCall : !!d.active || !d.available}
-        />
+        {approvedHost && (
+          <Badge
+            text={inCall ? "Busy on another call" : "Online"}
+            warning={inCall}
+          />
+        )}
       </View>
       <Card>
         <T>{d.profile.bio}</T>

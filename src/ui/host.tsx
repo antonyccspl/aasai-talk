@@ -469,7 +469,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
     const timer = setInterval(refresh, 15000);
     return () => { active = false; clearInterval(timer); };
   }, [auth.demoPhone, d.hostStatus]);
-  const availableEarnings = dashboard ? dashboard.total_earnings_paise / 100 : 0;
+  const availableEarnings = dashboard ? dashboard.available_earnings_paise / 100 : 0;
   const requestedWithdrawalAmount = Number(withdrawalAmount);
   const hasValidWithdrawalAmount = /^\d+(?:\.\d{1,2})?$/.test(withdrawalAmount.trim())
     && Number.isFinite(requestedWithdrawalAmount)
@@ -573,7 +573,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
         <T bold size={16}>Withdrawal history</T>
         {withdrawals.map((withdrawal) => <Row key={withdrawal.id} style={{ justifyContent: "space-between" }}>
           <View><T bold>₹{(withdrawal.amount_paise / 100).toLocaleString("en-IN")}</T><T size={11} color={c.secondary}>{hostDate(withdrawal.created_at)}</T></View>
-          <Chip title={withdrawal.status === "in_review" ? "In review" : withdrawal.status === "completed" ? "Payment confirmed" : withdrawal.status === "pending" ? "Request received" : withdrawal.status === "rejected" ? "Request declined" : withdrawal.status === "failed" ? "Payment issue" : withdrawal.status} />
+          <Chip title={withdrawal.status === "in_review" ? "Under review" : withdrawal.status === "completed" ? "Paid" : withdrawal.status === "pending" ? "Awaiting review" : withdrawal.status === "processing" ? "Payment in progress" : withdrawal.status === "rejected" ? "Not approved" : withdrawal.status === "failed" ? "Payment failed" : withdrawal.status} />
         </Row>)}
       </Card>}
     </Shell>
