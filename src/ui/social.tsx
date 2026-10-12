@@ -2,7 +2,6 @@ import { useAuth } from "@/data/auth";
 import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
 import { sendPushEvent } from "@/data/push-notifications";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
-import { fetchHostEarningSlabs, type HostEarningSlab } from "@/data/host-metrics";
 import { router, useFocusEffect } from "expo-router";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, TextInput, useWindowDimensions, View } from "react-native";
@@ -64,7 +63,6 @@ function HostDashboardHome() {
   const d = useDemo();
   const { translate } = useLanguage();
   const [dashboard, setDashboard] = useState<HostDashboard | null>(null);
-  const [earningSlabs, setEarningSlabs] = useState<HostEarningSlab[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const loadDashboard = useCallback(() => {
@@ -99,28 +97,11 @@ function HostDashboardHome() {
       };
     }, [auth.demoPhone, loadDashboard]),
   );
-  useEffect(() => {
-    if (!auth.demoPhone) {
-      setEarningSlabs([]);
-      return;
-    }
-    let active = true;
-    void fetchHostEarningSlabs()
-      .then((data) => { if (active) setEarningSlabs(data); })
-      .catch((cause) => {
-        if (active) setError(cause instanceof Error ? cause.message : "Unable to load host earning rates.");
-      });
-    return () => { active = false; };
-  }, [auth.demoPhone]);
   const refresh = async () => {
     setRefreshing(true);
     try {
-      const [dashboardData, slabData] = await Promise.all([
-        loadDashboard(),
-        fetchHostEarningSlabs(),
-      ]);
+      const dashboardData = await loadDashboard();
       if (dashboardData) setDashboard(dashboardData);
-      setEarningSlabs(slabData);
       setError("");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to refresh your dashboard."); }
     finally { setRefreshing(false); }
@@ -193,19 +174,6 @@ function HostDashboardHome() {
           <T size={23} bold>{dashboard ? formatRupees(dashboard.available_earnings_paise) : "—"}</T>
         </Card>
       </Row>
-      <Section title="Host earning rates" />
-      <Card>
-        <Row style={{ justifyContent: "space-between" }}>
-          <T mono size={10} color={c.secondary}>DAILY TALK TIME</T>
-          <T mono size={10} color={c.secondary}>AUDIO / VIDEO</T>
-        </Row>
-        {earningSlabs.map((slab) => (
-          <Row key={slab.min_minutes} style={{ justifyContent: "space-between" }}>
-            <T>{slab.max_minutes === null ? `Above ${slab.min_minutes} min` : `${slab.min_minutes}–${slab.max_minutes} min`}</T>
-            <T bold color={c.mint}>₹{slab.audio_paise_per_minute / 100} / ₹{slab.video_paise_per_minute / 100} per min</T>
-          </Row>
-        ))}
-      </Card>
       <Row>
         <Card style={{ flex: 1 }}>
           <T mono size={10} color={c.secondary}>MISSED / DECLINED</T>
