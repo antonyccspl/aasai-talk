@@ -166,9 +166,6 @@ function HostDashboardHome() {
       </Row>
       <Section title="Your earning rate" />
       <Card>
-        <T color={c.secondary}>
-          Your earnings are fixed for every completed call.
-        </T>
         <Row style={{ justifyContent: "space-between" }}>
           <T>Audio call</T>
           <T bold color={c.mint}>₹5 per minute</T>
