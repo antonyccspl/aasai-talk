@@ -1,0 +1,727 @@
+[
+  {
+    "table": "user_settings",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "user_id",
+      "theme",
+      "allow_messages",
+      "allow_calls",
+      "notifications_enabled",
+      "availability"
+    ]
+  },
+  {
+    "table": "phone_wallets",
+    "status": 206,
+    "range": "*/2",
+    "columns": [
+      "phone",
+      "coins",
+      "earnings_paise",
+      "updated_at"
+    ]
+  },
+  {
+    "table": "phone_identities",
+    "status": 206,
+    "range": "*/38",
+    "columns": [
+      "phone",
+      "profile_complete",
+      "profile",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  {
+    "table": "phone_support_ticket_messages",
+    "status": 206,
+    "range": "*/3",
+    "columns": [
+      "id",
+      "ticket_id",
+      "sender_type",
+      "sender_phone",
+      "admin_user_id",
+      "message",
+      "created_at"
+    ]
+  },
+  {
+    "table": "phone_messages",
+    "status": 206,
+    "range": "*/4",
+    "columns": [
+      "id",
+      "sender_phone",
+      "recipient_phone",
+      "text",
+      "created_at",
+      "read_at"
+    ]
+  },
+  {
+    "table": "wallets",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "user_id",
+      "coins",
+      "earnings_paise"
+    ]
+  },
+  {
+    "table": "call_sessions",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "caller_phone",
+      "host_phone",
+      "call_type",
+      "status",
+      "room_id",
+      "started_at",
+      "connected_at",
+      "ended_at",
+      "duration_seconds",
+      "created_at",
+      "video_upgrade_requested_by",
+      "video_upgrade_requested_at",
+      "host_notification_read_at"
+    ]
+  },
+  {
+    "table": "phone_payment_orders",
+    "status": 206,
+    "range": "*/3",
+    "columns": [
+      "id",
+      "phone",
+      "coin_pack_id",
+      "coins",
+      "amount_paise",
+      "currency",
+      "provider_order_id",
+      "provider_payment_id",
+      "checkout_token_hash",
+      "status",
+      "provider_payload",
+      "created_at",
+      "updated_at",
+      "captured_at",
+      "credited_at",
+      "provider"
+    ]
+  },
+  {
+    "table": "phone_profiles",
+    "status": 206,
+    "range": "*/6",
+    "columns": [
+      "phone",
+      "display_name",
+      "username",
+      "bio",
+      "gender",
+      "date_of_birth",
+      "city",
+      "languages",
+      "interests",
+      "created_at",
+      "updated_at",
+      "avatar_url",
+      "community_guidelines_accepted_at",
+      "adult_age_confirmed_at"
+    ]
+  },
+  {
+    "table": "moderator_audit_log",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "actor_uid",
+      "report_id",
+      "action",
+      "previous_status",
+      "new_status",
+      "resolution_note",
+      "created_at"
+    ]
+  },
+  {
+    "table": "phone_wallet_recharge_ledger",
+    "status": 206,
+    "range": "*/1",
+    "columns": [
+      "id",
+      "phone",
+      "client_order_id",
+      "coin_delta",
+      "source",
+      "created_at"
+    ]
+  },
+  {
+    "table": "calls",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "person_id",
+      "person_name",
+      "call_type",
+      "status",
+      "seconds",
+      "incoming",
+      "created_at"
+    ]
+  },
+  {
+    "table": "admin_moderation_notes",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "entity_type",
+      "entity_id",
+      "note",
+      "created_by",
+      "created_at"
+    ]
+  },
+  {
+    "table": "profiles",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "username",
+      "display_name",
+      "gender",
+      "date_of_birth",
+      "bio",
+      "city",
+      "languages",
+      "interests",
+      "avatar_path",
+      "created_at"
+    ]
+  },
+  {
+    "table": "blocked_users",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "user_id",
+      "blocked_user_id",
+      "created_at"
+    ]
+  },
+  {
+    "table": "phone_host_presence",
+    "status": 206,
+    "range": "*/1",
+    "columns": [
+      "host_phone",
+      "last_seen_at"
+    ]
+  },
+  {
+    "table": "phone_push_tokens",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "expo_push_token",
+      "phone",
+      "platform",
+      "calls_enabled",
+      "messages_enabled",
+      "wallet_enabled",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  {
+    "table": "host_applications",
+    "status": 206,
+    "range": "*/1",
+    "columns": [
+      "id",
+      "user_id",
+      "status",
+      "aadhaar_path",
+      "pan_path",
+      "submitted_at",
+      "reviewed_at",
+      "review_note",
+      "created_at",
+      "phone",
+      "application_profile",
+      "archived_at"
+    ]
+  },
+  {
+    "table": "transactions",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "title",
+      "amount",
+      "kind",
+      "status",
+      "date",
+      "created_at"
+    ]
+  },
+  {
+    "table": "favorites",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "user_id",
+      "favorite_user_id",
+      "created_at"
+    ]
+  },
+  {
+    "table": "safety_reports",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "reporter_name",
+      "reported_user_id",
+      "reported_user_name",
+      "reason",
+      "details",
+      "status",
+      "resolution_note",
+      "created_at",
+      "reporter_phone"
+    ]
+  },
+  {
+    "table": "phone_user_blocks",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "blocker_phone",
+      "blocked_phone",
+      "created_at"
+    ]
+  },
+  {
+    "table": "phone_call_minute_ledger",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "phone",
+      "call_session_id",
+      "minute_number",
+      "diamonds_charged",
+      "coin_delta",
+      "created_at"
+    ]
+  },
+  {
+    "table": "coin_packs",
+    "status": 206,
+    "range": "*/11",
+    "columns": [
+      "id",
+      "coins",
+      "price_paise",
+      "active",
+      "sort_order",
+      "bonus_coins",
+      "is_special",
+      "special_label",
+      "available_from",
+      "available_until"
+    ]
+  },
+  {
+    "table": "admin_roles",
+    "status": 206,
+    "range": "*/1",
+    "columns": [
+      "user_id",
+      "role",
+      "active",
+      "created_at",
+      "updated_at",
+      "page_access"
+    ]
+  },
+  {
+    "table": "phone_host_compliance",
+    "status": 206,
+    "range": "*/1",
+    "columns": [
+      "host_phone",
+      "pan_last4",
+      "aadhaar_last4",
+      "pan_verified",
+      "aadhaar_verified",
+      "verified_by",
+      "verified_at",
+      "updated_at"
+    ]
+  },
+  {
+    "table": "phone_host_withdrawals",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "host_phone",
+      "amount_paise",
+      "account_snapshot",
+      "status",
+      "payout_reference",
+      "review_note",
+      "created_at",
+      "updated_at",
+      "review_started_at",
+      "review_due_at"
+    ]
+  },
+  {
+    "table": "announcements",
+    "status": 206,
+    "range": "*/4",
+    "columns": [
+      "id",
+      "title",
+      "message",
+      "audience",
+      "tag",
+      "is_active",
+      "created_at"
+    ]
+  },
+  {
+    "table": "account_deletion_requests",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "user_id",
+      "reason",
+      "details",
+      "requested_at",
+      "scheduled_for"
+    ]
+  },
+  {
+    "table": "phone_wallet_ledger",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "phone",
+      "call_session_id",
+      "coin_delta",
+      "earnings_delta_paise",
+      "created_at"
+    ]
+  },
+  {
+    "table": "phone_push_deliveries",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "event_key",
+      "recipient_phone",
+      "sent_at"
+    ]
+  },
+  {
+    "table": "phone_message_wallet_ledger",
+    "status": 206,
+    "range": "*/3",
+    "columns": [
+      "id",
+      "phone",
+      "message_id",
+      "coin_delta",
+      "created_at"
+    ]
+  },
+  {
+    "table": "phone_host_payout_accounts",
+    "status": 206,
+    "range": "*/1",
+    "columns": [
+      "host_phone",
+      "account_holder_name",
+      "account_number",
+      "ifsc_code",
+      "status",
+      "verification_note",
+      "created_at",
+      "updated_at",
+      "verified_at",
+      "payout_method",
+      "upi_id"
+    ]
+  },
+  {
+    "table": "receiver_coin_diamond_slabs",
+    "status": 206,
+    "range": "*/6",
+    "columns": [
+      "id",
+      "call_type",
+      "diamonds_per_minute",
+      "coins_per_diamond",
+      "coins_per_rupee",
+      "is_active",
+      "created_at",
+      "updated_at",
+      "min_minutes",
+      "max_minutes"
+    ]
+  },
+  {
+    "table": "messages",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "conversation_with",
+      "sender_name",
+      "is_mine",
+      "text",
+      "created_at"
+    ]
+  },
+  {
+    "table": "withdrawals",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "user_id",
+      "amount_paise",
+      "status",
+      "payout_reference",
+      "created_at"
+    ]
+  },
+  {
+    "table": "phone_message_host_earnings_ledger",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "host_phone",
+      "message_id",
+      "earnings_paise",
+      "created_at"
+    ]
+  },
+  {
+    "table": "phone_content_moderation_items",
+    "status": 206,
+    "range": "*/1",
+    "columns": [
+      "id",
+      "owner_phone",
+      "content_type",
+      "storage_bucket",
+      "storage_path",
+      "public_url",
+      "scan_provider",
+      "adult_likelihood",
+      "racy_likelihood",
+      "provider_result",
+      "status",
+      "decision_note",
+      "reviewed_by",
+      "reviewed_at",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  {
+    "table": "directory_profiles",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "display_name",
+      "age",
+      "gender",
+      "city",
+      "languages",
+      "interests",
+      "bio",
+      "availability",
+      "avatar_url",
+      "accent_color",
+      "is_visible",
+      "created_at",
+      "updated_at",
+      "id",
+      "firebase_uid"
+    ]
+  },
+  {
+    "table": "phone_support_tickets",
+    "status": 206,
+    "range": "*/1",
+    "columns": [
+      "id",
+      "phone",
+      "subject",
+      "category",
+      "status",
+      "created_at",
+      "updated_at",
+      "resolved_at"
+    ]
+  },
+  {
+    "table": "admin_audit_logs",
+    "status": 206,
+    "range": "*/9",
+    "columns": [
+      "id",
+      "admin_user_id",
+      "action",
+      "entity_type",
+      "entity_id",
+      "before_state",
+      "after_state",
+      "reason",
+      "created_at"
+    ]
+  },
+  {
+    "table": "phone_call_mode_switch_ledger",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "phone",
+      "call_session_id",
+      "from_call_type",
+      "to_call_type",
+      "diamonds_charged",
+      "coin_delta",
+      "created_at"
+    ]
+  },
+  {
+    "table": "phone_host_earnings_ledger",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "host_phone",
+      "call_session_id",
+      "source_id",
+      "source_kind",
+      "call_type",
+      "earnings_paise",
+      "created_at"
+    ]
+  },
+  {
+    "table": "host_call_time_ledger",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "host_phone",
+      "call_session_id",
+      "call_date",
+      "duration_seconds",
+      "created_at"
+    ]
+  },
+  {
+    "table": "phone_user_admin_status",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "phone",
+      "status",
+      "reason",
+      "updated_by",
+      "updated_at",
+      "archived_at"
+    ]
+  },
+  {
+    "table": "wallet_ledger",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "user_id",
+      "coin_delta",
+      "earnings_delta_paise",
+      "kind",
+      "idempotency_key",
+      "created_at"
+    ]
+  },
+  {
+    "table": "notifications",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "id",
+      "title",
+      "body",
+      "path",
+      "icon",
+      "is_global",
+      "created_at"
+    ]
+  },
+  {
+    "table": "platform_metrics",
+    "status": 206,
+    "range": "*/5",
+    "columns": [
+      "metric_key",
+      "metric_label",
+      "metric_value",
+      "sub_text",
+      "chart_data",
+      "updated_at"
+    ]
+  },
+  {
+    "table": "app_policies_and_settings",
+    "status": 206,
+    "range": "*/6",
+    "columns": [
+      "key",
+      "title",
+      "category",
+      "content",
+      "updated_at"
+    ]
+  },
+  {
+    "table": "phone_account_deletion_requests",
+    "status": 200,
+    "range": "*/0",
+    "columns": [
+      "phone",
+      "reason",
+      "details",
+      "status",
+      "requested_at",
+      "scheduled_for"
+    ]
+  }
+]

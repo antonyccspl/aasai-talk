@@ -39,9 +39,12 @@ export type AppConfig = {
   support_email: string;
   support_phone: string;
   new_user_bonus_coins: number;
+  coins_per_rupee: number;
+  coins_per_diamond: number;
   audio_rate_diamonds_per_min: number;
   video_rate_diamonds_per_min: number;
-  coins_per_diamond: number;
+  audio_host_earnings_rupees_per_minute: number;
+  video_host_earnings_rupees_per_minute: number;
 };
 
 export type SafetyReport = {

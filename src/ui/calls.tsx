@@ -31,9 +31,7 @@ import {
 import { useAuth } from "@/data/auth";
 import { ZegoMedia } from "./zego-media";
 import { startCallSound, stopCallSound } from "@/data/call-sounds";
-
-const callCoinCost = (seconds: number, type: "audio" | "video") =>
-  seconds ? Math.ceil(seconds / 60) * (type === "video" ? 50 : 20) : 0;
+import { callCoinCost, callCoinsPerMinute, callDiamondsPerMinute } from "@/data/pricing";
 
 export function CallScreen({
   mode,
@@ -208,7 +206,12 @@ export function CallScreen({
     if (blocked || conflict || actionRef.current || closedRef.current) return;
     setCallError("");
     if (d.active && !incoming) return;
-    if (!incoming && d.paid && d.hostStatus !== "approved" && d.balance < (video ? 50 : 20))
+    if (
+      !incoming &&
+      d.paid &&
+      d.hostStatus !== "approved" &&
+      d.balance < callCoinsPerMinute(video ? "video" : "audio")
+    )
       return go("/wallet/low-balance");
     if (!auth.demoPhone || !id.startsWith("phone_"))
       return go("/status/unavailable");
@@ -525,8 +528,7 @@ export function CallScreen({
           </T>
           {d.paid && (
             <T mono size={11} color={c.muted}>
-              {d.callSlabs.find((row) => row.call_type === (video ? "VIDEO" : "AUDIO"))
-                ?.diamonds_per_minute ?? "—"} diamonds per minute
+              {callDiamondsPerMinute(video ? "video" : "audio")} diamonds · {callCoinsPerMinute(video ? "video" : "audio")} coins per minute
             </T>
           )}
         </View>

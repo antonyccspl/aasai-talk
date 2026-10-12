@@ -5,7 +5,7 @@ export async function fetchPhoneWalletBalance(phone: string) {
     input_phone: phone,
   });
   if (error) throw new Error(error.message);
-  if (typeof data !== "number" || !Number.isSafeInteger(data) || data < 0)
+  if (typeof data !== "number" || !Number.isFinite(data) || data < 0)
     throw new Error("Invalid wallet balance returned by the server.");
   return data;
 }

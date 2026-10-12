@@ -18,7 +18,11 @@ import { useDemo } from "./store";
 import { submitPhoneHostApplication } from "@/data/host-applications";
 import { useAuth } from "@/data/auth";
 import { colors as c } from "./theme";
-import { fetchHostCurrentSlabs, fetchHostDailyCallSummary, fetchHostDailyCallTime, type HostCurrentSlab, type HostDailyCallSummary } from "@/data/host-metrics";
+import { fetchHostDailyCallSummary, fetchHostDailyCallTime, fetchHostEarnings, type HostDailyCallSummary } from "@/data/host-metrics";
+import {
+  AUDIO_HOST_EARNINGS_RUPEES_PER_MINUTE,
+  VIDEO_HOST_EARNINGS_RUPEES_PER_MINUTE,
+} from "@/data/pricing";
 
 function DocumentUpload({
   label,
@@ -239,8 +243,9 @@ export function HostApplication() {
           <T>{form.languages.join(", ")}</T>
           <T>{form.interests.join(", ")}</T>
           <T color={c.secondary}>
-            Your applicable diamond rate is calculated from your consolidated
-            call time each day.
+            You earn a fixed ₹{AUDIO_HOST_EARNINGS_RUPEES_PER_MINUTE} per
+            audio minute and ₹{VIDEO_HOST_EARNINGS_RUPEES_PER_MINUTE} per
+            video minute.
           </T>
           <Button
             title="Submit"
@@ -296,7 +301,6 @@ export function HostStatus() {
   const approved = d.hostStatus === "approved";
   const [refreshing, setRefreshing] = useState(false);
   const [dailyCallTime, setDailyCallTime] = useState<{ seconds: number; calls: number } | null>(null);
-  const [currentSlabs, setCurrentSlabs] = useState<HostCurrentSlab[]>([]);
   const [dailySummary, setDailySummary] = useState<HostDailyCallSummary[]>([]);
   const [dailyCallTimeError, setDailyCallTimeError] = useState("");
   const loadDailyCallTime = async () => {
@@ -305,7 +309,7 @@ export function HostStatus() {
       const result = await fetchHostDailyCallTime(auth.demoPhone);
       setDailyCallTime(result);
       setDailySummary(await fetchHostDailyCallSummary(auth.demoPhone));
-      setCurrentSlabs(await fetchHostCurrentSlabs(auth.demoPhone));
+      d.setHostEarnings(await fetchHostEarnings(auth.demoPhone));
       setDailyCallTimeError("");
     } catch (error) {
       setDailyCallTimeError(error instanceof Error ? error.message : "Unable to load today's call time.");
@@ -359,16 +363,6 @@ export function HostStatus() {
           <T color={c.secondary}>
             {dailyCallTime ? `${dailyCallTime.calls} connected call${dailyCallTime.calls === 1 ? "" : "s"} today` : "Loading call activity…"}
           </T>
-          {currentSlabs.length > 0 ? (
-            <View style={{ gap: 4, marginTop: 12 }}>
-              <T bold>Current receiver slab</T>
-              {currentSlabs.map((slab) => (
-                <T key={slab.call_type} color={c.secondary}>
-                  {slab.call_type === "VIDEO" ? "Video" : "Audio"}: {slab.diamonds_per_minute} diamonds/min
-                </T>
-              ))}
-            </View>
-          ) : null}
           {dailyCallTimeError ? <Notice error>{dailyCallTimeError}</Notice> : null}
           <T bold style={{ marginTop: 14 }}>Daily history</T>
           {dailySummary.filter((item) => item.seconds || item.calls).map((item) => (
@@ -388,6 +382,7 @@ export function HostStatus() {
 
 export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
   const d = useDemo();
+  const auth = useAuth();
   const [method, setMethod] = useState<"upi" | "bank">("upi");
   const [amount, setAmount] = useState("");
   const [upi, setUpi] = useState("");
@@ -396,6 +391,12 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const previewMode = preview && d.hostStatus === "pending";
+  useEffect(() => {
+    if (d.hostStatus !== "approved" || !auth.demoPhone) return;
+    void fetchHostEarnings(auth.demoPhone)
+      .then(d.setHostEarnings)
+      .catch((loadError) => console.error("Failed to load Host earnings:", loadError));
+  }, [auth.demoPhone, d.hostStatus, d.setHostEarnings]);
   if (d.hostStatus !== "approved" && !previewMode)
     return (
       <Shell title="Host earnings">

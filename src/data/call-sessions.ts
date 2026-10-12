@@ -79,11 +79,9 @@ export async function settlePhoneCall(sessionId: string, phone: string) {
   if (error) throw error;
   return data as {
     coins_charged: number;
-    diamonds_charged: number;
-    diamonds_per_minute: number;
     host_earnings_paise: number;
     duration_seconds: number;
-    daily_seconds: number;
+    coins_per_minute?: number;
   };
 }
 
@@ -105,8 +103,6 @@ export async function chargePhoneCallMinute(
       responseInvalid?: boolean;
       remaining_coins?: number;
       insufficient_balance?: boolean;
-      diamonds_charged?: number;
-      diamonds_required?: number;
     };
   const row = candidate as Record<string, unknown>;
   const numberValue = (value: unknown) => {
@@ -116,38 +112,28 @@ export async function chargePhoneCallMinute(
     return undefined;
   };
   const remainingCoins = numberValue(row.remaining_coins);
-  const diamondsCharged = numberValue(row.diamonds_charged);
-  const diamondsRequired = numberValue(row.diamonds_required);
   const charged = row.charged === true || row.charged === "true";
-  if (remainingCoins === undefined || (charged && diamondsCharged === undefined)) {
+  if (remainingCoins === undefined) {
     return {
       charged,
       responseInvalid: true,
-      ...(diamondsCharged === undefined ? {} : { diamonds_charged: diamondsCharged }),
-      ...(diamondsRequired === undefined ? {} : { diamonds_required: diamondsRequired }),
     } as {
       charged: boolean;
       responseInvalid?: boolean;
       remaining_coins?: number;
       insufficient_balance?: boolean;
-      diamonds_charged?: number;
-      diamonds_required?: number;
     };
   }
   return {
     ...row,
     charged,
     remaining_coins: remainingCoins,
-    ...(diamondsCharged === undefined ? {} : { diamonds_charged: diamondsCharged }),
-    ...(diamondsRequired === undefined ? {} : { diamonds_required: diamondsRequired }),
   } as {
     charged: boolean;
     call_active?: boolean;
     minute_complete?: boolean;
     already_charged?: boolean;
     insufficient_balance?: boolean;
-    diamonds_charged?: number;
-    diamonds_required?: number;
     coins_charged?: number;
     coins_required?: number;
     remaining_coins?: number;

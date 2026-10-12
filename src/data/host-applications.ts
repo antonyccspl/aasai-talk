@@ -26,8 +26,8 @@ export async function submitPhoneHostApplication(
 ) {
   const fixedRateApplication = {
     ...application,
-    audioRate: "2",
-    videoRate: "5",
+    audioRate: "5",
+    videoRate: "10",
   };
   const { data, error } = await supabase.rpc("submit_phone_host_application", {
     input_phone: phone,

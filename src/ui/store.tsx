@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import { ColorMode, setColorMode } from "./theme";
-import { CallSlab, fetchCallSlabs } from "../data/call-slabs";
+import { COINS_PER_RUPEE, formatCoins } from "../data/pricing";
 import {
   usePlatformContext,
   useWorkspaceField,
@@ -41,12 +41,11 @@ export const defaultFacets = {
   maxAge: "",
   maxPrice: "",
 };
-export const COINS_PER_DIAMOND = 10;
 export const coins = (amount: number) =>
-  `${new Intl.NumberFormat("en-IN").format(Math.abs(amount))} coins`;
+  `${formatCoins(amount)} coins`;
 export const diamonds = (amount: number) =>
   `${amount} ${amount === 1 ? "diamond" : "diamonds"}`;
-export const rupeesForCoins = (amount: number) => amount * 2;
+export const rupeesForCoins = (amount: number) => amount / COINS_PER_RUPEE;
 export type Person = DirectoryPerson;
 export let people: Person[] = [];
 
@@ -121,38 +120,6 @@ function useDemoState() {
       65, 100, 85, 135, 115, 155, 143,
     ],
   );
-  const [callSlabs, setCallSlabs] = useState<CallSlab[]>([]);
-  const [slabsLoading, setSlabsLoading] = useState(true);
-  const [slabsError, setSlabsError] = useState(false);
-  const [slabRevision, setSlabRevision] = useState(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    setSlabsLoading(true);
-    setSlabsError(false);
-    fetchCallSlabs(controller.signal)
-      .then((rows) => {
-        if (active) setCallSlabs(rows);
-      })
-      .catch(() => {
-        if (active) {
-          setCallSlabs([]);
-          setSlabsError(true);
-        }
-      })
-      .finally(() => {
-        clearTimeout(timeout);
-        if (active) setSlabsLoading(false);
-      });
-    return () => {
-      active = false;
-      clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [slabRevision]);
-
   const [photo, setPhoto] = useWorkspaceField("photo", "");
   const [hostDraft, setHostDraft] = useWorkspaceField("hostDraft", {
     name: "",
@@ -161,8 +128,8 @@ function useDemoState() {
     interests: [] as string[],
     audio: true,
     video: true,
-    audioRate: "2",
-    videoRate: "5",
+    audioRate: "5",
+    videoRate: "10",
     aadhaarDocument: "",
     panDocument: "",
   });
@@ -469,10 +436,6 @@ function useDemoState() {
     audit,
     setAudit,
     chart,
-    callSlabs,
-    slabsLoading,
-    slabsError,
-    refreshSlabs: () => setSlabRevision((value) => value + 1),
     photo,
     setPhoto,
     hostDraft,

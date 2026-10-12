@@ -419,7 +419,7 @@ export function Wallet({
         ))}
       </Row>
       <T mono size={11} color={c.secondary} style={{ textAlign: "center" }}>
-        10 coins = 1 diamond
+        1.5 coins = ₹1
       </T>
       <Button
         title={`Buy ${coins(d.pack)}`}

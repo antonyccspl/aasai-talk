@@ -26,6 +26,7 @@ import { colors as c } from "./theme";
 import { useRefreshPeople } from '../data/sample-workspace';
 import { fetchPhoneConversations, fetchPhoneMessages, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
 import { useAuth } from "@/data/auth";
+import { callCoinsPerMinute, callDiamondsPerMinute } from "@/data/pricing";
 
 export function Discovery({ mode = "explore" }: { mode?: string }) {
   const d = useDemo();
@@ -69,7 +70,6 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
         mode === "explore"
           ? async () => {
               setRefreshing(true);
-              d.refreshSlabs();
               try { await refreshPeople(); } finally { setRefreshing(false); }
             }
           : undefined
@@ -286,7 +286,7 @@ export function UserProfile({ id }: { id: string }) {
           </Row>
           {d.paid && (
             <T mono size={11} color={c.muted}>
-              Audio {d.callSlabs.find(row => row.call_type === 'AUDIO')?.diamonds_per_minute ?? '—'} diamonds/min · Video {d.callSlabs.find(row => row.call_type === 'VIDEO')?.diamonds_per_minute ?? '—'} diamonds/min
+              Audio: {callDiamondsPerMinute("audio")} diamonds / {callCoinsPerMinute("audio")} coins/min · Video: {callDiamondsPerMinute("video")} diamonds / {callCoinsPerMinute("video")} coins/min
             </T>
           )}
           <Button

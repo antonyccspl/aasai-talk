@@ -21,7 +21,7 @@ import { Feather, FontAwesome6 } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { colors as c, fonts } from "./theme";
 import { coins, duration, Person, personFor, useDemo } from "./store";
-import { fetchHostCurrentSlabs, type HostCurrentSlab } from "@/data/host-metrics";
+import { callCoinsPerMinute, callDiamondsPerMinute } from "@/data/pricing";
 export type IconName = React.ComponentProps<typeof Feather>["name"];
 export const go = (path: string) => router.push(path as never);
 export function T({
@@ -538,32 +538,10 @@ export function Wave({ large }: { large?: boolean }) {
   );
 }
 export function UserCard({ person }: { person: Person }) {
-  const [hostSlabs, setHostSlabs] = useState<HostCurrentSlab[]>([]);
-  const [slabsLoading, setSlabsLoading] = useState(false);
-  const hostPhone = person.id.startsWith("phone_")
-    ? `+${person.id.slice("phone_".length)}`
-    : "";
-  useEffect(() => {
-    if (!hostPhone) return;
-    let active = true;
-    setSlabsLoading(true);
-    void fetchHostCurrentSlabs(hostPhone)
-      .then((rows) => {
-        if (active) setHostSlabs(rows);
-      })
-      .catch((error) => {
-        console.error("Failed to load Host call rates:", error);
-        if (active) setHostSlabs([]);
-      })
-      .finally(() => {
-        if (active) setSlabsLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [hostPhone]);
-  const audioRate = hostSlabs.find(row => row.call_type === 'AUDIO')?.diamonds_per_minute;
-  const videoRate = hostSlabs.find(row => row.call_type === 'VIDEO')?.diamonds_per_minute;
+  const audioRate = callCoinsPerMinute("audio");
+  const videoRate = callCoinsPerMinute("video");
+  const audioDiamonds = callDiamondsPerMinute("audio");
+  const videoDiamonds = callDiamondsPerMinute("video");
   const pulse = useRef(new Animated.Value(0.3)).current;
   useEffect(() => {
     const animation = Animated.loop(
@@ -652,7 +630,7 @@ export function UserCard({ person }: { person: Person }) {
         <Row>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Audio call with ${person.name}, ${audioRate === undefined ? 'rate unavailable' : `${audioRate} diamonds per minute`}`}
+            accessibilityLabel={`Audio call with ${person.name}, ${audioDiamonds} diamonds or ${audioRate} coins per minute`}
             onPress={() => go(`/calls/outgoing/${person.id}?type=audio`)}
             style={[
               s.button,
@@ -668,15 +646,14 @@ export function UserCard({ person }: { person: Person }) {
               <T bold size={12}>
                 Audio
               </T>
-              <DiamondMark size={9} />
               <T mono size={10} color={c.secondary}>
-                {slabsLoading ? '…' : audioRate === undefined ? '—' : `${audioRate}/min`}
+                {audioDiamonds}◇ · {audioRate}/min
               </T>
             </Row>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Video call with ${person.name}, ${videoRate === undefined ? 'rate unavailable' : `${videoRate} diamonds per minute`}`}
+            accessibilityLabel={`Video call with ${person.name}, ${videoDiamonds} diamonds or ${videoRate} coins per minute`}
             onPress={() => go(`/calls/outgoing/${person.id}?type=video`)}
             style={[
               s.button,
@@ -692,9 +669,8 @@ export function UserCard({ person }: { person: Person }) {
               <T bold size={12}>
                 Video
               </T>
-              <DiamondMark size={9} />
               <T mono size={10} color={c.secondary}>
-                {slabsLoading ? '…' : videoRate === undefined ? '—' : `${videoRate}/min`}
+                {videoDiamonds}◇ · {videoRate}/min
               </T>
             </Row>
           </Pressable>
