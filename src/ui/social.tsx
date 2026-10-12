@@ -164,6 +164,20 @@ function HostDashboardHome() {
           <T size={23} bold>{dashboard ? formatRupees(dashboard.total_earnings_paise) : "—"}</T>
         </Card>
       </Row>
+      <Section title="Your earning rate" />
+      <Card>
+        <T color={c.secondary}>
+          Your earnings are fixed for every completed call.
+        </T>
+        <Row style={{ justifyContent: "space-between" }}>
+          <T>Audio call</T>
+          <T bold color={c.mint}>₹5 per minute</T>
+        </Row>
+        <Row style={{ justifyContent: "space-between" }}>
+          <T>Video call</T>
+          <T bold color={c.mint}>₹10 per minute</T>
+        </Row>
+      </Card>
       <Row>
         <Card style={metricCardStyle}>
           <T mono size={10} color={c.secondary}>TOTAL WITHDRAWN</T>
