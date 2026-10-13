@@ -951,6 +951,7 @@ export function Chat({ id }: { id: string }) {
       return;
     }
     const body = text.trim();
+    setChatError("");
     d.setDrafts((v) => ({ ...v, [id]: "" }));
     void sendPhoneMessage(auth.demoPhone, otherPhone, body)
       .then(({ message, remainingCoins, coinsCharged }) => {
@@ -967,7 +968,12 @@ export function Chat({ id }: { id: string }) {
       })
       .catch((error) => {
         d.setDrafts((v) => ({ ...v, [id]: body }));
-        setChatError(error instanceof Error ? error.message : "Message could not be sent.");
+        const detail = error instanceof Error ? error.message : "";
+        setChatError(
+          /insufficient coins/i.test(detail)
+            ? "You do not have enough coins to send this message. Kindly recharge your wallet and try again."
+            : detail || "Message could not be sent.",
+        );
       });
   };
   return (
