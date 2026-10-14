@@ -58,13 +58,36 @@ function TransactionItem({ item }: { item: WalletTransaction }) {
     <Pressable
       accessibilityRole="button"
       onPress={() => go(`/wallet/transactions/${item.id}`)}
-      style={{ backgroundColor: c.low, padding: 14, borderRadius: 18 }}
+      style={({ pressed }) => ({
+        backgroundColor: c.low,
+        padding: 14,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: c.line,
+        opacity: pressed ? 0.85 : 1,
+        shadowColor: "#1b1432",
+        shadowOpacity: 0.07,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 3,
+      })}
     >
       <Row>
-        <Icon
-          name={item.amount > 0 ? "arrow-down" : "phone"}
-          color={item.amount > 0 ? c.mint : c.secondary}
-        />
+        <View
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 12,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: item.amount > 0 ? c.high : c.surface,
+          }}
+        >
+          <Icon
+            name={item.amount > 0 ? "arrow-down" : "phone"}
+            color={item.amount > 0 ? c.mint : c.secondary}
+          />
+        </View>
         <View style={{ flex: 1 }}>
           <T bold size={14}>
             {item.title}
@@ -473,15 +496,28 @@ export function Wallet({
             />
           </Card>
         )}
-      <Card style={{ padding: wideLayout ? 18 : 17, backgroundColor: c.mint, overflow: "hidden", gap: 0 }}>
+      <Card style={{ padding: wideLayout ? 18 : 17, backgroundColor: c.mint, overflow: "hidden", gap: 0, borderColor: "rgba(109,66,234,0.9)", shadowColor: "#3d1d78", shadowOpacity: 0.24, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
         <BrandGradient />
-        <Row style={{ justifyContent: "space-between" }}>
+        <Row style={{ justifyContent: "space-between", alignItems: "center" }}>
           <View style={{ gap: 3 }}>
             <T mono size={11} bold color="#ffffffaa">AVAILABLE BALANCE</T>
             <T size={wideLayout ? 29 : 28} bold color="#ffffff">{coins(d.balance)}</T>
             <T size={12} color="#ffffffaa">Ready for your next conversation</T>
           </View>
-          <CoinStack size={wideLayout ? 40 : 38} />
+          <View
+            style={{
+              width: wideLayout ? 52 : 48,
+              height: wideLayout ? 52 : 48,
+              borderRadius: 18,
+              backgroundColor: "rgba(255,255,255,0.12)",
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.2)",
+            }}
+          >
+            <CoinStack size={wideLayout ? 30 : 28} />
+          </View>
         </Row>
       </Card>
       {d.balance < 20 && (
@@ -539,9 +575,24 @@ export function Wallet({
         accessibilityRole="button"
         accessibilityLabel="View wallet activity"
         onPress={() => setHomeTab("Activity")}
-        style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 18, backgroundColor: c.low }}
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+          padding: 14,
+          borderRadius: 20,
+          backgroundColor: c.low,
+          borderWidth: 1,
+          borderColor: c.line,
+          opacity: pressed ? 0.82 : 1,
+          shadowColor: "#1b1432",
+          shadowOpacity: 0.06,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 2,
+        })}
       >
-        <View style={{ width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: c.high }}>
+        <View style={{ width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: c.high }}>
           <Icon name="clock" size={17} color={c.mint} />
         </View>
         <View style={{ flex: 1 }}>

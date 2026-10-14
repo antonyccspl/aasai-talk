@@ -1504,7 +1504,7 @@ export function CallsList() {
         };
         const canCallPerson = person.status === "Available";
         return (
-          <Card key={call.id} style={{ padding: 12, gap: 10 }}>
+          <Card key={call.id} style={{ padding: 12, gap: 10, borderRadius: 24, shadowColor: "#1a102f", shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 4 }}>
             <Row>
               <Pressable
                 accessibilityRole="button"
@@ -1535,12 +1535,12 @@ export function CallsList() {
                   <IconButton
                     icon="phone"
                     label={`Audio call ${person.name}`}
-                  onPress={() => go(`/calls/outgoing/${person.id}?type=audio`)}
+                    onPress={() => go(`/calls/outgoing/${person.id}?type=audio`)}
                   />
                   <IconButton
                     icon="video"
                     label={`Video call ${person.name}`}
-                  onPress={() => go(`/calls/outgoing/${person.id}?type=video`)}
+                    onPress={() => go(`/calls/outgoing/${person.id}?type=video`)}
                   />
                 </>
               )}
@@ -1554,7 +1554,7 @@ export function CallsList() {
               />
             </Row>
             {menuCall === call.id && (
-              <Row>
+              <Row style={{ gap: 8 }}>
                 <Button
                   title="Chat"
                   icon="message-circle"

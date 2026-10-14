@@ -190,10 +190,14 @@ export function Button({
                 ? c.danger
                 : c.low,
           borderWidth: variant === "secondary" ? 1.5 : 0,
-          borderColor: c.line,
-          boxShadow: "none",
-          opacity: disabled ? 0.4 : pressed ? 0.72 : 1,
-          transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
+          borderColor: variant === "secondary" ? c.line : "transparent",
+          opacity: disabled ? 0.42 : pressed ? 0.8 : 1,
+          transform: [{ scale: pressed && !disabled ? 0.985 : 1 }],
+          shadowColor: variant === "primary" ? c.mint : "#190d2f",
+          shadowOpacity: variant === "primary" ? 0.28 : 0.08,
+          shadowRadius: variant === "primary" ? 18 : 14,
+          shadowOffset: { width: 0, height: 12 },
+          elevation: variant === "primary" ? 10 : 3,
         },
         style,
       ]}
@@ -231,11 +235,16 @@ export function IconButton({
       style={({ pressed }) => [
         s.iconButton,
         {
-          opacity: pressed ? 0.6 : 1,
-          backgroundColor: danger ? c.danger : active ? c.mint : c.low,
+          opacity: pressed ? 0.7 : 1,
+          backgroundColor: danger ? c.errorSurface : active ? c.high : c.low,
           borderWidth: 1.5,
-          borderColor: c.line,
+          borderColor: danger ? c.error : active ? c.mint : c.line,
           transform: [{ scale: pressed ? 0.94 : 1 }],
+          shadowColor: danger || active ? c.mint : "#1a102f",
+          shadowOpacity: danger || active ? 0.14 : 0.06,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: danger || active ? 3 : 1,
         },
       ]}
     >
@@ -479,7 +488,7 @@ export function Section({
   onPress?: () => void;
 }) {
   return (
-    <Row style={{ justifyContent: "space-between", marginTop: 8 }}>
+    <Row style={{ justifyContent: "space-between", marginTop: 8, alignItems: "center" }}>
       <T size={17} bold numberOfLines={2} style={{ flex: 1, flexShrink: 1 }}>
         {title}
       </T>
@@ -489,19 +498,25 @@ export function Section({
           accessibilityLabel={action}
           accessibilityRole="button"
           style={{
-            minHeight: 42,
-            minWidth: actionIcon ? 42 : undefined,
-            paddingHorizontal: actionIcon ? 0 : 10,
-            borderRadius: 15,
-            backgroundColor: c.high,
+            minHeight: 38,
+            minWidth: actionIcon ? 38 : undefined,
+            paddingHorizontal: actionIcon ? 0 : 12,
+            borderRadius: 12,
+            backgroundColor: c.low,
+            borderWidth: 1,
+            borderColor: c.line,
             justifyContent: "center",
             alignItems: "center",
+            shadowColor: "#1e1830",
+            shadowOpacity: 0.05,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 4 },
           }}
         >
           {actionIcon ? (
-            <Icon name={actionIcon} size={19} color={c.mint} />
+            <Icon name={actionIcon} size={18} color={c.mint} />
           ) : (
-            <T size={12} mono color={c.mint}>
+            <T size={11} mono color={c.mint}>
               {action}
             </T>
           )}
@@ -533,11 +548,19 @@ export function Setting({
         s.setting,
         {
           backgroundColor: pressed && onPress ? c.surface : c.low,
-          transform: [{ scale: pressed && onPress ? 0.992 : 1 }],
+          borderColor: pressed && onPress ? c.mint : c.line,
+          transform: [{ scale: pressed && onPress ? 0.995 : 1 }],
+          shadowColor: "#20112f",
+          shadowOpacity: onPress ? 0.08 : 0,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: onPress ? 3 : 1,
         },
       ]}
     >
-      <Icon name={icon} color={c.mint} />
+      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: c.high, alignItems: "center", justifyContent: "center" }}>
+        <Icon name={icon} color={c.mint} size={18} />
+      </View>
       <View style={{ flex: 1 }}>
         <T bold size={14}>
           {title}
@@ -557,7 +580,7 @@ export function Setting({
           thumbColor={value ? c.ink : c.text}
         />
       ) : onPress ? (
-        <Icon name="chevron-right" size={18} />
+        <Icon name="chevron-right" size={18} color={c.secondary} />
       ) : null}
     </Pressable>
   );
@@ -732,25 +755,70 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
   if (grid) {
     const backgrounds = ["#2b145d", "#5830b9", "#7b45f5", "#c53ca0"];
     const available = effectiveStatus === "Available";
-    return <View style={{ width: "100%", minHeight: 208, borderRadius: 24, padding: 14, overflow: "hidden", backgroundColor: backgrounds[index % backgrounds.length], justifyContent: "flex-end" }}>
-      <View pointerEvents="none" style={{ position: "absolute", width: 190, height: 190, borderRadius: 95, top: -70, right: -50, backgroundColor: "#ffffff15" }} />
-      {showPhoto ? <>
-        <Image source={{ uri: person.photo }} resizeMode="cover" accessibilityLabel={`${person.name} profile photo`} style={StyleSheet.absoluteFill} onError={() => setFailedPhoto(person.photo ?? null)} />
-        <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 112, backgroundColor: "rgba(0,0,0,0.65)" }} />
-      </> : <T bold size={58} color="#ffffff55" style={{ position: "absolute", top: 34, left: 0, right: 0, textAlign: "center" }}>{person.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</T>}
-      <View style={{ position: "absolute", top: 12, left: 12, flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, backgroundColor: "#00000047", paddingHorizontal: 10, paddingVertical: 5 }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: available ? "#5dffb0" : statusColor }} /><T size={11} bold color="#fff">{presenceText(effectiveStatus)}</T></View>
-      <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}`} onPress={() => go(`/user/${person.id}`)} style={{ paddingTop: 100, paddingBottom: 10 }}>
-        <T size={16.5} bold color="#fff" numberOfLines={1}>{person.name}, {person.age}</T>
-        <T size={12} color="#fff" numberOfLines={2}>{person.city} · {person.languages.join(" · ")}</T>
-      </Pressable>
-      <View style={{ flexDirection: "row", gap: 7 }}>
-        {(["audio", "video"] as const).map((type) => <Pressable key={type} accessibilityRole="button" accessibilityLabel={`${type} call with ${person.name}`} accessibilityState={{ disabled: !available }} disabled={!available} onPress={() => go(`/calls/outgoing/${person.id}?type=${type}`)} style={{ flex: 1, minHeight: 38, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor: type === "audio" ? "#fff" : "#ffffff40", opacity: available ? 1 : 0.5 }}>
-          <Icon name={type === "audio" ? "phone" : "video"} size={15} color={type === "audio" ? c.danger : "#fff"} />
-          <DiamondMark size={10} color={type === "audio" ? c.danger : "#fff"} />
-          <T size={11} bold color={type === "audio" ? c.danger : "#fff"}>{slabsLoading ? "…" : (type === "audio" ? audioRate : videoRate) === undefined ? "—" : `${type === "audio" ? audioRate : videoRate}/min`}</T>
-        </Pressable>)}
+    return (
+      <View
+        style={{
+          width: "100%",
+          minHeight: 208,
+          borderRadius: 30,
+          padding: 14,
+          overflow: "hidden",
+          backgroundColor: backgrounds[index % backgrounds.length],
+          justifyContent: "flex-end",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.22)",
+          shadowColor: "#190d2f",
+          shadowOpacity: 0.2,
+          shadowRadius: 20,
+          shadowOffset: { width: 0, height: 14 },
+          elevation: 7,
+          ...(Platform.OS === "web"
+            ? { boxShadow: "0 20px 44px rgba(25, 13, 47, 0.2)" }
+            : {}),
+        }}
+      >
+        <View pointerEvents="none" style={{ position: "absolute", width: 190, height: 190, borderRadius: 95, top: -70, right: -50, backgroundColor: "#ffffff15" }} />
+        <View pointerEvents="none" style={{ position: "absolute", inset: 0, backgroundColor: "rgba(12,6,28,0.1)" }} />
+        {showPhoto ? <>
+          <Image source={{ uri: person.photo }} resizeMode="cover" accessibilityLabel={`${person.name} profile photo`} style={StyleSheet.absoluteFill} onError={() => setFailedPhoto(person.photo ?? null)} />
+          <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 122, backgroundColor: "rgba(10,4,24,0.68)" }} />
+        </> : <T bold size={58} color="#ffffff55" style={{ position: "absolute", top: 34, left: 0, right: 0, textAlign: "center" }}>{person.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</T>}
+        <View style={{ position: "absolute", top: 12, left: 12, flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 99, backgroundColor: "rgba(0,0,0,0.35)", paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "rgba(255,255,255,0.18)" }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: available ? "#5dffb0" : statusColor }} /><T size={11} bold color="#fff">{presenceText(effectiveStatus)}</T></View>
+        <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}`} onPress={() => go(`/user/${person.id}`)} style={{ paddingTop: 100, paddingBottom: 10 }}>
+          <T size={16.5} bold color="#fff" numberOfLines={1}>{person.name}, {person.age}</T>
+          <T size={12} color="#f1ebff" numberOfLines={2}>{person.city} · {person.languages.join(" · ")}</T>
+        </Pressable>
+        <View style={{ flexDirection: "row", gap: 7 }}>
+          {(["audio", "video"] as const).map((type) => (
+            <Pressable
+              key={type}
+              accessibilityRole="button"
+              accessibilityLabel={`${type} call with ${person.name}`}
+              accessibilityState={{ disabled: !available }}
+              disabled={!available}
+              onPress={() => go(`/calls/outgoing/${person.id}?type=${type}`)}
+              style={{
+                flex: 1,
+                minHeight: 38,
+                borderRadius: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
+                backgroundColor: type === "audio" ? "#fff" : "rgba(255,255,255,0.18)",
+                borderWidth: 1,
+                borderColor: type === "audio" ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.14)",
+                opacity: available ? 1 : 0.5,
+              }}
+            >
+              <Icon name={type === "audio" ? "phone" : "video"} size={15} color={type === "audio" ? c.danger : "#fff"} />
+              <DiamondMark size={10} color={type === "audio" ? c.danger : "#fff"} />
+              <T size={11} bold color={type === "audio" ? c.danger : "#fff"}>{slabsLoading ? "…" : (type === "audio" ? audioRate : videoRate) === undefined ? "—" : `${type === "audio" ? audioRate : videoRate}/min`}</T>
+            </Pressable>
+          ))}
+        </View>
       </View>
-    </View>;
+    );
   }
   return (
     <Card style={{ position: "relative" }}>
@@ -1235,15 +1303,43 @@ export function Shell({
 }
 export const s = StyleSheet.create({
   safe: { flex: 1, minHeight: 0, backgroundColor: c.background },
-  frame: { flex: 1, minHeight: 0, width: "100%", maxWidth: 430, alignSelf: "center" },
-  header: { minHeight: 76, paddingHorizontal: 20, gap: 8, backgroundColor: c.background, borderBottomWidth: 1, borderBottomColor: c.line },
+  frame: {
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+    maxWidth: 430,
+    alignSelf: "center",
+    backgroundColor: c.background,
+    borderRadius: 0,
+  },
+  header: {
+    minHeight: 76,
+    paddingHorizontal: 20,
+    gap: 8,
+    backgroundColor: "rgba(247,243,255,0.9)",
+    borderBottomWidth: 1,
+    borderBottomColor: c.line,
+  },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   content: { padding: 20, gap: 14 },
-  card: { backgroundColor: "transparent", borderRadius: 0, borderWidth: 0, borderColor: c.line, paddingHorizontal: 0, paddingVertical: 18, gap: 14, boxShadow: "none" },
+  card: {
+    backgroundColor: c.low,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: c.line,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    gap: 14,
+    shadowColor: "#1e1830",
+    shadowOpacity: 0.09,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 5,
+  },
   button: {
     overflow: "hidden",
     minHeight: 56,
-    borderRadius: 12,
+    borderRadius: 18,
     paddingHorizontal: 18,
     paddingVertical: 11,
     flexDirection: "row",
@@ -1252,11 +1348,19 @@ export const s = StyleSheet.create({
     gap: 9,
   },
   iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 45,
+    height: 45,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: c.low,
+    borderWidth: 1,
+    borderColor: c.line,
+    shadowColor: "#1a102f",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   chip: {
     overflow: "hidden",
@@ -1270,29 +1374,37 @@ export const s = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 16,
     color: c.text,
-    backgroundColor: c.surface,
+    backgroundColor: c.low,
     borderWidth: 1.5,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 13,
+    borderColor: c.line,
+    shadowColor: "#1e1830",
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
   setting: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "transparent",
+    backgroundColor: c.low,
     paddingVertical: 13,
-    paddingHorizontal: 16,
-    minHeight: 62,
-    borderRadius: 14,
+    paddingHorizontal: 14,
+    minHeight: 68,
+    borderRadius: 20,
     borderWidth: 1,
-    borderBottomWidth: 1,
     borderColor: c.line,
-    boxShadow: "none",
+    shadowColor: "#1e1830",
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
   },
   emptyIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 84,
+    height: 84,
+    borderRadius: 28,
     backgroundColor: c.high,
     alignItems: "center",
     justifyContent: "center",
@@ -1302,7 +1414,9 @@ export const s = StyleSheet.create({
     gap: 5,
     alignItems: "center",
     backgroundColor: c.high,
-    borderRadius: 99,
+    borderWidth: 1,
+    borderColor: c.line,
+    borderRadius: 999,
     padding: 10,
   },
   dock: {
@@ -1310,21 +1424,23 @@ export const s = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 8,
-    borderRadius: 0,
-    borderWidth: 0,
-    borderTopWidth: 1,
+    padding: 10,
+    borderRadius: 24,
+    borderWidth: 1,
     borderColor: c.line,
-    backgroundColor: c.low,
+    backgroundColor: "rgba(255,255,255,0.92)",
     flexDirection: "row",
-    elevation: 0,
-    boxShadow: "none",
+    elevation: 12,
+    shadowColor: "#1e1830",
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: -8 },
   },
   tab: {
     overflow: "hidden",
     flex: 1,
     minHeight: 56,
-    borderRadius: 10,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     gap: 3,
@@ -1339,7 +1455,7 @@ export const s = StyleSheet.create({
     marginHorizontal: 16,
     padding: 10,
     backgroundColor: "#1b3028",
-    borderRadius: 16,
+    borderRadius: 18,
     flexDirection: "row",
     gap: 8,
   },

@@ -420,9 +420,13 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
               backgroundColor: c.low,
               borderColor: c.line,
               borderWidth: 1.5,
-              borderRadius: 20,
+              borderRadius: 22,
               padding: 12,
-              boxShadow: "0 10px 22px rgba(120,50,30,0.10)",
+              shadowColor: "#190d2f",
+              shadowOpacity: 0.08,
+              shadowRadius: 16,
+              shadowOffset: { width: 0, height: 8 },
+              elevation: 3,
             }}
           >
             <Row style={{ justifyContent: "space-between" }}>
@@ -543,7 +547,7 @@ function FilterGroup({
   onChange: (value: string) => void;
 }) {
   return (
-    <Card style={{ gap: 12 }}>
+    <Card style={{ gap: 12, backgroundColor: c.low, borderRadius: 24 }}>
       <T size={16} bold>{title}</T>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {options.map((option) => (
@@ -838,7 +842,19 @@ export function Conversations() {
             onPress={() => {
               go(`/chat/phone_${conversation.otherPhone.replace("+", "")}`);
             }}
-            style={{ backgroundColor: c.low, padding: 18, borderRadius: 24 }}
+            style={({ pressed }) => ({
+              backgroundColor: c.low,
+              padding: 18,
+              borderRadius: 24,
+              borderWidth: 1,
+              borderColor: c.line,
+              opacity: pressed ? 0.86 : 1,
+              shadowColor: "#1a102f",
+              shadowOpacity: 0.08,
+              shadowRadius: 18,
+              shadowOffset: { width: 0, height: 10 },
+              elevation: 3,
+            })}
           >
             <Row>
               <Avatar person={person} />

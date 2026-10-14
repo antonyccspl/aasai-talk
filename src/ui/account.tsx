@@ -887,20 +887,22 @@ export function Profile() {
   const inCall = d.active?.status === "Connected" || d.active?.status === "Ringing";
   return (
     <Shell title="My profile">
-      <View style={{ alignItems: "center", gap: 10, padding: 14 }}>
-        <Avatar size={84} />
-        <T size={24} bold>
-          {d.profile.name}
-        </T>
-        <T color={c.muted}>@{d.profile.username}</T>
-        {approvedHost && (
-          <Badge
-            text={inCall ? "Busy on another call" : "Online"}
-            warning={inCall}
-          />
-        )}
-      </View>
-      <Card>
+      <Card style={{ backgroundColor: c.low, paddingVertical: 18, paddingHorizontal: 18, borderColor: c.line, borderRadius: 28 }}>
+        <View style={{ alignItems: "center", gap: 10, paddingVertical: 6 }}>
+          <Avatar size={84} />
+          <T size={24} bold>
+            {d.profile.name}
+          </T>
+          <T color={c.muted}>@{d.profile.username}</T>
+          {approvedHost && (
+            <Badge
+              text={inCall ? "Busy on another call" : "Online"}
+              warning={inCall}
+            />
+          )}
+        </View>
+      </Card>
+      <Card style={{ borderRadius: 24 }}>
         <T>{d.profile.bio}</T>
         <Row style={{ flexWrap: "wrap" }}>
           {[...d.profile.languages, ...d.profile.interests].map((x) => (

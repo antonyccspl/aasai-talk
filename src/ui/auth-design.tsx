@@ -4,7 +4,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLanguage } from "./language";
 
-export const authColors = { background: "#f8f7ff", ink: "#19122d", muted: "#675f7a", line: "#e3def0", brand: "#7444ef" };
+export const authColors = { background: "#f5f0ff", ink: "#1a122b", muted: "#665a7a", line: "#e9defd", brand: "#6d42ea" };
 const FontReady = createContext(false);
 export function AuthText({ children, size = 14, bold = false, color = authColors.ink }: { children: React.ReactNode; size?: number; bold?: boolean; color?: string }) {
   const ready = useContext(FontReady);
@@ -69,19 +69,19 @@ export function AuthFrame({ children, otp, phone }: { children: React.ReactNode;
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: authColors.background },
   container: { width: "100%", maxWidth: 430, alignSelf: "center", flexGrow: 1 },
-  hero: { backgroundColor: authColors.brand, paddingHorizontal: 22, paddingBottom: 34, overflow: "hidden" },
+  hero: { backgroundColor: authColors.brand, paddingHorizontal: 22, paddingBottom: 34, overflow: "hidden", shadowColor: "#190d2f", shadowOpacity: 0.18, shadowRadius: 22, shadowOffset: { width: 0, height: 10 }, elevation: 6 },
   logo: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logoIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  logoIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", shadowColor: "#1c0d35", shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
   bubbles: { height: 70, marginTop: 10, marginBottom: 2 },
   avatar: { position: "absolute", borderRadius: 99, borderWidth: 3, borderColor: "#ffffffeb", alignItems: "center", justifyContent: "center", overflow: "hidden", elevation: 5 },
   pill: { position: "absolute", bottom: -5, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingVertical: 7, paddingHorizontal: 12, borderRadius: 99, elevation: 5 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#3ecf8e" },
-  card: { marginHorizontal: 22, borderTopWidth: 1, borderColor: authColors.line, paddingHorizontal: 0, paddingTop: 22, paddingBottom: 16, gap: 10 },
+  card: { marginHorizontal: 22, borderTopWidth: 1, borderColor: authColors.line, paddingHorizontal: 0, paddingTop: 22, paddingBottom: 16, gap: 10, shadowColor: "#1a102f", shadowOpacity: 0.04, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   field: { flexDirection: "row", alignItems: "center", height: 54, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, gap: 10, backgroundColor: "transparent" },
   country: { paddingRight: 10, borderRightWidth: 1.5, borderColor: authColors.line },
   check: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#3ecf8e", alignItems: "center", justifyContent: "center" },
-  button: { minHeight: 52, borderRadius: 12, backgroundColor: authColors.brand, alignItems: "center", justifyContent: "center", padding: 12, boxShadow: "none" },
-  secondary: { minHeight: 44, backgroundColor: "#fff", borderWidth: 1.5, borderColor: authColors.line, boxShadow: "none" },
+  button: { minHeight: 52, borderRadius: 14, backgroundColor: authColors.brand, alignItems: "center", justifyContent: "center", padding: 12, shadowColor: "#241143", shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
+  secondary: { minHeight: 44, backgroundColor: "#fff", borderWidth: 1.5, borderColor: authColors.line, shadowColor: "#1b1430", shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   trust: { flexDirection: "row", marginHorizontal: 24, marginTop: 12, gap: 8 },
   footer: { alignItems: "center", marginTop: 8, padding: 10 },
 });
