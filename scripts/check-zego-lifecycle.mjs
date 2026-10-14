@@ -37,6 +37,8 @@ const zego = {
 const context=vm.createContext({exports:{},console,__DEV__:false,require:name=>{
   if(name==='react')return {...React,default:React};
   if(name==='react-native')return {Platform:{OS:'ios'},StyleSheet:{create:x=>x,absoluteFill:{}},findNodeHandle:()=>null};
+  if(name==='@/data/auth')return {useAuth:()=>({getIdentityToken:async()=> 'test'})};
+  if(name==='@/data/content-moderation')return {scanVideoCallFrame:async()=>({safe:true})};
   if(name==='@/data/zego')return {fetchZegoCallToken:async()=>({appId:1,userId:'test',roomId:'room',token:'test'})};
   if(name==='zego-express-engine-reactnative')return zego;
   throw new Error(name);
