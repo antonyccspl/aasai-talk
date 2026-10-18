@@ -12,14 +12,14 @@ import {
     setPhoneBlock,
     type PhoneDeletionReason,
 } from "@/data/phone-safety";
-  import { registerPushDevice, showPushTestNotification, updatePushPreferences } from "@/data/push-notifications";
+  import { fetchPushPreferences, registerPushDevice, showPushTestNotification, updatePushPreferences } from "@/data/push-notifications";
 import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
 import { profileInterests, profileLanguages } from "@/data/profile-options";
 import { createSupportTicket, fetchSupportTickets, replyToSupportTicket, type SupportTicket } from "@/data/support-tickets";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
 import { createElement, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Pressable, TextInput, View } from "react-native";
 import { AuthButton, authColors, AuthField, AuthFrame, AuthText } from "./auth-design";
 import {
     Avatar,
@@ -959,6 +959,7 @@ export function Profile() {
   );
 }
 export function Permissions({ onboarding }: { onboarding?: boolean }) {
+  const [settingsError, setSettingsError] = useState("");
   const permissions = [
     ["mic", "Microphone", "Asked only when you start an audio or video call."],
     ["video", "Camera", "Asked only when you start or accept a video call."],
@@ -987,7 +988,33 @@ export function Permissions({ onboarding }: { onboarding?: boolean }) {
           </Row>
         ))}
       </Card>
-      <Notice>You can change an allowed permission anytime in your phone settings.</Notice>
+      {Platform.OS === "web" ? (
+        <Notice>
+          Browser permissions are managed from your browser&apos;s site settings. Push notifications are not enabled for the website yet.
+        </Notice>
+      ) : (
+        <>
+          <Notice>You can change an allowed permission anytime in your phone settings.</Notice>
+          {!onboarding && (
+            <Button
+              title="Open device settings"
+              icon="settings"
+              variant="secondary"
+              onPress={() => {
+                setSettingsError("");
+                void Linking.openSettings().catch((error: unknown) =>
+                  setSettingsError(
+                    error instanceof Error
+                      ? error.message
+                      : "Unable to open device settings. Open Aasai Talk from your phone settings.",
+                  ),
+                );
+              }}
+            />
+          )}
+          {settingsError ? <Notice error>{settingsError}</Notice> : null}
+        </>
+      )}
       {onboarding && (
         <Button
           title="Continue"
@@ -1016,9 +1043,12 @@ export function Settings({
   const [refreshing, setRefreshing] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
+  const [notificationPreferencesLoading, setNotificationPreferencesLoading] = useState(false);
+  const [notificationPreferencesBusy, setNotificationPreferencesBusy] = useState(false);
+  const [notificationPreferencesError, setNotificationPreferencesError] = useState("");
   const [callAvailability, setCallAvailability] = useState(false);
   const [availabilityLoading, setAvailabilityLoading] = useState(
-    mode === "availability" || mode === "privacy",
+    mode === "privacy" || (mode === "availability" && Platform.OS === "android"),
   );
   const [availabilityBusy, setAvailabilityBusy] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
@@ -1036,11 +1066,50 @@ export function Settings({
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
   const approvedHost = d.profile.gender === "Female" && d.hostStatus === "approved";
+  const setPrefs = d.setPrefs;
+  useEffect(() => {
+    if (mode !== "notifications") return;
+    if (!auth.demoPhone) {
+      setNotificationPreferencesLoading(false);
+      setNotificationPreferencesError("Sign in with your phone number to manage notification preferences.");
+      return;
+    }
+    let active = true;
+    setNotificationPreferencesLoading(true);
+    setNotificationPreferencesError("");
+    void auth.getIdentityToken()
+      .then(fetchPushPreferences)
+      .then((preferences) => {
+        if (!active) return;
+        setPrefs((current) => ({
+          ...current,
+          "Call alerts": preferences.calls,
+          "Message alerts": preferences.messages,
+          "Payment updates": preferences.wallet,
+          Announcements: preferences.announcements,
+        }));
+      })
+      .catch((error: unknown) => {
+        if (active)
+          setNotificationPreferencesError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load notification preferences.",
+          );
+      })
+      .finally(() => {
+        if (active) setNotificationPreferencesLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [auth.demoPhone, auth.getIdentityToken, mode, setPrefs]);
   useEffect(() => {
     if (
       !auth.demoPhone ||
       !approvedHost ||
-      (mode !== "availability" && mode !== "privacy")
+      (mode !== "availability" && mode !== "privacy") ||
+      (mode === "availability" && Platform.OS !== "android")
     )
       return;
     let active = true;
@@ -1165,16 +1234,16 @@ export function Settings({
                 ? "On a call"
                 : Platform.OS === "android"
                   ? callAvailability
-                    ? "Accepting calls"
-                    : "Not accepting calls"
-                  : "Presence is automatic"
+                    ? "Available for calls"
+                    : "Not available for calls"
+                  : "Available while using the app"
             }
             warning={d.active?.status === "Connected" || d.active?.status === "Ringing"}
           />
           {Platform.OS === "android" ? (
             <Setting
               title={availabilityLoading ? "Checking setting…" : "Accept calls while away"}
-              detail="Show the Android incoming-call screen when Aasai Talk is in the background."
+              detail="Receive calls even when you are not using the app."
               icon="phone"
               value={callAvailability}
               onToggle={(next) => {
@@ -1188,6 +1257,7 @@ export function Settings({
                       calls: true,
                       messages: d.prefs["Message alerts"] !== false,
                       wallet: d.prefs["Payment updates"] !== false,
+                      announcements: d.prefs.Announcements !== false,
                     });
                     if (!token)
                       throw new Error("Allow notifications in Android settings to accept calls while away.");
@@ -1208,16 +1278,13 @@ export function Settings({
             />
           ) : (
             <Notice>
-              Background incoming-call screens are currently supported on Android only.
+              Call availability follows whether you are using Aasai Talk on this device.
             </Notice>
           )}
           <T color={c.secondary}>
             {Platform.OS === "android"
-              ? "When enabled, callers can reach you while the app is backgrounded or closed. Turn it off whenever you do not want new calls."
-              : "On this platform, Host presence continues to follow app activity."}
-          </T>
-          <T size={12} color={c.muted}>
-            Android may delay calls in battery-saving modes. Force-stopping Aasai Talk prevents background delivery until you open it again.
+              ? "Turn this off whenever you do not want to receive calls."
+              : "You can change your availability by opening or closing the app."}
           </T>
           {availabilityBusy ? <ActivityIndicator color={c.mint} /> : null}
           {availabilityError ? <Notice error>{availabilityError}</Notice> : null}
@@ -1256,7 +1323,45 @@ export function Settings({
                   ? hostShowLastSeen
                   : d.prefs[x]
               }
+              detail={
+                mode === "notifications" && notificationPreferencesLoading
+                  ? "Loading saved preference…"
+                  : undefined
+              }
               onToggle={(v) => {
+                if (mode === "notifications") {
+                  if (
+                    notificationPreferencesLoading ||
+                    notificationPreferencesBusy ||
+                    !auth.demoPhone
+                  )
+                    return;
+                  const previous = d.prefs;
+                  const next = { ...previous, [x]: v };
+                  setNotificationPreferencesBusy(true);
+                  setNotificationPreferencesError("");
+                  setPrefs(next);
+                  void auth
+                    .getIdentityToken()
+                    .then((idToken) =>
+                      updatePushPreferences(idToken, {
+                        calls: next["Call alerts"] !== false,
+                        messages: next["Message alerts"] !== false,
+                        wallet: next["Payment updates"] !== false,
+                        announcements: next.Announcements !== false,
+                      }),
+                    )
+                    .catch((error: unknown) => {
+                      setPrefs(previous);
+                      setNotificationPreferencesError(
+                        error instanceof Error
+                          ? error.message
+                          : "Unable to save notification preferences.",
+                      );
+                    })
+                    .finally(() => setNotificationPreferencesBusy(false));
+                  return;
+                }
                 const next = { ...d.prefs, [x]: v };
                 if (
                   mode === "privacy" &&
@@ -1286,20 +1391,30 @@ export function Settings({
                   return;
                 }
                 d.setPrefs(next);
-                if (auth.demoPhone && mode === "notifications") {
-                  void auth.getIdentityToken().then((idToken) =>
-                    updatePushPreferences(idToken, {
-                      calls: next["Call alerts"] !== false,
-                      messages: next["Message alerts"] !== false,
-                      wallet: next["Payment updates"] !== false,
-                    }),
-                  ).catch((error) => console.warn("Unable to sync push preferences:", error));
-                }
               }}
               icon={mode === "privacy" ? "shield" : "bell"}
             />
           ))}
         </Card>
+        {mode === "notifications" && notificationPreferencesLoading ? (
+          <Notice>Loading your saved notification preferences…</Notice>
+        ) : null}
+        {mode === "notifications" && notificationPreferencesBusy ? (
+          <Notice>Saving your notification preference…</Notice>
+        ) : null}
+        {mode === "notifications" && notificationPreferencesError ? (
+          <Notice error>{notificationPreferencesError}</Notice>
+        ) : null}
+        {mode === "notifications" ? (
+          <Notice>
+            Announcement preferences control which active announcements appear in your in-app inbox. Push alerts for announcements are not available yet.
+          </Notice>
+        ) : null}
+        {mode === "notifications" && Platform.OS === "web" ? (
+          <Notice>
+            These preferences are saved to your account and apply to supported mobile push notifications. Browser push notifications are not available on this website yet.
+          </Notice>
+        ) : null}
         {mode === "privacy" && privacyError ? (
           <Notice error>{privacyError}</Notice>
         ) : null}
@@ -1317,6 +1432,7 @@ export function Settings({
                     calls: d.prefs["Call alerts"] !== false,
                     messages: d.prefs["Message alerts"] !== false,
                     wallet: d.prefs["Payment updates"] !== false,
+                    announcements: d.prefs.Announcements !== false,
                   }))
                   .then((token) => setPushMessage(token
                     ? "Push notifications are enabled on this device."
@@ -1894,6 +2010,10 @@ export function Notifications() {
     // opened, its messages are marked read in Supabase and disappear here.
     .filter((item) => item.unreadCount > 0)
     .sort((a, b) => new Date(b.latest.created_at).getTime() - new Date(a.latest.created_at).getTime());
+  const announcements =
+    d.prefs.Announcements === false
+      ? []
+      : d.announcements.filter((announcement) => announcement.is_active);
   const formatTime = (value: string) => new Date(value).toLocaleDateString([], {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
   });
@@ -1913,12 +2033,25 @@ export function Notifications() {
         <Row style={{ justifyContent: "space-between" }}>
           <View style={{ flex: 1, gap: 2 }}>
             <T bold size={14}>Your inbox</T>
-            <T size={11} color={c.secondary}>Messages, call updates, and safety updates in one place.</T>
+            <T size={11} color={c.secondary}>Messages, call updates, safety updates, and announcements in one place.</T>
           </View>
           <Button title="Preferences" variant="secondary" onPress={() => go("/settings/notifications")} />
         </Row>
       </Card>
       {error ? <Notice error>{error}</Notice> : null}
+      {announcements.length ? (
+        <View style={{ gap: 2 }}>
+          <Section title="Announcements" />
+          {announcements.map((announcement) => (
+            <Setting
+              key={`announcement-${announcement.id}`}
+              title={announcement.title}
+              detail={`${announcement.message} · ${announcement.tag} · ${formatTime(announcement.created_at)}`}
+              icon="bell"
+            />
+          ))}
+        </View>
+      ) : null}
       {loading ? <LoadingCards count={4} /> : ["Today", "Yesterday", "Earlier"].map((period) => {
         const messageItems = groupedMessages.filter((item) => groupForDate(item.latest.created_at) === period);
         const callItems = calls.filter((call) => groupForDate(call.created_at) === period);
@@ -1957,10 +2090,10 @@ export function Notifications() {
           })}
         </View>;
       })}
-      {!loading && !groupedMessages.length && !calls.length && (
+      {!loading && !groupedMessages.length && !calls.length && !announcements.length && (
         <Empty
           title="You’re all caught up"
-          message="Messages and missed calls will appear here."
+          message="Messages, missed calls, and announcements will appear here."
           icon="bell"
         />
       )}

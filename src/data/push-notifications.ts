@@ -7,6 +7,7 @@ export type PushPreferences = {
   calls: boolean;
   messages: boolean;
   wallet: boolean;
+  announcements: boolean;
 };
 
 const tokenStorageKey = "aasai-expo-push-token";
@@ -72,8 +73,33 @@ export async function registerPushDevice(idToken: string, preferences: PushPrefe
 }
 
 export async function updatePushPreferences(idToken: string, preferences: PushPreferences) {
-  if (Platform.OS === "web") return;
   await requestPushAction(idToken, "preferences", { preferences });
+}
+
+export async function fetchPushPreferences(idToken: string): Promise<PushPreferences> {
+  const result = await requestPushAction(idToken, "get_preferences");
+  if (!result || typeof result !== "object" || !("preferences" in result))
+    throw new Error("The notification preferences could not be loaded.");
+  const preferences = result.preferences;
+  if (
+    !preferences ||
+    typeof preferences !== "object" ||
+    !("calls" in preferences) ||
+    !("messages" in preferences) ||
+    !("wallet" in preferences) ||
+    !("announcements" in preferences) ||
+    typeof preferences.calls !== "boolean" ||
+    typeof preferences.messages !== "boolean" ||
+    typeof preferences.wallet !== "boolean" ||
+    typeof preferences.announcements !== "boolean"
+  )
+    throw new Error("The server returned invalid notification preferences.");
+  return {
+    calls: preferences.calls,
+    messages: preferences.messages,
+    wallet: preferences.wallet,
+    announcements: preferences.announcements,
+  };
 }
 
 export async function unregisterPushDevice(idToken: string) {
@@ -97,6 +123,9 @@ export async function sendPushEvent(
 export async function showPushTestNotification(kind: "call" | "message" | "missed" | "safety") {
   if (Platform.OS === "web") throw new Error("Notification checks are available in the mobile app.");
   const Notifications = notificationsModule();
+  const permission = await Notifications.getPermissionsAsync();
+  if (!permission.granted)
+    throw new Error("Allow notifications in your device settings, then try the test again.");
   const content = {
     call: { title: "Incoming call", body: "A caller is trying to reach you.", route: "/calls" },
     message: { title: "New message", body: "You have a new conversation waiting.", route: "/notifications" },

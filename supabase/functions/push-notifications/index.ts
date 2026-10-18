@@ -8,6 +8,41 @@ const corsHeaders = {
 };
 
 type PushEvent = "incoming_call" | "message" | "wallet";
+type PushPreferences = {
+  calls: boolean;
+  messages: boolean;
+  wallet: boolean;
+  announcements: boolean;
+};
+
+function parsePreferences(value: unknown): PushPreferences {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("Invalid notification preferences.");
+  const preferences = value as Record<string, unknown>;
+  for (const key of ["calls", "messages", "wallet", "announcements"]) {
+    if (typeof preferences[key] !== "boolean")
+      throw new Error("Choose whether to receive each type of notification.");
+  }
+  return {
+    calls: preferences.calls as boolean,
+    messages: preferences.messages as boolean,
+    wallet: preferences.wallet as boolean,
+    announcements: preferences.announcements as boolean,
+  };
+}
+
+async function readPreferences(admin: ReturnType<typeof createClient>, phone: string): Promise<PushPreferences> {
+  const { data, error } = await admin.from("phone_notification_preferences")
+    .select("calls_enabled,messages_enabled,wallet_enabled,announcements_enabled")
+    .eq("phone", phone).maybeSingle();
+  if (error) throw error;
+  return {
+    calls: data?.calls_enabled ?? true,
+    messages: data?.messages_enabled ?? true,
+    wallet: data?.wallet_enabled ?? true,
+    announcements: data?.announcements_enabled ?? true,
+  };
+}
 
 function phoneUserId(phone: string) {
   return `phone_${phone.replace(/\D/g, "")}`;
@@ -37,18 +72,35 @@ Deno.serve(async (request) => {
     if (action === "register") {
       const pushToken = typeof body.expo_push_token === "string" ? body.expo_push_token : "";
       const platform = body.platform;
-      const preferences = body.preferences && typeof body.preferences === "object" ? body.preferences : {};
+      const requestedPreferences = parsePreferences(body.preferences);
       if (!/^Expo(nent)?PushToken\[[A-Za-z0-9_-]+\]$/.test(pushToken) || (platform !== "android" && platform !== "ios"))
         return Response.json({ error: "Invalid push device." }, { status: 400, headers: corsHeaders });
       const { error: identityError } = await admin.rpc("open_phone_identity", { input_phone: identity.phone });
       if (identityError) throw identityError;
+      const { data: existingPreferences, error: preferencesError } = await admin
+        .from("phone_notification_preferences")
+        .select("phone")
+        .eq("phone", identity.phone)
+        .maybeSingle();
+      if (preferencesError) throw preferencesError;
+      if (!existingPreferences) {
+        const { error: insertPreferencesError } = await admin.from("phone_notification_preferences").upsert({
+          phone: identity.phone,
+          calls_enabled: requestedPreferences.calls,
+          messages_enabled: requestedPreferences.messages,
+          wallet_enabled: requestedPreferences.wallet,
+          announcements_enabled: requestedPreferences.announcements,
+        }, { onConflict: "phone", ignoreDuplicates: true });
+        if (insertPreferencesError) throw insertPreferencesError;
+      }
+      const preferences = await readPreferences(admin, identity.phone);
       const { error } = await admin.from("phone_push_tokens").upsert({
         expo_push_token: pushToken,
         phone: identity.phone,
         platform,
-        calls_enabled: preferences.calls !== false,
-        messages_enabled: preferences.messages !== false,
-        wallet_enabled: preferences.wallet !== false,
+        calls_enabled: preferences.calls,
+        messages_enabled: preferences.messages,
+        wallet_enabled: preferences.wallet,
         updated_at: new Date().toISOString(),
       }, { onConflict: "expo_push_token" });
       if (error) throw error;
@@ -64,15 +116,24 @@ Deno.serve(async (request) => {
     }
 
     if (action === "preferences") {
-      const preferences = body.preferences && typeof body.preferences === "object" ? body.preferences : {};
-      const { error } = await admin.from("phone_push_tokens").update({
-        calls_enabled: preferences.calls !== false,
-        messages_enabled: preferences.messages !== false,
-        wallet_enabled: preferences.wallet !== false,
-        updated_at: new Date().toISOString(),
-      }).eq("phone", identity.phone);
-      if (error) throw error;
+      const preferences = parsePreferences(body.preferences);
+      const updatedAt = new Date().toISOString();
+      const { error: preferenceError } = await admin.from("phone_notification_preferences").upsert({
+        phone: identity.phone,
+        calls_enabled: preferences.calls,
+        messages_enabled: preferences.messages,
+        wallet_enabled: preferences.wallet,
+        announcements_enabled: preferences.announcements,
+        updated_at: updatedAt,
+      }, { onConflict: "phone" });
+      if (preferenceError) throw preferenceError;
       return Response.json({ updated: true }, { headers: corsHeaders });
+    }
+
+    if (action === "get_preferences") {
+      return Response.json({
+        preferences: await readPreferences(admin, identity.phone),
+      }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
     }
 
     if (action !== "send")
@@ -167,16 +228,25 @@ Deno.serve(async (request) => {
       message = "Coins were used for an Aasai Talk service.";
     }
 
+    const preferences = await readPreferences(admin, recipientPhone);
+    const enabledForAccount = event === "incoming_call"
+      ? preferences.calls
+      : event === "message"
+        ? preferences.messages
+        : preferences.wallet;
+    if (!enabledForAccount)
+      return Response.json({ sent: 0 }, { headers: corsHeaders });
+
     const { data: devices, error: deviceError } = await admin.from("phone_push_tokens")
-      .select("expo_push_token,platform,calls_enabled,messages_enabled,wallet_enabled")
+      .select("expo_push_token,platform")
       .eq("phone", recipientPhone);
     if (deviceError) throw deviceError;
     const eligibleDevices = (devices ?? []).filter((device) => {
       if (event === "incoming_call")
         return device.platform === "android"
           ? presenceAcceptingCalls
-          : device.calls_enabled;
-      return event === "message" ? device.messages_enabled : device.wallet_enabled;
+          : true;
+      return true;
     });
     if (!eligibleDevices.length) return Response.json({ sent: 0 }, { headers: corsHeaders });
 

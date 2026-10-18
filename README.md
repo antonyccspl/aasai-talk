@@ -57,8 +57,13 @@ Firebase service-account key or Supabase secret to the client.
 Remote notifications use `expo-notifications` and Expo Push Service. Link the
 app to an EAS project, configure Android FCM v1 credentials (and APNs
 credentials if enabling iOS), then build and install a development or release
-client. Message and wallet push preferences are under Settings > Notification
-preferences. Approved Android Hosts also have an **Accept calls while away**
+client. Call, message, wallet, and announcement preferences are under Settings >
+Notification preferences and are saved per phone account. The
+`20261018000100_phone_notification_preferences.sql` migration creates their
+server-side storage. Announcement preferences control active announcements in
+the in-app inbox; announcement push delivery is not implemented. Browser push
+is not available on the website. Approved Android Hosts also have an
+**Accept calls while away**
 switch under Profile > Call availability. Enabling it registers Android push
 and the phone account used for the native incoming-call screen. The Host can
 turn it off at any time; new calls are then blocked and any ringing invitation

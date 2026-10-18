@@ -364,9 +364,27 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
   if (isHost && mode === "explore") return <HostDashboardHome />;
   if (isHostAccount && mode === "explore") return <HostJourneyHome />;
   if (isHostAccount) return <HostDirectoryUnavailable title={searching ? "Search people" : favorites ? "Favorites" : "Host dashboard"} />;
+  const preferredLanguages = [...new Set(
+    d.profile.languages
+      .map((language) => language.trim().toLocaleLowerCase())
+      .filter(Boolean),
+  )];
+  const hasPreferredLanguageMatch =
+    d.profile.gender !== "Male" ||
+    preferredLanguages.length === 0 ||
+    d.people.some((person) =>
+      person.languages.some((language) =>
+        preferredLanguages.includes(language.trim().toLocaleLowerCase()),
+      ),
+    );
   const result = d.people.filter(
     (p) =>
       !d.blocked.includes(p.id) &&
+      (d.profile.gender !== "Male" ||
+        preferredLanguages.length === 0 ||
+        p.languages.some((language) =>
+          preferredLanguages.includes(language.trim().toLocaleLowerCase()),
+        )) &&
       (!favorites || d.favorites.includes(p.id)) &&
       (d.facets.availability === "All" || p.status === d.facets.availability) &&
       (d.facets.language === "All" ||
@@ -486,6 +504,11 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
         actionIcon={favorites ? undefined : "sliders"}
         onPress={() => go("/filters")}
       />
+      {d.profile.gender === "Male" && preferredLanguages.length > 0 && (
+        <T size={12} color={c.secondary}>
+          Hosts speaking {d.profile.languages.join(", ")}
+        </T>
+      )}
       {mode === "explore" && <Chips compact items={["All", "Available", "Hindi", "Tamil", "English"]} selected={d.filter} onChange={d.setFilter} />}
       {directoryLoading ? <LoadingCards count={mode === "explore" ? 4 : 3} /> : mode === "explore" ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: result.length === 1 ? "center" : "flex-start", gap: 14 }}>
@@ -506,14 +529,32 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
       ) : result.map((p) => <UserCard key={p.id} person={p} />)}
       {!directoryLoading && !result.length && (
         <Empty
-          title={favorites ? "Keep good company close" : "No people found"}
+          title={
+            favorites
+              ? "Keep good company close"
+              : !hasPreferredLanguageMatch
+                ? "No matching Hosts"
+                : "No people found"
+          }
           message={
             favorites
               ? "Tap a heart on someone’s profile to find them here."
+              : !hasPreferredLanguageMatch
+                ? `No Hosts speak your selected languages (${d.profile.languages.join(", ")}). Update your languages in your profile to see more Hosts.`
               : "Try another search or clear your filters."
           }
-          action="Clear filters"
+          action={
+            favorites
+              ? undefined
+              : !hasPreferredLanguageMatch
+                ? "Edit languages"
+                : "Clear filters"
+          }
           onPress={() => {
+            if (!favorites && !hasPreferredLanguageMatch) {
+              go("/profile/edit");
+              return;
+            }
             d.setFilter("All");
             d.setSearch("");
             d.setFacets(defaultFacets);

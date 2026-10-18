@@ -249,7 +249,7 @@ export function IconButton({
         },
       ]}
     >
-      <Icon name={icon} color={danger || active ? c.ink : c.text} />
+      <Icon name={icon} color={danger ? c.danger : active ? c.ink : c.text} />
     </Pressable>
   );
 }
@@ -1063,8 +1063,22 @@ export function Shell({
   }, []);
   useEffect(() => {
     if (!scrollToEndToken) return;
-    const frame = requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
-    return () => cancelAnimationFrame(frame);
+    let layoutFrame = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const frame = requestAnimationFrame(() => {
+      layoutFrame = requestAnimationFrame(() =>
+        scrollRef.current?.scrollToEnd({ animated: true }),
+      );
+      retryTimer = setTimeout(() => {
+        cancelAnimationFrame(layoutFrame);
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }, 120);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      cancelAnimationFrame(layoutFrame);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [scrollToEndToken]);
   useEffect(() => {
     // Keep a conversation's composer and newest message visible when the
@@ -1233,6 +1247,13 @@ export function Shell({
               <ScrollView
               ref={scrollRef}
                 style={{ flex: 1, minHeight: 0 }}
+              onContentSizeChange={() => {
+                if (scrollToEndToken) {
+                  requestAnimationFrame(() =>
+                    scrollRef.current?.scrollToEnd({ animated: true }),
+                  );
+                }
+              }}
               keyboardShouldPersistTaps="handled"
               refreshControl={
                 onRefresh ? (
