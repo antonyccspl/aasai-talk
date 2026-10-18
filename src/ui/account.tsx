@@ -1,5 +1,6 @@
 import { useAuth } from "@/data/auth";
 import {
+    fetchHostCallAvailability,
     fetchHostPresenceSettings,
     setHostCallAvailability,
     setHostLastSeenVisibility,
@@ -1048,7 +1049,7 @@ export function Settings({
   const [notificationPreferencesError, setNotificationPreferencesError] = useState("");
   const [callAvailability, setCallAvailability] = useState(false);
   const [availabilityLoading, setAvailabilityLoading] = useState(
-    mode === "privacy" || (mode === "availability" && Platform.OS === "android"),
+    mode === "privacy" || mode === "availability",
   );
   const [availabilityBusy, setAvailabilityBusy] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
@@ -1108,24 +1109,30 @@ export function Settings({
     if (
       !auth.demoPhone ||
       !approvedHost ||
-      (mode !== "availability" && mode !== "privacy") ||
-      (mode === "availability" && Platform.OS !== "android")
+      (mode !== "availability" && mode !== "privacy")
     )
       return;
     let active = true;
     void auth
       .getIdentityToken()
-      .then(fetchHostPresenceSettings)
-      .then((settings) => {
-        if (!active) return;
-        setCallAvailability(settings.acceptingCalls);
-        setHostShowLastSeen(settings.showLastSeen);
-        setHostPrivacyLoaded(true);
+      .then(async (idToken) => {
+        if (mode === "availability") {
+          const acceptingCalls = await fetchHostCallAvailability(idToken);
+          if (active) setCallAvailability(acceptingCalls);
+        } else {
+          const settings = await fetchHostPresenceSettings(idToken);
+          if (!active) return;
+          setCallAvailability(settings.acceptingCalls);
+          setHostShowLastSeen(settings.showLastSeen);
+          setHostPrivacyLoaded(true);
+        }
       })
       .catch((error: unknown) => {
         if (active) {
           const detail =
-            error instanceof Error
+            mode === "availability"
+              ? "We could not load your call availability. Please try again."
+              : error instanceof Error
               ? error.message
               : "Unable to load Host presence settings.";
           if (mode === "availability") setAvailabilityError(detail);
@@ -1232,18 +1239,22 @@ export function Settings({
             text={
               d.active?.status === "Connected" || d.active?.status === "Ringing"
                 ? "On a call"
-                : Platform.OS === "android"
-                  ? callAvailability
-                    ? "Available for calls"
-                    : "Not available for calls"
-                  : "Available while using the app"
+                : callAvailability
+                  ? "Available for calls"
+                  : Platform.OS === "web" || Platform.OS === "android"
+                    ? "Not available for calls"
+                    : "Available while using the app"
             }
             warning={d.active?.status === "Connected" || d.active?.status === "Ringing"}
           />
-          {Platform.OS === "android" ? (
+          {Platform.OS === "android" || Platform.OS === "web" ? (
             <Setting
               title={availabilityLoading ? "Checking setting…" : "Accept calls while away"}
-              detail="Receive calls even when you are not using the app."
+              detail={
+                Platform.OS === "web"
+                  ? "Controls whether your Android phone can receive calls while you are away."
+                  : "Receive calls even when you are not using the app."
+              }
               icon="phone"
               value={callAvailability}
               onToggle={(next) => {
@@ -1252,7 +1263,7 @@ export function Settings({
                 setAvailabilityError("");
                 void (async () => {
                   const idToken = await auth.getIdentityToken();
-                  if (next) {
+                  if (next && Platform.OS === "android") {
                     const token = await registerPushDevice(idToken, {
                       calls: true,
                       messages: d.prefs["Message alerts"] !== false,
@@ -1260,17 +1271,22 @@ export function Settings({
                       announcements: d.prefs.Announcements !== false,
                     });
                     if (!token)
-                      throw new Error("Allow notifications in Android settings to accept calls while away.");
+                      throw new Error("Turn on call notifications on your Android phone before accepting calls while away.");
                     await setupAndroidCallUi();
                   }
                   await setHostCallAvailability(idToken, next);
                   setCallAvailability(next);
                 })()
                   .catch((error: unknown) => {
+                    const reason = error instanceof Error ? error.message : "";
                     setAvailabilityError(
-                      error instanceof Error
-                        ? error.message
-                        : "Unable to update call availability.",
+                      reason.includes("Android call notifications") ||
+                        reason.includes("call notifications on your Android phone") ||
+                        reason.includes("Allow notifications") ||
+                        reason.includes("phone-account") ||
+                        reason.includes("phone account")
+                        ? "Set up call notifications on your Android phone before turning this on."
+                        : "We could not update your call availability. Please try again.",
                     );
                   })
                   .finally(() => setAvailabilityBusy(false));
@@ -1282,7 +1298,7 @@ export function Settings({
             </Notice>
           )}
           <T color={c.secondary}>
-            {Platform.OS === "android"
+            {Platform.OS === "android" || Platform.OS === "web"
               ? "Turn this off whenever you do not want to receive calls."
               : "You can change your availability by opening or closing the app."}
           </T>

@@ -73,8 +73,11 @@ Apply the migrations and deploy `push-notifications`. The function verifies the
 Firebase ID token and derives call/message/wallet recipients from the server
 records. It uses Supabase-managed service-role credentials only on the server.
 For Android background calls, the `host-presence` and `push-notifications`
-functions and the `20261012000100_host_call_availability_last_seen.sql`
-migration must also be deployed. Android call pushes are data-only and are
+functions and the `20261012000100_host_call_availability_last_seen.sql` and
+`20261018000200_allow_android_host_calls_while_away.sql` migrations must also
+be deployed. When a Host enables **Accept calls while away**, call availability
+stays on after their activity heartbeat expires, and incoming calls continue
+to be sent to their registered Android device. Android call pushes are data-only and are
 presented by Android Telecom after the Host enables the feature and accepts the
 phone-account prompt. The project must be rebuilt with EAS after native
 CallKeep configuration changes. iOS keeps the existing alert notification

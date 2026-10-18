@@ -40,19 +40,39 @@ export async function fetchHostPresenceSettings(
   idToken: string,
 ): Promise<HostPresenceSettings> {
   const result = await requestHostPresence(idToken, { action: "settings" });
-  if (
-    !result ||
-    typeof result !== "object" ||
-    !("accepting_calls" in result) ||
-    typeof result.accepting_calls !== "boolean" ||
-    !("show_last_seen" in result) ||
-    typeof result.show_last_seen !== "boolean"
-  )
-    throw new Error("Invalid Host presence settings returned by the server.");
+  const settings = presenceSettingsPayload(result);
+  const acceptingCalls =
+    settings.accepting_calls ?? settings.acceptingCalls;
+  const showLastSeen = settings.show_last_seen ?? settings.showLastSeen;
+  if (typeof acceptingCalls !== "boolean" || typeof showLastSeen !== "boolean")
+    throw new Error("Unable to load your call availability. Please try again.");
   return {
-    acceptingCalls: result.accepting_calls,
-    showLastSeen: result.show_last_seen,
+    acceptingCalls,
+    showLastSeen,
   };
+}
+
+export async function fetchHostCallAvailability(idToken: string): Promise<boolean> {
+  const settings = presenceSettingsPayload(
+    await requestHostPresence(idToken, { action: "settings" }),
+  );
+  const acceptingCalls =
+    settings.accepting_calls ?? settings.acceptingCalls;
+  if (typeof acceptingCalls !== "boolean")
+    throw new Error("We could not load your call availability. Please try again.");
+  return acceptingCalls;
+}
+
+function presenceSettingsPayload(result: unknown): Record<string, unknown> {
+  if (!result || typeof result !== "object")
+    throw new Error("We could not load your call availability. Please try again.");
+  const payload =
+    "settings" in result && result.settings && typeof result.settings === "object"
+      ? result.settings
+      : result;
+  if (!payload || typeof payload !== "object")
+    throw new Error("We could not load your call availability. Please try again.");
+  return payload as Record<string, unknown>;
 }
 
 export async function setHostCallAvailability(
