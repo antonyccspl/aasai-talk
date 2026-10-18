@@ -5,6 +5,7 @@ import {
   Platform,
   useWindowDimensions,
 } from "react-native";
+import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   AasaiTalkMark,
@@ -22,6 +23,7 @@ export function Welcome() {
   const { width: viewportWidth } = useWindowDimensions();
   const wideWeb = Platform.OS === "web" && viewportWidth >= 900;
   const compact = viewportWidth < 380;
+  const [policiesAccepted, setPoliciesAccepted] = useState(false);
   const features: [IconName, string, string][] = [
     ["mic", "Talk instantly", "Audio and video"],
     ["shield", "Private by design", "Your number stays hidden"],
@@ -259,40 +261,65 @@ export function Welcome() {
           <View
             style={{ marginTop: wideWeb ? 12 : "auto", paddingTop: 8, gap: 2 }}
           >
-            <Button
-              title="Continue with mobile"
-              icon="arrow-right"
-              onPress={() => go("/auth/login")}
-            />
             <View
               style={{
                 flexDirection: "row",
-                flexWrap: "wrap",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: 4,
-                paddingTop: 10,
+                alignItems: "flex-start",
+                gap: 10,
                 paddingHorizontal: 8,
+                paddingVertical: 8,
               }}
             >
-              <T size={12} color={c.secondary}>
-                By continuing, you agree to our
-              </T>
               <Pressable
-                accessibilityRole="link"
-                onPress={() => go("/settings/policies/terms")}
-                hitSlop={8}
+                accessibilityRole="checkbox"
+                accessibilityLabel="I agree to the Terms and Conditions and acknowledge the Privacy Policy"
+                accessibilityState={{ checked: policiesAccepted }}
+                onPress={() => setPoliciesAccepted((accepted) => !accepted)}
+                hitSlop={6}
+                style={{
+                  width: 22,
+                  height: 22,
+                  marginTop: 1,
+                  borderRadius: 6,
+                  borderWidth: 2,
+                  borderColor: policiesAccepted ? c.mint : c.secondary,
+                  backgroundColor: policiesAccepted ? c.mint : "transparent",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
               >
-                <T
-                  size={12}
-                  bold
-                  color={c.mint}
-                  style={{ textDecorationLine: "underline" }}
-                >
-                  Terms & Conditions
-                </T>
+                {policiesAccepted && <Icon name="check" size={15} color={c.ink} />}
               </Pressable>
+              <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 3 }}>
+                <T size={12} color={c.secondary}>I agree to the</T>
+                <Pressable
+                  accessibilityRole="link"
+                  onPress={() => go("/settings/policies/terms")}
+                  hitSlop={4}
+                >
+                  <T size={12} bold color={c.mint} style={{ textDecorationLine: "underline" }}>
+                    Terms and Conditions
+                  </T>
+                </Pressable>
+                <T size={12} color={c.secondary}>and acknowledge the</T>
+                <Pressable
+                  accessibilityRole="link"
+                  onPress={() => go("/settings/policies/privacy")}
+                  hitSlop={4}
+                >
+                  <T size={12} bold color={c.mint} style={{ textDecorationLine: "underline" }}>
+                    Privacy Policy
+                  </T>
+                </Pressable>
+                <T size={12} color={c.secondary}>.</T>
+              </View>
             </View>
+            <Button
+              title="Continue with mobile"
+              icon="arrow-right"
+              disabled={!policiesAccepted}
+              onPress={() => go("/auth/login")}
+            />
           </View>
         </View>
       </View>
