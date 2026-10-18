@@ -37,13 +37,82 @@ Deno.serve(async (request) => {
     if (!host)
       return Response.json({ error: "An approved Host account is required." }, { status: 403, headers: corsHeaders });
 
-    const { error: presenceError } = await admin
-      .from("phone_host_presence")
-      .upsert({ host_phone: identity.phone, last_seen_at: new Date().toISOString() });
-    if (presenceError) throw presenceError;
-    return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+    const body = await request.json().catch(() => ({}));
+    const action = typeof body.action === "string" ? body.action : "heartbeat";
+
+    if (action === "heartbeat") {
+      const { error: presenceError } = await admin.rpc(
+        "record_phone_host_heartbeat",
+        { input_host_phone: identity.phone },
+      );
+      if (presenceError) throw presenceError;
+      return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+    }
+
+    if (action === "settings") {
+      const { data: settings, error } = await admin
+        .from("phone_host_presence")
+        .select("accepting_calls,show_last_seen")
+        .eq("host_phone", identity.phone)
+        .maybeSingle();
+      if (error) throw error;
+      return Response.json({
+        accepting_calls: settings?.accepting_calls ?? false,
+        show_last_seen: settings?.show_last_seen ?? true,
+      }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+    }
+
+    if (action === "availability") {
+      if (typeof body.accepting_calls !== "boolean")
+        return Response.json({ error: "Invalid call availability setting." }, { status: 400, headers: corsHeaders });
+      if (body.accepting_calls) {
+        const { data: androidDevices, error } = await admin
+          .from("phone_push_tokens")
+          .select("expo_push_token")
+          .eq("phone", identity.phone)
+          .eq("platform", "android");
+        if (error) throw error;
+        if (!androidDevices?.length)
+          return Response.json({ error: "Enable Android call notifications on this device before accepting calls while away." }, { status: 409, headers: corsHeaders });
+      }
+      const { error } = await admin.rpc("set_phone_host_call_availability", {
+        input_host_phone: identity.phone,
+        input_accepting_calls: body.accepting_calls,
+      });
+      if (error) throw error;
+      return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+    }
+
+    if (action === "privacy") {
+      if (typeof body.show_last_seen !== "boolean")
+        return Response.json({ error: "Invalid last-seen privacy setting." }, { status: 400, headers: corsHeaders });
+      const { data: updated, error } = await admin
+        .from("phone_host_presence")
+        .update({ show_last_seen: body.show_last_seen })
+        .eq("host_phone", identity.phone)
+        .select("host_phone")
+        .maybeSingle();
+      if (error) throw error;
+      if (!updated) {
+        const { error: insertError } = await admin.from("phone_host_presence").insert({
+          host_phone: identity.phone,
+          show_last_seen: body.show_last_seen,
+          last_seen_at: new Date(0).toISOString(),
+        });
+        if (insertError?.code === "23505") {
+          const { error: retryError } = await admin
+            .from("phone_host_presence")
+            .update({ show_last_seen: body.show_last_seen })
+            .eq("host_phone", identity.phone);
+          if (retryError) throw retryError;
+        } else if (insertError) throw insertError;
+      }
+      return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+    }
+
+    return Response.json({ error: "Unsupported presence action." }, { status: 400, headers: corsHeaders });
   } catch (error) {
-    console.error("Host presence heartbeat failed:", error);
+    console.error("Host presence update failed:", error);
     return Response.json({ error: "Unable to update Host presence." }, { status: 500, headers: corsHeaders });
   }
 });

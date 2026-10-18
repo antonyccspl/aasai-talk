@@ -57,12 +57,30 @@ Firebase service-account key or Supabase secret to the client.
 Remote notifications use `expo-notifications` and Expo Push Service. Link the
 app to an EAS project, configure Android FCM v1 credentials (and APNs
 credentials if enabling iOS), then build and install a development or release
-client. Push is opt-in under Settings > Notification preferences. Browser push
-is not configured.
+client. Message and wallet push preferences are under Settings > Notification
+preferences. Approved Android Hosts also have an **Accept calls while away**
+switch under Profile > Call availability. Enabling it registers Android push
+and the phone account used for the native incoming-call screen. The Host can
+turn it off at any time; new calls are then blocked and any ringing invitation
+is marked missed.
 
 Apply the migrations and deploy `push-notifications`. The function verifies the
 Firebase ID token and derives call/message/wallet recipients from the server
 records. It uses Supabase-managed service-role credentials only on the server.
+For Android background calls, the `host-presence` and `push-notifications`
+functions and the `20261012000100_host_call_availability_last_seen.sql`
+migration must also be deployed. Android call pushes are data-only and are
+presented by Android Telecom after the Host enables the feature and accepts the
+phone-account prompt. The project must be rebuilt with EAS after native
+CallKeep configuration changes. iOS keeps the existing alert notification
+flow; native iOS call UI is not implemented.
+When **Show last seen** is enabled, male users can see a Host's relative last
+active time in Favorites and call history; switching it off hides that time.
+
+Android may defer data-only pushes in battery-saving modes, and force-stopping
+the app prevents background delivery until it is opened again. Validate calls
+on a real Android device while the app is backgrounded and while the screen is
+locked; an Expo web export does not exercise this flow.
 
 ## Validation
 

@@ -9,6 +9,12 @@ import {
 import { startCallSound, stopCallSound } from "@/data/call-sounds";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { sendHostPresenceHeartbeat } from "@/data/host-presence";
+import {
+    handleAndroidCallAnswer,
+    handleAndroidCallEnd,
+    listenForAndroidCallActions,
+    endAndroidCallUi,
+} from "@/data/android-incoming-calls";
 import { SampleWorkspaceProvider } from "@/data/sample-workspace";
 import { fetchPhoneWalletBalance } from "@/data/wallet";
 import { sendPushEvent } from "@/data/push-notifications";
@@ -255,6 +261,7 @@ function ActiveCallLifecycle() {
   const finishFromServer = (status: string) => {
     const current = activeRef.current;
     if (!current) return;
+    if (current.incoming) endAndroidCallUi(current.id);
     setCalls((history) => [
       {
         ...current,
@@ -485,7 +492,7 @@ function HostPresenceLifecycle() {
 
 function AppNavigator() {
   const { demoPhone, loading, authenticated } = useAuth();
-  const { identityLoading } = useDemo();
+  const { identityLoading, hostStatus, profile } = useDemo();
   const incomingSessionRef = useRef("");
   const incomingSoundKeyRef = useRef("");
   const stopIncomingStatusRef = useRef<(() => void) | null>(null);
@@ -507,6 +514,37 @@ function AppNavigator() {
       subscription.remove();
     };
   }, [authenticated, loading]);
+  useEffect(() => {
+    if (
+      Platform.OS !== "android" ||
+      loading ||
+      identityLoading ||
+      !authenticated ||
+      !demoPhone ||
+      hostStatus !== "approved" ||
+      profile.gender !== "Female"
+    )
+      return;
+    return listenForAndroidCallActions({
+      onAnswer: (uuid) => {
+        void handleAndroidCallAnswer(uuid).catch((error) =>
+          console.error("Unable to open answered Android call:", error),
+        );
+      },
+      onEnd: (uuid) => {
+        void handleAndroidCallEnd(uuid, demoPhone).catch((error) =>
+          console.error("Unable to end Android incoming call:", error),
+        );
+      },
+    });
+  }, [
+    authenticated,
+    demoPhone,
+    hostStatus,
+    identityLoading,
+    loading,
+    profile.gender,
+  ]);
   useEffect(() => {
     if (loading || !authenticated || !demoPhone) return;
     const unsubscribe = subscribeToIncomingCalls(demoPhone, (call) => {

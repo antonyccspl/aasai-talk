@@ -2,6 +2,7 @@ import {
     fetchHostCurrentSlabs,
     type HostCurrentSlab,
 } from "@/data/host-metrics";
+import { formatLastSeen } from "@/data/directory";
 import { Feather, FontAwesome6 } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -791,6 +792,9 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
         <Pressable accessibilityRole="button" accessibilityLabel={`View ${person.name}`} onPress={() => go(`/user/${person.id}`)} style={{ paddingTop: 100, paddingBottom: 10 }}>
           <T size={16.5} bold color="#fff" numberOfLines={1}>{person.name}, {person.age}</T>
           <T size={12} color="#f1ebff" numberOfLines={2}>{person.city} · {person.languages.join(" · ")}</T>
+          {person.lastSeenAt ? (
+            <T size={10} color="#f1ebff">Last seen {formatLastSeen(person.lastSeenAt)}</T>
+          ) : null}
         </Pressable>
         <View style={{ flexDirection: "row", gap: 7 }}>
           {(["audio", "video"] as const).map((type) => (
@@ -875,6 +879,11 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
             <T size={12} color={c.secondary}>
               {person.city} · {person.languages.join(" · ")}
             </T>
+            {person.lastSeenAt ? (
+              <T size={11} color={c.muted}>
+                Last seen {formatLastSeen(person.lastSeenAt)}
+              </T>
+            ) : null}
           </View>
         </Row>
       </Pressable>

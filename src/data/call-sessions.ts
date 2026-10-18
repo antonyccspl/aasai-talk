@@ -44,6 +44,7 @@ export type PhoneCallHistoryItem = {
   counterpart_display_name: string | null;
   counterpart_avatar_url: string | null;
   counterpart_is_host: boolean;
+  counterpart_last_seen_at: string | null;
 };
 
 export async function fetchPhoneCallHistory(phone: string, limit = 50) {
@@ -64,7 +65,8 @@ export async function fetchPhoneCallHistory(phone: string, limit = 50) {
       typeof value.counterpart_username === "string" &&
       (value.counterpart_display_name === null || typeof value.counterpart_display_name === "string") &&
       (value.counterpart_avatar_url === null || typeof value.counterpart_avatar_url === "string") &&
-      typeof value.counterpart_is_host === "boolean";
+      typeof value.counterpart_is_host === "boolean" &&
+      (value.counterpart_last_seen_at === null || typeof value.counterpart_last_seen_at === "string");
   })) throw new Error("Invalid call history returned by the server.");
   return data as PhoneCallHistoryItem[];
 }

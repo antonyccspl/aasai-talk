@@ -12,10 +12,14 @@ import {
     updatePhoneCall,
 } from "@/data/call-sessions";
 import { startCallSound, stopAllCallSounds, stopCallSound } from "@/data/call-sounds";
-import { fetchDirectoryProfiles, type DirectoryStatus } from "@/data/directory";
+import { fetchDirectoryProfiles, formatLastSeen, type DirectoryStatus } from "@/data/directory";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { setPhoneBlock, submitPhoneSafetyReport } from "@/data/phone-safety";
 import { sendPushEvent } from "@/data/push-notifications";
+import {
+    endAndroidCallUi,
+    setAndroidCallActive,
+} from "@/data/android-incoming-calls";
 import type { CallNetworkQuality } from "@/data/zego";
 import { router } from "expo-router";
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -78,6 +82,7 @@ type CallScreenProps = {
   participantName?: string;
   /** Comma-separated directory IDs already invited in this automatic request. */
   attemptedIds?: string;
+  autoAnswer?: boolean;
 };
 
 /** The call route must never fail to a browser-white page. */
@@ -135,6 +140,7 @@ function CallScreenContent({
   sessionId = "",
   participantName,
   attemptedIds = "",
+  autoAnswer = false,
 }: CallScreenProps) {
   const d = useDemo();
   const auth = useAuth();
@@ -210,6 +216,7 @@ function CallScreenContent({
   const [showVideoSafetyReminder, setShowVideoSafetyReminder] = useState(true);
   const connectingRef = useRef(false);
   const actionRef = useRef(false);
+  const autoAnswerSessionRef = useRef("");
   const closedRef = useRef(false);
   const policyEndingRef = useRef(false);
   const [actionPending, setActionPending] = useState(false);
@@ -449,6 +456,8 @@ function CallScreenContent({
   async function end(status = "Ended") {
     if (closedRef.current) return;
     closedRef.current = true;
+    if (sessionId && (autoAnswer || d.active?.incoming))
+      endAndroidCallUi(sessionId);
     Vibration.cancel();
     await Promise.all([stopCallSound(soundKey), stopAllCallSounds()]);
     setActionPending(true);
@@ -687,6 +696,7 @@ function CallScreenContent({
           ? Math.floor(d.balance / callCoinsPerMinute) * 60
           : undefined,
     });
+    if (incoming && autoAnswer) setAndroidCallActive(session.id);
     if (!incoming) {
       void auth.getIdentityToken()
         .then((idToken) => sendPushEvent(idToken, "incoming_call", session.id))
@@ -697,6 +707,17 @@ function CallScreenContent({
         `/calls/${video ? "video" : "audio"}/${id}?session=${session.id}&type=${video ? "video" : "audio"}` as never,
       );
   }
+  useEffect(() => {
+    if (
+      !incoming ||
+      !autoAnswer ||
+      !sessionId ||
+      autoAnswerSessionRef.current === sessionId
+    )
+      return;
+    autoAnswerSessionRef.current = sessionId;
+    void connect();
+  }, [autoAnswer, incoming, sessionId]);
   const continueWithAnotherAvailablePerson = useCallback(async () => {
     if (fallbackRef.current || closedRef.current || !outgoing) return;
     fallbackRef.current = true;
@@ -1486,6 +1507,11 @@ export function CallsList() {
                 <T size={11} color={c.muted}>
                   {`${translate(call.incoming ? "Incoming" : "Outgoing")} · ${translate(call.status[0].toUpperCase() + call.status.slice(1))} · ${duration(call.duration_seconds)}`}
                 </T>
+                {!isHost && call.counterpart_is_host && call.counterpart_last_seen_at ? (
+                  <T size={10} color={c.secondary}>
+                    Last seen {formatLastSeen(call.counterpart_last_seen_at)}
+                  </T>
+                ) : null}
                 {!call.incoming && (
                   <T mono size={10} color={c.warning}>
                     View receipt for coin details

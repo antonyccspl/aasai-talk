@@ -33,6 +33,7 @@ export default function Route() {
     session?: string;
     name?: string;
     tried?: string;
+    autoAnswer?: string;
   }>();
   const parts = Array.isArray(params.route)
     ? params.route
@@ -72,7 +73,7 @@ export default function Route() {
     ) : action === "detail" || action === "result" ? (
       <CallDetail id={id} result={action === "result"} status={params.status} />
     ) : (
-      <CallScreen mode={action} id={id} type={params.type} sessionId={params.session} participantName={params.name} attemptedIds={params.tried} />
+      <CallScreen mode={action} id={id} type={params.type} sessionId={params.session} participantName={params.name} attemptedIds={params.tried} autoAnswer={params.autoAnswer === "true"} />
     );
   else if (root === "wallet")
     screen = <Wallet mode={action || "wallet"} id={id} />;

@@ -1,4 +1,10 @@
 import { useAuth } from "@/data/auth";
+import {
+    fetchHostPresenceSettings,
+    setHostCallAvailability,
+    setHostLastSeenVisibility,
+} from "@/data/host-presence";
+import { setupAndroidCallUi } from "@/data/android-incoming-calls";
 import { fetchPhoneCallNotifications, markPhoneCallNotificationRead, type PhoneCallNotification } from "@/data/call-sessions";
 import { fetchPhoneMessageNotifications, subscribeToAllPhoneMessages, type PhoneMessageNotification } from "@/data/chat";
 import {
@@ -1010,6 +1016,16 @@ export function Settings({
   const [refreshing, setRefreshing] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
+  const [callAvailability, setCallAvailability] = useState(false);
+  const [availabilityLoading, setAvailabilityLoading] = useState(
+    mode === "availability" || mode === "privacy",
+  );
+  const [availabilityBusy, setAvailabilityBusy] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const [privacyBusy, setPrivacyBusy] = useState(false);
+  const [privacyError, setPrivacyError] = useState("");
+  const [hostShowLastSeen, setHostShowLastSeen] = useState(true);
+  const [hostPrivacyLoaded, setHostPrivacyLoaded] = useState(false);
   const [pushTest, setPushTest] = useState<"call" | "message" | "missed" | "safety">("call");
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [supportLoading, setSupportLoading] = useState(false);
@@ -1019,6 +1035,41 @@ export function Settings({
   const [supportMessage, setSupportMessage] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
+  const approvedHost = d.profile.gender === "Female" && d.hostStatus === "approved";
+  useEffect(() => {
+    if (
+      !auth.demoPhone ||
+      !approvedHost ||
+      (mode !== "availability" && mode !== "privacy")
+    )
+      return;
+    let active = true;
+    void auth
+      .getIdentityToken()
+      .then(fetchHostPresenceSettings)
+      .then((settings) => {
+        if (!active) return;
+        setCallAvailability(settings.acceptingCalls);
+        setHostShowLastSeen(settings.showLastSeen);
+        setHostPrivacyLoaded(true);
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          const detail =
+            error instanceof Error
+              ? error.message
+              : "Unable to load Host presence settings.";
+          if (mode === "availability") setAvailabilityError(detail);
+          else setPrivacyError(detail);
+        }
+      })
+      .finally(() => {
+        if (active) setAvailabilityLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [approvedHost, auth.demoPhone, auth.getIdentityToken, mode]);
   useEffect(() => {
     if (mode !== "help" || !auth.demoPhone) return;
     let active = true;
@@ -1104,16 +1155,72 @@ export function Settings({
     d.hostStatus === "approved"
   )
     return (
-      <Shell title="Presence status">
-        <Card>
-          <T size={22} bold>Presence is automatic</T>
+      <Shell title="Call availability">
+        <T size={24} bold>Choose when callers can reach you</T>
+        <Card style={{ gap: 12 }}>
+          <T bold size={17}>Accept calls while away</T>
           <Badge
-            text={d.active?.status === "Connected" || d.active?.status === "Ringing" ? "On a call" : "Available"}
+            text={
+              d.active?.status === "Connected" || d.active?.status === "Ringing"
+                ? "On a call"
+                : Platform.OS === "android"
+                  ? callAvailability
+                    ? "Accepting calls"
+                    : "Not accepting calls"
+                  : "Presence is automatic"
+            }
             warning={d.active?.status === "Connected" || d.active?.status === "Ringing"}
           />
+          {Platform.OS === "android" ? (
+            <Setting
+              title={availabilityLoading ? "Checking setting…" : "Accept calls while away"}
+              detail="Show the Android incoming-call screen when Aasai Talk is in the background."
+              icon="phone"
+              value={callAvailability}
+              onToggle={(next) => {
+                if (availabilityBusy || availabilityLoading) return;
+                setAvailabilityBusy(true);
+                setAvailabilityError("");
+                void (async () => {
+                  const idToken = await auth.getIdentityToken();
+                  if (next) {
+                    const token = await registerPushDevice(idToken, {
+                      calls: true,
+                      messages: d.prefs["Message alerts"] !== false,
+                      wallet: d.prefs["Payment updates"] !== false,
+                    });
+                    if (!token)
+                      throw new Error("Allow notifications in Android settings to accept calls while away.");
+                    await setupAndroidCallUi();
+                  }
+                  await setHostCallAvailability(idToken, next);
+                  setCallAvailability(next);
+                })()
+                  .catch((error: unknown) => {
+                    setAvailabilityError(
+                      error instanceof Error
+                        ? error.message
+                        : "Unable to update call availability.",
+                    );
+                  })
+                  .finally(() => setAvailabilityBusy(false));
+              }}
+            />
+          ) : (
+            <Notice>
+              Background incoming-call screens are currently supported on Android only.
+            </Notice>
+          )}
           <T color={c.secondary}>
-            You appear Available while Aasai Talk is open, On a call while a call is ringing or connected, and Away after the app has not checked in for a short time.
+            {Platform.OS === "android"
+              ? "When enabled, callers can reach you while the app is backgrounded or closed. Turn it off whenever you do not want new calls."
+              : "On this platform, Host presence continues to follow app activity."}
           </T>
+          <T size={12} color={c.muted}>
+            Android may delay calls in battery-saving modes. Force-stopping Aasai Talk prevents background delivery until you open it again.
+          </T>
+          {availabilityBusy ? <ActivityIndicator color={c.mint} /> : null}
+          {availabilityError ? <Notice error>{availabilityError}</Notice> : null}
         </Card>
       </Shell>
     );
@@ -1141,9 +1248,43 @@ export function Settings({
             <Setting
               key={x}
               title={x}
-              value={d.prefs[x]}
+              value={
+                mode === "privacy" &&
+                x === "Show last seen" &&
+                approvedHost &&
+                hostPrivacyLoaded
+                  ? hostShowLastSeen
+                  : d.prefs[x]
+              }
               onToggle={(v) => {
                 const next = { ...d.prefs, [x]: v };
+                if (
+                  mode === "privacy" &&
+                  x === "Show last seen" &&
+                  approvedHost &&
+                  auth.demoPhone
+                ) {
+                  if (privacyBusy) return;
+                  setPrivacyBusy(true);
+                  setPrivacyError("");
+                  void auth
+                    .getIdentityToken()
+                    .then((idToken) => setHostLastSeenVisibility(idToken, v))
+                    .then(() => {
+                      setHostShowLastSeen(v);
+                      setHostPrivacyLoaded(true);
+                      d.setPrefs(next);
+                    })
+                    .catch((error: unknown) =>
+                      setPrivacyError(
+                        error instanceof Error
+                          ? error.message
+                          : "Unable to update last-seen privacy.",
+                      ),
+                    )
+                    .finally(() => setPrivacyBusy(false));
+                  return;
+                }
                 d.setPrefs(next);
                 if (auth.demoPhone && mode === "notifications") {
                   void auth.getIdentityToken().then((idToken) =>
@@ -1159,6 +1300,9 @@ export function Settings({
             />
           ))}
         </Card>
+        {mode === "privacy" && privacyError ? (
+          <Notice error>{privacyError}</Notice>
+        ) : null}
         {mode === "notifications" && Platform.OS !== "web" && (
           <>
             <Button
