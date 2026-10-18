@@ -121,11 +121,11 @@ export async function sendPushEvent(
 
 /** A local device check confirms permission, channel setup, presentation, and routing. */
 export async function showPushTestNotification(kind: "call" | "message" | "missed" | "safety") {
-  if (Platform.OS === "web") throw new Error("Notification checks are available in the mobile app.");
+  if (Platform.OS === "web") throw new Error("Notification checks are available in the app.");
   const Notifications = notificationsModule();
   const permission = await Notifications.getPermissionsAsync();
   if (!permission.granted)
-    throw new Error("Allow notifications in your device settings, then try the test again.");
+    throw new Error("Allow notifications in your settings, then try the test again.");
   const content = {
     call: { title: "Incoming call", body: "A caller is trying to reach you.", route: "/calls" },
     message: { title: "New message", body: "You have a new conversation waiting.", route: "/notifications" },

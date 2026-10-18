@@ -991,14 +991,14 @@ export function Permissions({ onboarding }: { onboarding?: boolean }) {
       </Card>
       {Platform.OS === "web" ? (
         <Notice>
-          Browser permissions are managed from your browser&apos;s site settings. Push notifications are not enabled for the website yet.
+          Manage permissions in your settings.
         </Notice>
       ) : (
         <>
-          <Notice>You can change an allowed permission anytime in your phone settings.</Notice>
+          <Notice>You can change an allowed permission anytime in your settings.</Notice>
           {!onboarding && (
             <Button
-              title="Open device settings"
+              title="Open settings"
               icon="settings"
               variant="secondary"
               onPress={() => {
@@ -1007,7 +1007,7 @@ export function Permissions({ onboarding }: { onboarding?: boolean }) {
                   setSettingsError(
                     error instanceof Error
                       ? error.message
-                      : "Unable to open device settings. Open Aasai Talk from your phone settings.",
+                      : "Unable to open settings. Open Aasai Talk settings to manage permissions.",
                   ),
                 );
               }}
@@ -1053,6 +1053,7 @@ export function Settings({
   );
   const [availabilityBusy, setAvailabilityBusy] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
+  const [availabilityRetry, setAvailabilityRetry] = useState(0);
   const [privacyBusy, setPrivacyBusy] = useState(false);
   const [privacyError, setPrivacyError] = useState("");
   const [hostShowLastSeen, setHostShowLastSeen] = useState(true);
@@ -1128,6 +1129,8 @@ export function Settings({
         }
       })
       .catch((error: unknown) => {
+        if (mode === "availability")
+          console.error("Unable to load call availability:", error);
         if (active) {
           const detail =
             mode === "availability"
@@ -1145,7 +1148,7 @@ export function Settings({
     return () => {
       active = false;
     };
-  }, [approvedHost, auth.demoPhone, auth.getIdentityToken, mode]);
+  }, [approvedHost, auth.demoPhone, auth.getIdentityToken, mode, availabilityRetry]);
   useEffect(() => {
     if (mode !== "help" || !auth.demoPhone) return;
     let active = true;
@@ -1173,7 +1176,7 @@ export function Settings({
       <Shell title="App language">
         <T size={24} bold>Choose your app language</T>
         <T color={c.secondary}>
-          Choose how Aasai Talk appears on this device. English is the default.
+          Choose how Aasai Talk appears. English is the default.
         </T>
         {priorityIndianLanguages.filter((item) => item.code === "en").map((item) => {
           const selected = language === item.code;
@@ -1250,11 +1253,7 @@ export function Settings({
           {Platform.OS === "android" || Platform.OS === "web" ? (
             <Setting
               title={availabilityLoading ? "Checking setting…" : "Accept calls while away"}
-              detail={
-                Platform.OS === "web"
-                  ? "Controls whether your Android phone can receive calls while you are away."
-                  : "Receive calls even when you are not using the app."
-              }
+              detail="Choose whether callers can reach you when you are away from Aasai Talk."
               icon="phone"
               value={callAvailability}
               onToggle={(next) => {
@@ -1271,7 +1270,7 @@ export function Settings({
                       announcements: d.prefs.Announcements !== false,
                     });
                     if (!token)
-                      throw new Error("Turn on call notifications on your Android phone before accepting calls while away.");
+                      throw new Error("Turn on call notifications before accepting calls while away.");
                     await setupAndroidCallUi();
                   }
                   await setHostCallAvailability(idToken, next);
@@ -1280,12 +1279,11 @@ export function Settings({
                   .catch((error: unknown) => {
                     const reason = error instanceof Error ? error.message : "";
                     setAvailabilityError(
-                      reason.includes("Android call notifications") ||
-                        reason.includes("call notifications on your Android phone") ||
+                      reason.includes("call notifications") ||
                         reason.includes("Allow notifications") ||
                         reason.includes("phone-account") ||
                         reason.includes("phone account")
-                        ? "Set up call notifications on your Android phone before turning this on."
+                        ? "Turn on call notifications in your settings before enabling this."
                         : "We could not update your call availability. Please try again.",
                     );
                   })
@@ -1294,16 +1292,26 @@ export function Settings({
             />
           ) : (
             <Notice>
-              Call availability follows whether you are using Aasai Talk on this device.
+              You can receive calls while using Aasai Talk.
             </Notice>
           )}
-          <T color={c.secondary}>
-            {Platform.OS === "android" || Platform.OS === "web"
-              ? "Turn this off whenever you do not want to receive calls."
-              : "You can change your availability by opening or closing the app."}
-          </T>
+          <T color={c.secondary}>Turn this off whenever you do not want to receive calls.</T>
           {availabilityBusy ? <ActivityIndicator color={c.mint} /> : null}
-          {availabilityError ? <Notice error>{availabilityError}</Notice> : null}
+          {availabilityError ? (
+            <>
+              <Notice error>{availabilityError}</Notice>
+              <Button
+                title="Try again"
+                variant="secondary"
+                disabled={availabilityLoading || availabilityBusy}
+                onPress={() => {
+                  setAvailabilityError("");
+                  setAvailabilityLoading(true);
+                  setAvailabilityRetry((retry) => retry + 1);
+                }}
+              />
+            </>
+          ) : null}
         </Card>
       </Shell>
     );
@@ -1423,12 +1431,7 @@ export function Settings({
         ) : null}
         {mode === "notifications" ? (
           <Notice>
-            Announcement preferences control which active announcements appear in your in-app inbox. Push alerts for announcements are not available yet.
-          </Notice>
-        ) : null}
-        {mode === "notifications" && Platform.OS === "web" ? (
-          <Notice>
-            These preferences are saved to your account and apply to supported mobile push notifications. Browser push notifications are not available on this website yet.
+            Announcement preferences control which active announcements appear in your inbox.
           </Notice>
         ) : null}
         {mode === "privacy" && privacyError ? (
@@ -1451,16 +1454,16 @@ export function Settings({
                     announcements: d.prefs.Announcements !== false,
                   }))
                   .then((token) => setPushMessage(token
-                    ? "Push notifications are enabled on this device."
-                    : "Notifications are disabled in device settings."))
+                    ? "Push notifications are enabled."
+                    : "Allow notifications in your settings to receive alerts."))
                   .catch((error) => setPushMessage(error instanceof Error ? error.message : "Unable to enable push notifications."))
                   .finally(() => setPushBusy(false));
               }}
             />
             {pushMessage ? <Notice>{pushMessage}</Notice> : null}
             <Card style={{ gap: 10 }}>
-              <T bold size={15}>Check notifications on this device</T>
-              <T size={12} color={c.muted}>This sends a test alert only to this device. It does not contact anyone.</T>
+              <T bold size={15}>Check your notifications</T>
+              <T size={12} color={c.muted}>This sends a test alert only for you. It does not contact anyone.</T>
               <Chips items={["call", "message", "missed", "safety"]} selected={pushTest} onChange={(value) => setPushTest(value as typeof pushTest)} />
               <Button title="Show test alert" variant="secondary" disabled={pushBusy} onPress={() => {
                 setPushBusy(true);
@@ -1475,7 +1478,7 @@ export function Settings({
         )}
         <Card style={{ gap: 2 }}>
           <T bold size={15}>{mode === "privacy" ? "Safety tools" : "Device settings"}</T>
-          <T size={12} color={c.muted}>{mode === "privacy" ? "Review the people you have blocked." : "Manage permissions for this device."}</T>
+          <T size={12} color={c.muted}>{mode === "privacy" ? "Review the people you have blocked." : "Manage your permissions."}</T>
           <Setting
             title={mode === "privacy" ? "Blocked users" : "System permissions"}
             icon="settings"
