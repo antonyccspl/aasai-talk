@@ -62,13 +62,13 @@ export function Welcome() {
             overflow: "hidden",
             alignItems: "center",
             justifyContent: wideWeb ? "center" : undefined,
-            shadowColor: "#190d2f",
+            shadowColor: c.deep,
             shadowOpacity: 0.2,
             shadowRadius: wideWeb ? 34 : 28,
             shadowOffset: { width: 0, height: 14 },
             elevation: 8,
             ...(wideWeb
-              ? { boxShadow: "0 24px 64px rgba(25, 13, 47, 0.22)" }
+              ? { boxShadow: "0 24px 64px rgba(40, 26, 33, 0.22)" }
               : {}),
           }}
         >
@@ -84,7 +84,7 @@ export function Welcome() {
                     right: 0,
                     top: `${(i * 100) / 64}%`,
                     height: "1.7%",
-                    backgroundColor: `rgb(${Math.round(35 + 89 * t)},${Math.round(17 + 36 * t)},${Math.round(78 + 142 * t)})`,
+                    backgroundColor: `rgb(${Math.round(124 + 52 * t)},${Math.round(48 - t)},${Math.round(66 + 4 * t)})`,
                   }}
                 />
               );
@@ -125,7 +125,7 @@ export function Welcome() {
               padding: 4,
               borderRadius: 28,
               backgroundColor: "#ffffff55",
-              shadowColor: "#160b2a",
+              shadowColor: c.deep,
               shadowOpacity: 0.24,
               shadowRadius: 22,
               shadowOffset: { width: 0, height: 12 },
@@ -168,7 +168,7 @@ export function Welcome() {
             borderRadius: wideWeb ? 30 : undefined,
             borderWidth: wideWeb ? 1 : undefined,
             borderColor: wideWeb ? c.line : undefined,
-            shadowColor: "#190d2f",
+            shadowColor: c.deep,
             shadowOpacity: wideWeb ? 0.08 : 0,
             shadowRadius: 24,
             shadowOffset: { width: 0, height: 14 },
@@ -189,7 +189,7 @@ export function Welcome() {
               paddingHorizontal: 14,
               paddingVertical: 8,
               marginBottom: 2,
-              shadowColor: "#190d2f",
+              shadowColor: c.deep,
               shadowOpacity: 0.08,
               shadowRadius: 16,
               shadowOffset: { width: 0, height: 8 },
@@ -216,7 +216,7 @@ export function Welcome() {
               backgroundColor: wideWeb ? c.background : undefined,
               borderWidth: wideWeb ? 1 : undefined,
               borderColor: wideWeb ? c.line : undefined,
-              shadowColor: "#1a102f",
+              shadowColor: c.deep,
               shadowOpacity: wideWeb ? 0.03 : 0.08,
               shadowRadius: 18,
               shadowOffset: { width: 0, height: 10 },

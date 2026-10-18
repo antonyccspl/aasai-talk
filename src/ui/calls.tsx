@@ -984,23 +984,6 @@ function CallScreenContent({
                 onPress={() => end()}
               />
             </Row>
-            <Row style={{ justifyContent: "space-around" }}>
-              <T size={11}>Safety</T>
-              <T size={11}>Microphone</T>
-              <T size={11}>
-                {Platform.OS === "web"
-                  ? route === "Speaker"
-                    ? "Speaker on"
-                    : "Speaker off"
-                  : route}
-              </T>
-              <T size={11}>
-                {video ? "Camera" : canSwitchToVideo ? "Video" : "Chat"}
-              </T>
-              <T size={11} color={c.error}>
-                End
-              </T>
-            </Row>
           </View>
         )
       }
@@ -1010,18 +993,11 @@ function CallScreenContent({
           <T mono size={11} color={c.mint} bold>
             {video ? "VIDEO CALL" : "AUDIO CALL"}
           </T>
-          <T size={13} color={c.secondary}>
-            {hostUnavailable
-              ? hostUnavailable === "Busy"
-                ? "Host is busy on another call"
-                : "Host is offline"
-              : ringing ? "Waiting for response" : "Private 1:1 conversation"}
-          </T>
         </View>
         <Badge
           text={
             ringing
-              ? hostUnavailable ? hostUnavailable : state
+              ? state
               : d.active?.incoming
                 ? duration(d.active?.seconds ?? 0)
                 : talkTime(remainingTalkSeconds)
@@ -1244,13 +1220,9 @@ function CallScreenContent({
             position: "relative",
             width: "100%",
             alignItems: "center",
-            gap: ringing ? 10 : 12,
-            paddingVertical: ringing ? 16 : 12,
+            gap: ringing ? 12 : 14,
+            paddingVertical: ringing ? 28 : 24,
             paddingHorizontal: 20,
-            backgroundColor: c.surface,
-            borderRadius: 28,
-            borderWidth: 1,
-            borderColor: c.line,
           }}
         >
           {!ringing && mediaSessionId && auth.demoPhone && (
@@ -1296,20 +1268,14 @@ function CallScreenContent({
           )}
           <View
             style={{
-              padding: ringing ? 10 : 12,
-              borderRadius: 140,
-              backgroundColor: c.successSurface,
+              padding: 7,
+              borderRadius: 999,
+              backgroundColor: c.low,
+              borderWidth: 5,
+              borderColor: c.high,
             }}
           >
-            <View
-              style={{
-                padding: 10,
-                borderRadius: 120,
-                backgroundColor: c.high,
-              }}
-            >
-              <Avatar person={p} size={ringing ? callAvatarSize : callAvatarSize * 0.9} />
-            </View>
+            <Avatar person={p} size={ringing ? callAvatarSize : callAvatarSize * 0.9} />
           </View>
           <T size={ringing ? 21 : 20} bold numberOfLines={1}>
             {p.name}
@@ -1340,10 +1306,6 @@ function CallScreenContent({
         </Notice>
       ) : callError ? (
         <Notice error>{callError}</Notice>
-      ) : hostUnavailable && !ringing ? (
-        <Notice error>
-          {p.name.split(" ")[0]} is {hostUnavailable === "Busy" ? "busy on another call" : "offline"}.
-        </Notice>
       ) : null}
       <Modal
         transparent

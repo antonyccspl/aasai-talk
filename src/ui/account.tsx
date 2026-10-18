@@ -924,11 +924,13 @@ export function Profile() {
           onPress={() => go("/profile/availability")}
         />
       )}
-      <Setting
-        title="Favorites"
-        icon="heart"
-        onPress={() => go("/favorites")}
-      />
+      {d.profile.gender !== "Female" && (
+        <Setting
+          title="Favorites"
+          icon="heart"
+          onPress={() => go("/favorites")}
+        />
+      )}
       <Setting title="Call history" icon="phone" onPress={() => go("/calls")} />
       {d.paid && d.hostStatus !== "approved" && (
         <Setting
@@ -1569,24 +1571,45 @@ export function Safety({ id, mode }: { id: string; mode: string }) {
     );
   if (mode === "rate")
     return (
-      <Shell title="Rate your conversation">
-        <Avatar person={p} size={72} />
-        <T size={24} bold>
-          How was your call?
-        </T>
-        <T color={c.secondary}>A little feedback goes a long way.</T>
-        <Row>
+      <Shell title="Call feedback">
+        <View style={{ alignItems: "center", gap: 12, paddingVertical: 12 }}>
+          <Avatar person={p} size={116} />
+          <T size={24} bold style={{ textAlign: "center" }}>
+            How was your call?
+          </T>
+          <T color={c.secondary} style={{ textAlign: "center" }}>
+            Your feedback helps make every call better.
+          </T>
+        </View>
+        <Row style={{ justifyContent: "center", gap: 12 }}>
           {[1, 2, 3, 4, 5].map((n) => (
-            <Chip
+            <Pressable
               key={n}
-              title={`${n} ★`}
-              selected={n <= stars}
+              accessibilityRole="button"
+              accessibilityLabel={`${n} star${n === 1 ? "" : "s"}`}
+              accessibilityState={{ selected: stars === n }}
               onPress={() => setStars(n)}
-            />
+              style={{
+                width: 48,
+                height: 48,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 16,
+                backgroundColor: n <= stars ? c.high : c.low,
+                borderWidth: 1,
+                borderColor: n <= stars ? c.mint : c.line,
+              }}
+            >
+              <Icon
+                name="star"
+                size={25}
+                color={n <= stars ? c.warning : c.muted}
+              />
+            </Pressable>
           ))}
         </Row>
         <Field
-          label="Review (optional)"
+          label="Anything you’d like to share? (optional)"
           value={description}
           onChange={setDescription}
           multiline

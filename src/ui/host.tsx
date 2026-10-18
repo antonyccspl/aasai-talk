@@ -4,7 +4,7 @@ import { uploadHostVerificationDocument } from "@/data/host-documents";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
 import { fetchHostPayoutStatus, requestHostWithdrawal, saveHostPayoutAccount, type HostPayoutAccount, type HostWithdrawal } from "@/data/host-payouts";
 import { fetchHostDailyCallSummary, fetchHostDailyCallTime, type HostDailyCallSummary } from "@/data/host-metrics";
-import { profileInterests, profileLanguages } from "@/data/profile-options";
+import { profileInterests } from "@/data/profile-options";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -133,7 +133,6 @@ function DocumentUpload({
 const titles = [
   "Become an Aasai Talk Host",
   "Your Host profile",
-  "Languages",
   "Interests",
   "Call preferences",
   "Verification",
@@ -144,7 +143,7 @@ export function HostApplication() {
   const auth = useAuth();
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
-  const form = d.hostDraft;
+  const form = { ...d.hostDraft, languages: d.profile.languages };
   const update = (value: Partial<typeof form>) => {
     d.setHostDraft({ ...form, ...value });
     setError("");
@@ -166,13 +165,11 @@ export function HostApplication() {
   function next() {
     if (step === 1 && (!form.name.trim() || !form.bio.trim() || !d.photo))
       return setError("Add a clear profile photo, display name, and short bio.");
-    if (step === 2 && !form.languages.length)
-      return setError("Choose at least one language.");
-    if (step === 3 && !form.interests.length)
+    if (step === 2 && !form.interests.length)
       return setError("Choose at least one interest.");
-    if (step === 4 && !form.audio && !form.video)
+    if (step === 3 && !form.audio && !form.video)
       return setError("Enable at least one call type.");
-    if (step === 5 && (!form.aadhaarDocument || !form.panDocument))
+    if (step === 4 && (!form.aadhaarDocument || !form.panDocument))
       return setError("Upload both Aadhaar and PAN documents to continue.");
     setError("");
     setStep(step + 1);
@@ -209,13 +206,10 @@ export function HostApplication() {
           />
         </>
       )}
-      {(step === 2 || step === 3) && (
+      {step === 2 && (
         <Row style={{ flexWrap: "wrap" }}>
-          {(step === 2
-            ? profileLanguages
-            : profileInterests
-          ).map((item) => {
-            const key = step === 2 ? "languages" : "interests";
+          {profileInterests.map((item) => {
+            const key = "interests";
             return (
               <Chip
                 key={item}
@@ -233,7 +227,7 @@ export function HostApplication() {
           })}
         </Row>
       )}
-      {step === 4 && (
+      {step === 3 && (
         <>
           <Setting
             title="Audio calls"
@@ -247,7 +241,7 @@ export function HostApplication() {
           />
         </>
       )}
-      {step === 5 && (
+      {step === 4 && (
         <>
           <Notice>
             Your documents are required for Host verification. They are used by
@@ -273,11 +267,13 @@ export function HostApplication() {
           />
         </>
       )}
-      {step === 6 && (
+      {step === 5 && (
         <Card>
           <T bold>{form.name}</T>
           <T>{form.bio}</T>
-          <T>{form.languages.join(", ")}</T>
+          <T size={12} color={c.secondary}>
+            Languages from your profile: {form.languages.join(", ") || "None selected"}
+          </T>
           <T>{form.interests.join(", ")}</T>
           <T color={c.secondary}>
             Your earnings depend on the time you spend in calls each day.
@@ -293,6 +289,7 @@ export function HostApplication() {
                 setError("Please sign in again before submitting your application.");
                 return;
               }
+              d.setHostDraft(form);
               void auth
                 .getIdentityToken()
                 .then((token) =>
@@ -321,9 +318,9 @@ export function HostApplication() {
         </Card>
       )}
       {!!error && <Notice error>{error}</Notice>}
-      {step < 7 && (
+      {step < titles.length - 1 && (
         <Button
-          title={step === 6 ? "Review draft" : "Continue"}
+          title="Continue"
           onPress={next}
         />
       )}

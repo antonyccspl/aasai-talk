@@ -422,7 +422,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
               borderWidth: 1.5,
               borderRadius: 22,
               padding: 12,
-              shadowColor: "#190d2f",
+              shadowColor: c.deep,
               shadowOpacity: 0.08,
               shadowRadius: 16,
               shadowOffset: { width: 0, height: 8 },
@@ -467,30 +467,22 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
         </Animated.View>
       )}
       {searching && (
-        <>
-          <Field
-            label="Search"
-            placeholder="Name, city, or something in common"
-            value={d.search}
-            onChange={d.setSearch}
-          />
-          <Button
-            title="More filters"
-            variant="secondary"
-            icon="sliders"
-            onPress={() => go("/filters")}
-          />
-        </>
+        <Field
+          label="Search"
+          placeholder="Name, city, or something in common"
+          value={d.search}
+          onChange={d.setSearch}
+        />
       )}
       <Section
         title={
           favorites
             ? "Your favorite people"
             : searching
-              ? `${result.length} people found`
+              ? `${result.length} matches`
               : "People to meet"
         }
-        action={favorites ? undefined : "Open filters"}
+        action={favorites ? undefined : "Filters"}
         actionIcon={favorites ? undefined : "sliders"}
         onPress={() => go("/filters")}
       />
@@ -741,29 +733,28 @@ export function UserProfile({ id }: { id: string }) {
             variant="secondary"
             onPress={() => go(`/chat/${id}`)}
           />
-          <Button
-            title={
-              d.favorites.includes(id)
-                ? "Remove from favorites"
-                : "Add to favorites"
-            }
-            icon="heart"
-            variant="secondary"
-            onPress={() => d.toggleFavorite(id)}
-          />
         </>
       )}
       <Row>
-        <Button
-          title="Report"
-          variant="secondary"
-          style={{ flex: 1 }}
+        <IconButton
+          icon="heart"
+          label={
+            d.favorites.includes(id)
+              ? "Remove from favorites"
+              : "Add to favorites"
+          }
+          active={d.favorites.includes(id)}
+          onPress={() => d.toggleFavorite(id)}
+        />
+        <IconButton
+          icon="flag"
+          label="Report"
           onPress={() => go(`/report/${id}`)}
         />
-        <Button
-          title={blocked ? "Unblock" : "Block"}
-          variant="danger"
-          style={{ flex: 1 }}
+        <IconButton
+          icon={blocked ? "user-check" : "user-x"}
+          label={blocked ? "Unblock" : "Block"}
+          danger={!blocked}
           onPress={() => go(`/block/${id}`)}
         />
       </Row>

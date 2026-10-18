@@ -201,7 +201,7 @@ export function Wallet({
           padding: compactLayout ? 9 : 10,
           minHeight: wideLayout ? 138 : 144,
           borderRadius: 18,
-          backgroundColor: selected ? c.successSurface : c.low,
+          backgroundColor: selected ? c.high : c.low,
           borderWidth: 1,
           borderColor: selected ? c.mint : pack.is_special ? "#f0bd4b" : "transparent",
           gap: 6,
@@ -496,7 +496,7 @@ export function Wallet({
             />
           </Card>
         )}
-      <Card style={{ padding: wideLayout ? 18 : 17, backgroundColor: c.mint, overflow: "hidden", gap: 0, borderColor: "rgba(109,66,234,0.9)", shadowColor: "#3d1d78", shadowOpacity: 0.24, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
+      <Card style={{ padding: wideLayout ? 18 : 17, backgroundColor: c.mint, overflow: "hidden", gap: 0, borderColor: "rgba(176,47,70,0.9)", shadowColor: "#5d2434", shadowOpacity: 0.24, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
         <BrandGradient />
         <Row style={{ justifyContent: "space-between", alignItems: "center" }}>
           <View style={{ gap: 3 }}>
