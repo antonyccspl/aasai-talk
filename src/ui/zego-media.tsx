@@ -29,7 +29,7 @@ type Props = {
   onStatus?: (status: string) => void;
   onNetworkQuality?: (quality: CallNetworkQuality) => void;
   onError?: (message: string) => void;
-  onSafetyViolation?: () => void;
+  onSafetyViolation?: (resumeScanning: () => void) => void;
 };
 
 type ZegoModule = typeof import("zego-express-engine-reactnative");
@@ -272,7 +272,9 @@ export function ZegoMedia({
                 : `data:image/jpeg;base64,${imageBase64}`;
               if (await scanVideoCallFrame(identityToken, frame) === "rejected") {
                 violationDetected = true;
-                callbacks.current.onSafetyViolation?.();
+                callbacks.current.onSafetyViolation?.(() => {
+                  violationDetected = false;
+                });
                 return;
               }
             }

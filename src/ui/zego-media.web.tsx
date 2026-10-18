@@ -17,7 +17,7 @@ type Props = {
   onStatus?: (status: string) => void;
   onNetworkQuality?: (quality: CallNetworkQuality) => void;
   onError?: (message: string) => void;
-  onSafetyViolation?: () => void;
+  onSafetyViolation?: (resumeScanning: () => void) => void;
 };
 
 let webRtcLifecycle: Promise<void> = Promise.resolve();
@@ -228,7 +228,9 @@ export function ZegoMedia({
               if (!frame) continue;
               if (await scanVideoCallFrame(identityToken, frame) === "rejected") {
                 violationDetected = true;
-                callbacksRef.current.onSafetyViolation?.();
+                callbacksRef.current.onSafetyViolation?.(() => {
+                  violationDetected = false;
+                });
                 return;
               }
             }

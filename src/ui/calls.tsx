@@ -214,6 +214,7 @@ function CallScreenContent({
   const [mediaRetryKey, setMediaRetryKey] = useState(0);
   const [networkQuality, setNetworkQuality] = useState<CallNetworkQuality>("unknown");
   const [showVideoSafetyReminder, setShowVideoSafetyReminder] = useState(true);
+  const resumeSafetyScanRef = useRef<(() => void) | null>(null);
   const connectingRef = useRef(false);
   const actionRef = useRef(false);
   const autoAnswerSessionRef = useRef("");
@@ -306,17 +307,20 @@ function CallScreenContent({
     },
     [activePhone, setActiveCall, incomingCall, mediaSessionId],
   );
-  function onMediaSafetyViolation() {
+  function onMediaSafetyViolation(resumeScanning: () => void) {
     if (policyEndingRef.current || closedRef.current) return;
     policyEndingRef.current = true;
-    void stopAllCallSounds();
+    resumeSafetyScanRef.current = resumeScanning;
     setPolicyViolation(true);
-    setMediaStatus("Safety policy detected — ending call");
-    // Show an unmissable explanation before closing the room and navigating to
-    // the call result. There is no dismissal action: ending is automatic.
-    setTimeout(() => {
-      void end("Ended");
-    }, 2200);
+    setMediaStatus("Safety alert");
+  }
+  function continueAfterSafetyAlert() {
+    if (closedRef.current) return;
+    resumeSafetyScanRef.current?.();
+    resumeSafetyScanRef.current = null;
+    policyEndingRef.current = false;
+    setPolicyViolation(false);
+    setMediaStatus("Connected");
   }
   const reportCallIssue = async (reason: string) => {
     if (!auth.demoPhone || !safetyTargetPhone || safetyBusy) return;
@@ -1332,7 +1336,7 @@ function CallScreenContent({
         transparent
         visible={policyViolation}
         animationType="fade"
-        onRequestClose={() => undefined}
+        onRequestClose={continueAfterSafetyAlert}
       >
         <View
           accessibilityLiveRegion="assertive"
@@ -1346,9 +1350,22 @@ function CallScreenContent({
             <T size={15} color="#881337">
               Nudity or explicit sexual content was detected in this video call. This violates Aasai Talk’s safety policy.
             </T>
-            <View style={{ padding: 12, borderRadius: 14, backgroundColor: "#ffe4e6" }}>
-              <T size={13} bold color="#9f1239">This call is ending automatically to protect everyone.</T>
-            </View>
+            <T size={13} color="#881337">
+              You can end the call or choose to continue.
+            </T>
+            <Button
+              title="Keep call going"
+              onPress={continueAfterSafetyAlert}
+            />
+            <Button
+              title="End call"
+              variant="danger"
+              onPress={() => {
+                setPolicyViolation(false);
+                resumeSafetyScanRef.current = null;
+                void end("Ended");
+              }}
+            />
           </View>
         </View>
       </Modal>

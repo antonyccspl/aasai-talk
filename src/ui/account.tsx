@@ -46,6 +46,7 @@ import { people, personFor, useDemo } from "./store";
 import { colors as c } from "./theme";
 import { Welcome } from "./welcome";
 import { priorityIndianLanguages, useLanguage } from "./language";
+import { policyFallbacks } from "@/data/policy-content";
 
 function latestEligibleBirthday() {
   const date = new Date();
@@ -1518,7 +1519,10 @@ export function Settings({
     );
   if (mode === "policies") {
     const policyKey = (policy || "privacy").toLowerCase();
-    const sections = d.policies[policyKey] || d.policies["privacy"];
+    const sections =
+      d.policies[policyKey]?.length > 0
+        ? d.policies[policyKey]
+        : policyFallbacks[policyKey] || policyFallbacks.privacy;
     const policyTitle = policy === "terms"
       ? "Terms and Conditions"
       : policy === "community"
@@ -1528,27 +1532,61 @@ export function Settings({
           : policy === "refund"
             ? "Refund and Payment Policy"
             : "Privacy Policy";
+    const policyTabs = [
+      ["Privacy", "privacy"],
+      ["Terms", "terms"],
+      ["Guidelines", "community"],
+      ["Safety", "safety"],
+      ["Payments", "refund"],
+    ] as const;
+    const policyIcon =
+      policyKey === "terms"
+        ? "file-text"
+        : policyKey === "community"
+          ? "heart"
+          : policyKey === "refund"
+            ? "credit-card"
+            : "shield";
     return (
       <Shell title={policyTitle}>
-        <T size={24} bold>
-          {policyTitle}
-        </T>
-        {sections && sections.length > 0 ? (
-          sections.map((s, idx) => (
-            <Card key={idx}>
-              <T size={18} bold>
-                {s.title}
-              </T>
-              <T color={c.secondary} style={{ marginTop: 6, lineHeight: 22 }}>
-                {s.description}
-              </T>
-            </Card>
-          ))
-        ) : (
-          <Card>
-            <T color={c.secondary}>Policy details are loading…</T>
+        <Card style={{ gap: 12, padding: 20, backgroundColor: c.surface }}>
+          <View style={{ width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: c.high }}>
+            <Icon name={policyIcon} size={23} color={c.mint} />
+          </View>
+          <View style={{ gap: 4 }}>
+            <T size={25} bold>{policyTitle}</T>
+            <T color={c.secondary}>
+              Clear information to help keep Aasai Talk fair, respectful, and safe.
+            </T>
+          </View>
+          <Chips
+            items={policyTabs.map(([label]) => label)}
+            selected={policyTabs.find(([, key]) => key === policyKey)?.[0] || "Privacy"}
+            onChange={(label) => {
+              const selected = policyTabs.find(([tab]) => tab === label);
+              if (selected) go(`/settings/policies/${selected[1]}`);
+            }}
+            compact
+          />
+        </Card>
+        {sections.map((section, index) => (
+          <Card key={`${policyKey}-${section.title}`} style={{ gap: 9, padding: 18 }}>
+            <Row style={{ alignItems: "flex-start", gap: 12 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: c.high }}>
+                <T size={13} bold color={c.mint}>{String(index + 1).padStart(2, "0")}</T>
+              </View>
+              <View style={{ flex: 1, gap: 6 }}>
+                <T size={17} bold>{section.title}</T>
+                <T color={c.secondary} style={{ lineHeight: 22 }}>
+                  {section.description}
+                </T>
+              </View>
+            </Row>
           </Card>
-        )}
+        ))}
+        <T size={12} color={c.muted} style={{ textAlign: "center", paddingVertical: 8 }}>
+          Questions? Contact support@aasaitalk.app
+        </T>
       </Shell>
     );
   }
