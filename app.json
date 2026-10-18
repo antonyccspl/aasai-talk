@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Aasai talk",
+    "name": "Aasai Talk",
     "slug": "aasai-talk",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -31,7 +31,7 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "package": "com.anonymous.aasaitalk"
+      "package": "com.aasaitalk.app"
     },
     "web": {
       "output": "single",
@@ -39,6 +39,16 @@
     },
     "plugins": [
       "./plugins/with-call-sounds",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0"
+          }
+        }
+      ],
       "expo-router",
       [
         "expo-notifications",
@@ -78,6 +88,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6e5074f3-9904-49a4-b075-f6b07dc8f5a3"
+      }
+    },
+    "owner": "aasai-talk"
   }
 }

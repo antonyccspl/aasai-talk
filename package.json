@@ -14,6 +14,7 @@
     "@react-native-firebase/auth": "^26.4.0",
     "@supabase/supabase-js": "^2.116.0",
     "expo": "~57.0.26",
+    "expo-build-properties": "~57.0.22",
     "expo-camera": "~57.0.6",
     "expo-constants": "~57.0.20",
     "expo-crypto": "~57.0.3",
@@ -63,7 +64,7 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "build:web": "expo export --platform web",
-    "build:android": "expo export --platform android",
+    "build:android": "npx eas-cli build --platform android --profile production",
     "preview:serve": "node scripts/serve-preview.mjs",
     "format:ui": "prettier --write \"src/ui/**/*.{ts,tsx}\" \"src/app/*.tsx\""
   },

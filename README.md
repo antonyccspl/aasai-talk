@@ -78,6 +78,101 @@ project:
 node scripts/check-sample-backend.mjs
 ```
 
+## Android release and Google Play
+
+Android production builds use EAS Build. The Play Store build is an Android App
+Bundle (`.aab`); the preview profile creates an installable APK. The Android
+application ID is `com.aasaitalk.app`. Choose this ID before registering the
+Android app in Firebase or creating the Play Console listing: it is a permanent
+identifier once the app is published.
+
+### 1. Prepare Firebase for Android
+
+1. In Firebase Console, register an Android app using the exact package name
+   `com.aasaitalk.app`. Do not reuse the previous `com.anonymous.aasaitalk`
+   Android registration.
+2. Enable **Phone** under Authentication sign-in providers and allow the
+   regions where the app will send verification SMS messages.
+3. Download `google-services.json` and put it in the repository root, beside
+   `app.json`. It is ignored by Git but included in EAS build uploads through
+   `.easignore`; do not commit it.
+4. After EAS creates the Android signing key, add its SHA-1 and SHA-256
+   fingerprints to the Firebase Android app. Once Play App Signing is set up,
+   add Google's Play app-signing certificate fingerprints too. These
+   fingerprints are required for reliable phone-auth app verification.
+
+### 2. Configure EAS Build
+
+1. Create an Expo account at [expo.dev](https://expo.dev/), then from this
+   repository run `npx eas-cli login` and `npx eas-cli init` to link the
+   project to your Expo account.
+2. In the linked EAS project's **production** environment, create
+   `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` with
+   the same public values used by the working app. Add them to **preview** too
+   if you will run preview builds. Do not upload a Supabase service-role key or
+   any server credential; `EXPO_PUBLIC_` values are embedded in the app.
+3. Build and install a test APK:
+
+   ```bash
+   npx eas-cli build --platform android --profile preview
+   ```
+
+4. Test Firebase phone sign-in, profile/photo permissions, chat, notifications,
+   audio/video calls, and Cashfree flows on a real Android device. A successful
+   web export does not verify native Android SDK integration.
+5. Create the Play Store App Bundle when the Android test build is ready:
+
+   ```bash
+   npm run build:android
+   ```
+
+   EAS stores the Android signing key remotely and the production profile
+   increments the Android build number. Keep the EAS account secure and do not
+   replace or discard the signing key.
+
+### 3. Create the Play Console developer account
+
+1. Register at [Google Play Console](https://play.google.com/console/). Google
+   currently charges a one-time US$25 registration fee and verifies the
+   developer identity. Choose **Personal** if publishing as an individual;
+   choose **Organization** only if publishing on behalf of a registered
+   organization and you can complete its verification.
+2. New personal accounts must also verify access to an Android device using
+   the Play Console app. Before production access, Google currently requires a
+   closed test with at least 12 testers opted in continuously for 14 days.
+   Check the current Play Console requirements when registering.
+3. Create the app in Play Console, select its default language and free/paid
+   availability, and use the same public app name and package ID.
+
+### 4. Complete the store setup and release
+
+1. Prepare the listing: app name, short and full descriptions, app icon,
+   screenshots, contact details, and a public privacy-policy URL.
+2. Complete the app-content declarations, target audience, content rating, ads
+   declaration, and Data safety form accurately for the data and providers the
+   live app actually uses.
+3. Upload the `.aab` to **Internal testing** first. Add testers, install from
+   the Play testing link, check the Play pre-launch report, and fix issues.
+4. If Play Console requires a personal-account closed test, move to **Closed
+   testing**, recruit at least 12 opted-in testers, keep the test active for 14
+   consecutive days, then apply for production access.
+5. After approval, create a **Production** release, review the final country,
+   listing, policy declarations, and rollout settings, then submit it for
+   review.
+
+Before requesting public release, verify that the live privacy policy and
+account-deletion process satisfy Google Play policy. The current in-app
+deletion flow submits a request for review; it does not itself complete
+automatic data erasure. Social and messaging features also require accurate
+user-generated-content disclosures and effective reporting/blocking
+moderation.
+
+References: [Expo SDK 57 build properties](https://docs.expo.dev/versions/v57.0.0/sdk/build-properties/),
+[EAS build configuration](https://docs.expo.dev/build/eas-json/),
+[Play Console account registration](https://support.google.com/googleplay/android-developer/answer/6112435),
+[personal-account testing requirements](https://support.google.com/googleplay/android-developer/answer/14151465),
+and [current target API requirement](https://support.google.com/googleplay/android-developer/answer/11926878).
+
 ## Calling Phase 2
 
 The Phase 2 call foundation is deployed in Supabase. `call_sessions` records
