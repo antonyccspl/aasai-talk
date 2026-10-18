@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { scanImageWithGoogleVision } from "../_shared/image-moderation.ts";
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -77,13 +78,294 @@ async function listAdminAccounts(admin: ReturnType<typeof serviceClient>) {
   }).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
 }
 
+const hostImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const hostDocumentTypes = new Set([
+  ...hostImageTypes,
+  "application/pdf",
+]);
+
+function fileSuffix(type: string) {
+  switch (type) {
+    case "image/jpeg": return "jpg";
+    case "image/png": return "png";
+    case "image/webp": return "webp";
+    case "application/pdf": return "pdf";
+    default: throw new Error("This file type is not supported.");
+  }
+}
+
+function hasValidFileSignature(bytes: Uint8Array, type: string) {
+  if (type === "image/jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (type === "image/png") return bytes.subarray(0, 8).join(",") === "137,80,78,71,13,10,26,10";
+  if (type === "image/webp")
+    return new TextDecoder().decode(bytes.subarray(0, 4)) === "RIFF"
+      && new TextDecoder().decode(bytes.subarray(8, 12)) === "WEBP";
+  if (type === "application/pdf")
+    return new TextDecoder().decode(bytes.subarray(0, 5)) === "%PDF-";
+  return false;
+}
+
+function asStringArray(value: unknown, maximum: number, label: string) {
+  if (!Array.isArray(value) || value.length > maximum)
+    throw new Error(`Choose no more than ${maximum} ${label}.`);
+  const strings = value.filter((item): item is string => typeof item === "string");
+  if (strings.length !== value.length) throw new Error(`Invalid ${label}.`);
+  const values = [...new Set(strings.map((item) => item.trim()))];
+  if (values.length !== value.length || values.some((item) => item.length < 1 || item.length > 40))
+    throw new Error(`Remove empty or duplicate ${label}.`);
+  return values;
+}
+
+function isAdultDateOfBirth(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) return false;
+  const adultCutoff = new Date();
+  adultCutoff.setUTCHours(0, 0, 0, 0);
+  adultCutoff.setUTCFullYear(adultCutoff.getUTCFullYear() - 18);
+  return date <= adultCutoff;
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers });
   if (request.method !== "POST") return reply({ error: "POST required." }, 405);
   try {
-    const body = await request.json().catch(() => ({}));
     const { admin, user, role, pages } = await currentAdmin(request);
+    let uploadForm: FormData | null = null;
+    let body: Record<string, unknown> = {};
+    if (request.headers.get("content-type")?.includes("multipart/form-data")) {
+      uploadForm = await request.formData();
+      const payload = uploadForm.get("payload");
+      if (typeof payload !== "string") throw new Error("Missing Host enrollment details.");
+      const parsed = JSON.parse(payload);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+        throw new Error("Invalid Host enrollment details.");
+      body = parsed as Record<string, unknown>;
+    } else {
+      const parsed = await request.json().catch(() => ({}));
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+        body = parsed as Record<string, unknown>;
+    }
     const action = typeof body.action === "string" ? body.action : "me";
+    if (action === "create_instagram_host") {
+      requireSuperAdmin(role);
+      requirePage(pages, "Hosts");
+      if (!uploadForm) throw new Error("Host photos and verification documents are required.");
+
+      const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+      const name = typeof body.name === "string" ? body.name.trim().replace(/\s+/g, " ") : "";
+      const username = typeof body.username === "string" ? body.username.trim() : "";
+      const dateOfBirth = typeof body.date_of_birth === "string" ? body.date_of_birth : "";
+      const city = typeof body.city === "string" ? body.city.trim().replace(/\s+/g, " ") : "";
+      const bio = typeof body.bio === "string" ? body.bio.trim() : "";
+      const languages = asStringArray(body.languages, 4, "languages");
+      const interests = asStringArray(body.interests, 6, "interests");
+      const audio = body.audio === true;
+      const video = body.video === true;
+      const pan = typeof body.pan_number === "string" ? body.pan_number.trim().toUpperCase() : "";
+      const aadhaar = typeof body.aadhaar_number === "string" ? body.aadhaar_number.replace(/\s/g, "") : "";
+      const holder = typeof body.account_holder_name === "string" ? body.account_holder_name.trim().replace(/\s+/g, " ") : "";
+      const method = body.payout_method === "upi" || body.payout_method === "bank" ? body.payout_method : "";
+      const upi = typeof body.upi_id === "string" ? body.upi_id.trim().toLowerCase() : "";
+      const accountNumber = typeof body.account_number === "string" ? body.account_number.replace(/\s/g, "") : "";
+      const ifsc = typeof body.ifsc_code === "string" ? body.ifsc_code.trim().toUpperCase() : "";
+      const approve = body.approve === true;
+      const payoutVerified = body.payout_verified === true;
+      const attested = body.admin_identity_consent_attested === true;
+      const photoSafetyAttested = body.admin_photo_safety_attested === true;
+      const photo = uploadForm.get("photo");
+      const aadhaarFile = uploadForm.get("aadhaar_file");
+      const panFile = uploadForm.get("pan_file");
+
+      if (!/^\+91\d{10}$/.test(phone)) throw new Error("Enter a valid Indian mobile number.");
+      if (name.length < 2 || name.length > 50) throw new Error("Enter a name between 2 and 50 characters.");
+      if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) throw new Error("Use a username with 3–20 letters, numbers, or underscores.");
+      if (!isAdultDateOfBirth(dateOfBirth)) throw new Error("The Host must be at least 18 years old. Check the date of birth.");
+      if (city.length < 2 || city.length > 80) throw new Error("Enter a city between 2 and 80 characters.");
+      if (bio.length < 12 || bio.length > 500) throw new Error("Enter a Host bio between 12 and 500 characters.");
+      if (languages.length < 1 || interests.length < 1) throw new Error("Select at least one language and one interest.");
+      if (!audio && !video) throw new Error("Enable at least one call preference.");
+      if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan) || !/^\d{12}$/.test(aadhaar))
+        throw new Error("Enter a valid PAN and 12-digit Aadhaar number.");
+      if (!attested)
+        throw new Error("Confirm that you personally verified the phone number, adult identity, and the woman's consent.");
+      if (!photoSafetyAttested)
+        throw new Error("Confirm that you reviewed the profile photo against the Host photo-safety rules.");
+      if (!method || holder.length < 2 || holder.length > 120)
+        throw new Error("Enter a payout method and the account holder's name.");
+      if (method === "upi" && !/^[A-Za-z0-9._-]{2,256}@[A-Za-z][A-Za-z0-9._-]{1,64}$/.test(upi))
+        throw new Error("Enter a valid UPI ID.");
+      if (method === "bank" && (!/^\d{9,18}$/.test(accountNumber) || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)))
+        throw new Error("Enter a valid bank account number and IFSC code.");
+      if (!(photo instanceof File) || photo.size < 1 || photo.size > 5 * 1024 * 1024 || !hostImageTypes.has(photo.type))
+        throw new Error("Choose a JPG, PNG, or WEBP Host photo smaller than 5 MB.");
+      if (!(aadhaarFile instanceof File) || aadhaarFile.size < 1 || aadhaarFile.size > 10 * 1024 * 1024 || !hostDocumentTypes.has(aadhaarFile.type))
+        throw new Error("Choose an Aadhaar image or PDF smaller than 10 MB.");
+      if (!(panFile instanceof File) || panFile.size < 1 || panFile.size > 10 * 1024 * 1024 || !hostDocumentTypes.has(panFile.type))
+        throw new Error("Choose a PAN image or PDF smaller than 10 MB.");
+
+      const [{ data: existingProfile, error: profileLookupError }, { data: existingApplication, error: applicationLookupError }, { data: matchingUsername, error: usernameLookupError }] = await Promise.all([
+        admin.from("phone_profiles").select("phone").eq("phone", phone).maybeSingle(),
+        admin.from("host_applications").select("id").eq("phone", phone).maybeSingle(),
+        admin.from("phone_profiles").select("phone").ilike("username", username).limit(1).maybeSingle(),
+      ]);
+      if (profileLookupError || applicationLookupError || usernameLookupError)
+        throw profileLookupError || applicationLookupError || usernameLookupError;
+      if (existingProfile || existingApplication)
+        throw new Error("This phone already belongs to an app member or Host application. Use assisted setup instead.");
+      if (matchingUsername)
+        throw new Error("That username is already in use.");
+
+      const uploadedDocuments: string[] = [];
+      let publicPhotoPath = "";
+      let moderationMediaPath = "";
+      let moderationItemId = "";
+      let scanWasApproved = false;
+      try {
+        const photoBytes = new Uint8Array(await photo.arrayBuffer());
+        if (!hasValidFileSignature(photoBytes, photo.type))
+          throw new Error("The Host photo file does not match its selected image type.");
+        const scan = await scanImageWithGoogleVision(photoBytes);
+        const manualPhotoApproval = scan.status === "needs_review";
+        moderationMediaPath = `${phone.replace(/\D/g, "")}/${crypto.randomUUID()}.${fileSuffix(photo.type)}`;
+        const moderationUpload = await admin.storage.from("moderation-media").upload(moderationMediaPath, photoBytes, {
+          contentType: photo.type,
+          upsert: false,
+        });
+        if (moderationUpload.error) throw moderationUpload.error;
+        const { data: moderationItem, error: moderationInsertError } = await admin.from("phone_content_moderation_items").insert({
+          owner_phone: phone,
+          content_type: "profile_photo",
+          storage_bucket: "moderation-media",
+          storage_path: moderationMediaPath,
+          scan_provider: manualPhotoApproval ? "admin_manual" : scan.provider,
+          adult_likelihood: scan.adult,
+          racy_likelihood: scan.racy,
+          provider_result: manualPhotoApproval
+            ? { automatic_scan: scan.result, manually_reviewed: true }
+            : scan.result,
+          status: manualPhotoApproval ? "approved" : scan.status,
+          decision_note: scan.status === "rejected"
+            ? "Rejected by the automatic photo safety scan."
+            : manualPhotoApproval
+              ? "Manually approved by a Super Admin during Instagram Host onboarding."
+              : "Automatically approved.",
+          reviewed_by: manualPhotoApproval ? user.id : null,
+          reviewed_at: manualPhotoApproval ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        }).select("id").single();
+        if (moderationInsertError) throw moderationInsertError;
+        moderationItemId = moderationItem.id;
+        if (scan.status === "rejected")
+          throw new Error("The photo was rejected by the safety check. Choose a different photo.");
+
+        const publicPhotoName = `${phone.replace(/\D/g, "")}/${crypto.randomUUID()}.${fileSuffix(photo.type)}`;
+        const photoUpload = await admin.storage.from("host-photos").upload(publicPhotoName, photoBytes, {
+          contentType: photo.type,
+          upsert: false,
+        });
+        if (photoUpload.error) throw photoUpload.error;
+        publicPhotoPath = publicPhotoName;
+        const photoUrl = admin.storage.from("host-photos").getPublicUrl(publicPhotoPath).data.publicUrl;
+        const { error: moderationUpdateError } = await admin.from("phone_content_moderation_items")
+          .update({ public_url: photoUrl, updated_at: new Date().toISOString() }).eq("id", moderationItemId);
+        if (moderationUpdateError) throw moderationUpdateError;
+        scanWasApproved = true;
+
+        const uploadDocument = async (file: File, kind: "aadhaar" | "pan") => {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          if (!hasValidFileSignature(bytes, file.type))
+            throw new Error(`The ${kind.toUpperCase()} file does not match its selected document type.`);
+          const path = `${phone.replace(/\D/g, "")}/${kind}-${crypto.randomUUID()}.${fileSuffix(file.type)}`;
+          const result = await admin.storage.from("host-verification").upload(path, bytes, {
+            contentType: file.type,
+            upsert: false,
+          });
+          if (result.error) throw result.error;
+          uploadedDocuments.push(path);
+          return path;
+        };
+        const aadhaarPath = await uploadDocument(aadhaarFile, "aadhaar");
+        const panPath = await uploadDocument(panFile, "pan");
+        const profile = {
+          gender: "Female",
+          name,
+          username,
+          dob: dateOfBirth,
+          date_of_birth: dateOfBirth,
+          city,
+          languages,
+          interests,
+          bio,
+          photo: photoUrl,
+          guidelinesAccepted: true,
+          adultAgeConfirmed: true,
+          adminInstagramOnboarding: true,
+        };
+        const application = {
+          name,
+          bio,
+          languages,
+          interests,
+          photo: photoUrl,
+          audio,
+          video,
+          audioRate: "2",
+          videoRate: "5",
+          aadhaarDocument: "Verified by admin",
+          panDocument: "Verified by admin",
+          aadhaarPath,
+          panPath,
+          source: "instagram",
+          photoSafetyAdminChecked: photoSafetyAttested,
+        };
+        const { data: applicationId, error: createError } = await admin.rpc("admin_create_instagram_host", {
+          input_phone: phone,
+          input_profile: profile,
+          input_application: application,
+          input_aadhaar_path: aadhaarPath,
+          input_pan_path: panPath,
+          input_pan_last4: pan.slice(-4),
+          input_aadhaar_last4: aadhaar.slice(-4),
+          input_payout: {
+            payout_method: method,
+            account_holder_name: holder,
+            account_number: method === "bank" ? accountNumber : null,
+            ifsc_code: method === "bank" ? ifsc : null,
+            upi_id: method === "upi" ? upi : null,
+          },
+          input_admin_user_id: user.id,
+          input_approve: approve,
+          input_payout_verified: payoutVerified,
+        });
+        if (createError) throw createError;
+        return reply({ ok: true, application_id: applicationId });
+      } catch (error) {
+        const cleanupErrors: string[] = [];
+        if (uploadedDocuments.length) {
+          const { error: cleanupError } = await admin.storage.from("host-verification").remove(uploadedDocuments);
+          if (cleanupError) cleanupErrors.push(cleanupError.message);
+        }
+        if (publicPhotoPath) {
+          const { error: cleanupError } = await admin.storage.from("host-photos").remove([publicPhotoPath]);
+          if (cleanupError) cleanupErrors.push(cleanupError.message);
+        }
+        if (moderationMediaPath && moderationItemId && !publicPhotoPath) {
+          // Keep photos awaiting a manual safety review in the moderation queue.
+        } else if (moderationMediaPath && moderationItemId && scanWasApproved && publicPhotoPath) {
+          const { error: itemError } = await admin.from("phone_content_moderation_items")
+            .update({ public_url: null, decision_note: "Safety scan passed; enrollment did not complete.", updated_at: new Date().toISOString() })
+            .eq("id", moderationItemId);
+          if (itemError) cleanupErrors.push(itemError.message);
+        } else if (moderationMediaPath && !moderationItemId) {
+          const { error: cleanupError } = await admin.storage.from("moderation-media").remove([moderationMediaPath]);
+          if (cleanupError) cleanupErrors.push(cleanupError.message);
+        }
+        if (cleanupErrors.length)
+          console.error("Instagram Host upload cleanup failed:", cleanupErrors);
+        throw error;
+      }
+    }
     if (action === "list_admin_accounts") {
       requireSuperAdmin(role);
       requirePage(pages, "Admin access");
