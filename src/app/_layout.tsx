@@ -482,10 +482,23 @@ function PresenceLifecycle() {
     const listener = AppState.addEventListener("change", (state) => {
       if (state === "active") void heartbeat();
     });
+    const resumeHeartbeat = () => {
+      if (document.visibilityState === "visible") void heartbeat();
+    };
+    if (Platform.OS === "web") {
+      window.addEventListener("focus", resumeHeartbeat);
+      window.addEventListener("pageshow", resumeHeartbeat);
+      document.addEventListener("visibilitychange", resumeHeartbeat);
+    }
     return () => {
       mounted = false;
       clearInterval(interval);
       listener.remove();
+      if (Platform.OS === "web") {
+        window.removeEventListener("focus", resumeHeartbeat);
+        window.removeEventListener("pageshow", resumeHeartbeat);
+        document.removeEventListener("visibilitychange", resumeHeartbeat);
+      }
     };
   }, [
     authenticated,
