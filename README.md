@@ -75,7 +75,8 @@ records. It uses Supabase-managed service-role credentials only on the server.
 The `host-presence` function also records online heartbeats for signed-in
 members on web and mobile: approved Hosts update Host presence, while male
 members update member presence. Apply
-`20261019000100_track_male_member_online_presence.sql` and deploy
+`20261019000100_track_male_member_online_presence.sql` and
+`20261019000200_server_timestamp_member_presence.sql`, then deploy
 `host-presence` before expecting these online counts in the admin portal.
 For Android background calls, the `host-presence` and `push-notifications`
 functions and the `20261012000100_host_call_availability_last_seen.sql` and

@@ -38,14 +38,17 @@ Deno.serve(async (request) => {
         .maybeSingle();
       if (profileError) throw profileError;
       if (profile?.gender === "Male") {
-        const { error: presenceError } = await admin
-          .from("phone_user_presence")
-          .upsert(
-            { phone: identity.phone, last_seen_at: new Date().toISOString() },
-            { onConflict: "phone" },
-          );
+        const { data: lastSeenAt, error: presenceError } = await admin.rpc(
+          "record_phone_member_heartbeat",
+          { input_member_phone: identity.phone },
+        );
         if (presenceError) throw presenceError;
-        return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+        return Response.json({
+          ok: true,
+          tracked: true,
+          member_type: "male_user",
+          last_seen_at: lastSeenAt,
+        }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
       }
       if (profile?.gender === "Female") {
         const { data: host, error: hostError } = await admin
@@ -56,15 +59,32 @@ Deno.serve(async (request) => {
           .maybeSingle();
         if (hostError) throw hostError;
         if (!host)
-          return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+          return Response.json({
+            ok: true,
+            tracked: false,
+            member_type: "female_member",
+          }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
         const { error: presenceError } = await admin.rpc(
           "record_phone_host_heartbeat",
           { input_host_phone: identity.phone },
         );
         if (presenceError) throw presenceError;
-        return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+        const { data: presence, error: readError } = await admin
+          .from("phone_host_presence")
+          .select("last_seen_at")
+          .eq("host_phone", identity.phone)
+          .single();
+        if (readError) throw readError;
+        return Response.json({
+          ok: true,
+          tracked: true,
+          member_type: "host",
+          last_seen_at: presence.last_seen_at,
+        }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
       }
-      return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+      if (!profile)
+        return Response.json({ error: "Complete your profile before online status can be tracked." }, { status: 409, headers: corsHeaders });
+      return Response.json({ error: "This account cannot be tracked as an online Host or male member." }, { status: 409, headers: corsHeaders });
     }
 
     const { data: host, error: hostError } = await admin
