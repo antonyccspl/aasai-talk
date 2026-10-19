@@ -9,8 +9,7 @@ import {
 import { startCallSound, stopCallSound } from "@/data/call-sounds";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import {
-    sendHostPresenceHeartbeat,
-    sendMemberPresenceHeartbeat,
+    sendPresenceHeartbeat,
 } from "@/data/host-presence";
 import {
     handleAndroidCallAnswer,
@@ -454,59 +453,11 @@ function ActiveCallLifecycle() {
   return null;
 }
 
-function HostPresenceLifecycle() {
-  const { demoPhone, getIdentityToken } = useAuth();
-  const { hostStatus } = useDemo();
-
-  useEffect(() => {
-    if (!demoPhone || hostStatus !== "approved") return;
-    let mounted = true;
-    let heartbeatPending = false;
-    const heartbeat = async () => {
-      if (
-        !mounted ||
-        heartbeatPending ||
-        AppState.currentState === "background" ||
-        AppState.currentState === "inactive"
-      ) return;
-      heartbeatPending = true;
-      try {
-        await sendHostPresenceHeartbeat(await getIdentityToken());
-      } catch (error) {
-        if (mounted) console.warn("Unable to refresh Host presence:", error);
-      } finally {
-        heartbeatPending = false;
-      }
-    };
-    void heartbeat();
-    const interval = setInterval(() => void heartbeat(), 20000);
-    const listener = AppState.addEventListener("change", (state) => {
-      if (state === "active") void heartbeat();
-    });
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-      listener.remove();
-    };
-  }, [demoPhone, getIdentityToken, hostStatus]);
-
-  return null;
-}
-
-function MemberPresenceLifecycle() {
+function PresenceLifecycle() {
   const { demoPhone, getIdentityToken, authenticated, loading } = useAuth();
-  const { profile } = useDemo();
 
   useEffect(() => {
-    if (
-      loading ||
-      !authenticated ||
-      !demoPhone ||
-      profile.gender !== "Male" ||
-      profile.guidelinesAccepted !== true ||
-      profile.adultAgeConfirmed !== true
-    )
-      return;
+    if (loading || !authenticated || !demoPhone) return;
     let mounted = true;
     let heartbeatPending = false;
     const heartbeat = async () => {
@@ -519,9 +470,9 @@ function MemberPresenceLifecycle() {
         return;
       heartbeatPending = true;
       try {
-        await sendMemberPresenceHeartbeat(await getIdentityToken());
+        await sendPresenceHeartbeat(await getIdentityToken());
       } catch (error) {
-        if (mounted) console.warn("Unable to refresh member presence:", error);
+        if (mounted) console.warn("Unable to refresh online presence:", error);
       } finally {
         heartbeatPending = false;
       }
@@ -541,9 +492,6 @@ function MemberPresenceLifecycle() {
     demoPhone,
     getIdentityToken,
     loading,
-    profile.adultAgeConfirmed,
-    profile.gender,
-    profile.guidelinesAccepted,
   ]);
 
   return null;
@@ -663,8 +611,7 @@ function AppNavigator() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="dark" />
       <ActiveCallLifecycle />
-      <HostPresenceLifecycle />
-      <MemberPresenceLifecycle />
+      <PresenceLifecycle />
       <Stack
         screenOptions={{
           headerShown: false,

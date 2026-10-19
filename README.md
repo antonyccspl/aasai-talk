@@ -72,6 +72,11 @@ is marked missed.
 Apply the migrations and deploy `push-notifications`. The function verifies the
 Firebase ID token and derives call/message/wallet recipients from the server
 records. It uses Supabase-managed service-role credentials only on the server.
+The `host-presence` function also records online heartbeats for signed-in
+members on web and mobile: approved Hosts update Host presence, while male
+members update member presence. Apply
+`20261019000100_track_male_member_online_presence.sql` and deploy
+`host-presence` before expecting these online counts in the admin portal.
 For Android background calls, the `host-presence` and `push-notifications`
 functions and the `20261012000100_host_call_availability_last_seen.sql` and
 `20261018000200_allow_android_host_calls_while_away.sql` migrations must also

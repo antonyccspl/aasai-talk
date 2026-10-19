@@ -30,30 +30,40 @@ Deno.serve(async (request) => {
     const body = await request.json().catch(() => ({}));
     const action = typeof body.action === "string" ? body.action : "heartbeat";
 
-    if (action === "member-heartbeat") {
+    if (action === "heartbeat" || action === "member-heartbeat") {
       const { data: profile, error: profileError } = await admin
         .from("phone_profiles")
         .select("gender")
         .eq("phone", identity.phone)
         .maybeSingle();
       if (profileError) throw profileError;
-      if (profile?.gender !== "Male")
-        return Response.json({ error: "An active member account is required." }, { status: 403, headers: corsHeaders });
-      const { data: account, error: accountError } = await admin
-        .from("phone_user_admin_status")
-        .select("status")
-        .eq("phone", identity.phone)
-        .maybeSingle();
-      if (accountError) throw accountError;
-      if (account && account.status !== "active")
+      if (profile?.gender === "Male") {
+        const { error: presenceError } = await admin
+          .from("phone_user_presence")
+          .upsert(
+            { phone: identity.phone, last_seen_at: new Date().toISOString() },
+            { onConflict: "phone" },
+          );
+        if (presenceError) throw presenceError;
         return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
-      const { error: presenceError } = await admin
-        .from("phone_user_presence")
-        .upsert(
-          { phone: identity.phone, last_seen_at: new Date().toISOString() },
-          { onConflict: "phone" },
+      }
+      if (profile?.gender === "Female") {
+        const { data: host, error: hostError } = await admin
+          .from("host_applications")
+          .select("phone")
+          .eq("phone", identity.phone)
+          .eq("status", "approved")
+          .maybeSingle();
+        if (hostError) throw hostError;
+        if (!host)
+          return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+        const { error: presenceError } = await admin.rpc(
+          "record_phone_host_heartbeat",
+          { input_host_phone: identity.phone },
         );
-      if (presenceError) throw presenceError;
+        if (presenceError) throw presenceError;
+        return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+      }
       return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
     }
 
@@ -66,15 +76,6 @@ Deno.serve(async (request) => {
     if (hostError) throw hostError;
     if (!host)
       return Response.json({ error: "An approved Host account is required." }, { status: 403, headers: corsHeaders });
-
-    if (action === "heartbeat") {
-      const { error: presenceError } = await admin.rpc(
-        "record_phone_host_heartbeat",
-        { input_host_phone: identity.phone },
-      );
-      if (presenceError) throw presenceError;
-      return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
-    }
 
     if (action === "settings") {
       const { data: settings, error } = await admin
