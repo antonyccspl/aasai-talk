@@ -651,6 +651,20 @@ Deno.serve(async (request) => {
       const call_seconds = (calls || []).reduce((total, call) => total + Math.max(0, Number(call.duration_seconds || 0)), 0);
       return reply({ metrics: { hosts_pending: hostsPending.count || 0, active_hosts: activeHosts.count || 0, payouts_pending: payoutsPending.count || 0, safety_pending: safetyPending.count || 0, users_total: usersTotal.count || 0, payments_pending: paymentsPending.count || 0, revenue_paise, coins_sold, call_seconds, host_earnings_paise, withdrawals_completed_paise, withdrawals_completed, new_users: newUsers || 0, range_days: body.all_time === true ? 0 : days, range_start: requestedStart || null, range_end: requestedEnd || null } });
     }
+    if (action === "live_presence") {
+      requirePage(pages, "Overview");
+      const { data: members, error } = await admin.rpc("get_admin_online_presence");
+      if (error) throw error;
+      const rows = members || [];
+      const hosts = rows.filter((member) => member.member_type === "host");
+      const users = rows.filter((member) => member.member_type === "male_user");
+      return reply({
+        counts: { hosts: hosts.length, male_users: users.length },
+        hosts: pages.includes("Hosts") ? hosts : [],
+        male_users: pages.includes("Users") ? users : [],
+        checked_at: new Date().toISOString(),
+      });
+    }
     return reply({ admin: { id: user.id, email: user.email, role, pages } });
   } catch (error) {
     return reply({ error: errorMessage(error) }, 403);

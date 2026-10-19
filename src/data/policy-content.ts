@@ -23,6 +23,11 @@ export const policyFallbacks: Record<string, PolicySection[]> = {
         "We use information to operate Aasai Talk, show profiles and conversations, process payments, provide support, enforce our rules, and protect members. Service providers help with sign-in, hosting, calls, payments, notifications, and content safety. We may also disclose information when required by law or needed to address safety, fraud, or service abuse.",
     },
     {
+      title: "Online status",
+      description:
+        "While you use the app, we refresh a recent-activity timestamp to show your online status to authorised operations staff for service support and safety. We keep only the latest timestamp, not an activity history, and treat you as offline after about a minute without an update.",
+    },
+    {
       title: "Your choices and retention",
       description:
         "You can update profile details, manage notification preferences, block or report members, and request account deletion in the app. We review deletion requests; some transaction, support, and safety records may be retained when needed for legal, accounting, security, or dispute-resolution purposes.",

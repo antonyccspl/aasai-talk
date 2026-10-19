@@ -36,6 +36,10 @@ export async function sendHostPresenceHeartbeat(idToken: string) {
   await requestHostPresence(idToken, { action: "heartbeat" });
 }
 
+export async function sendMemberPresenceHeartbeat(idToken: string) {
+  await requestHostPresence(idToken, { action: "member-heartbeat" });
+}
+
 export async function fetchHostPresenceSettings(
   idToken: string,
 ): Promise<HostPresenceSettings> {
