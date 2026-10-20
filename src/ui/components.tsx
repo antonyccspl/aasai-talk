@@ -218,13 +218,16 @@ export function IconButton({
   onPress,
   active,
   danger,
+  tone = "light",
 }: {
   icon: IconName;
   label: string;
   onPress: () => void;
   active?: boolean;
   danger?: boolean;
+  tone?: "light" | "dark";
 }) {
+  const dark = tone === "dark";
   return (
     <Pressable
       accessibilityRole="button"
@@ -238,19 +241,54 @@ export function IconButton({
         s.iconButton,
         {
           opacity: pressed ? 0.7 : 1,
-          backgroundColor: danger ? c.errorSurface : active ? c.high : c.low,
+          backgroundColor: danger
+            ? dark
+              ? "rgba(190,48,71,0.38)"
+              : c.errorSurface
+            : dark
+              ? active
+                ? "rgba(33,150,115,0.3)"
+                : "rgba(18,23,26,0.78)"
+              : active
+                ? c.high
+                : c.low,
           borderWidth: 1.5,
-          borderColor: danger ? c.error : active ? c.mint : c.line,
+          borderColor: dark
+            ? danger
+              ? "rgba(255,120,140,0.65)"
+              : active
+                ? "rgba(93,220,173,0.8)"
+                : "rgba(255,255,255,0.2)"
+            : danger
+              ? c.error
+              : active
+                ? c.mint
+                : c.line,
           transform: [{ scale: pressed ? 0.94 : 1 }],
-          shadowColor: danger || active ? c.mint : c.deep,
-          shadowOpacity: danger || active ? 0.14 : 0.06,
+          shadowColor: dark ? "#000000" : danger || active ? c.mint : c.deep,
+          shadowOpacity: dark ? 0.18 : danger || active ? 0.14 : 0.06,
           shadowRadius: 12,
           shadowOffset: { width: 0, height: 6 },
-          elevation: danger || active ? 3 : 1,
+          elevation: dark ? 4 : danger || active ? 3 : 1,
         },
       ]}
     >
-      <Icon name={icon} color={danger ? c.danger : active ? c.mint : c.text} />
+      <Icon
+        name={icon}
+        color={
+          dark
+            ? danger
+              ? "#ff8a9b"
+              : active
+                ? "#75e0b3"
+                : "#ffffff"
+            : danger
+              ? c.danger
+              : active
+                ? c.mint
+                : c.text
+        }
+      />
     </Pressable>
   );
 }
@@ -1036,6 +1074,7 @@ export function Shell({
   tab,
   children,
   immersive,
+  fullscreen = false,
   footer,
   scroll = true,
   refreshing,
@@ -1048,6 +1087,7 @@ export function Shell({
   tab?: string;
   children: React.ReactNode;
   immersive?: boolean;
+  fullscreen?: boolean;
   footer?: React.ReactNode;
   scroll?: boolean;
   refreshing?: boolean;
@@ -1115,18 +1155,32 @@ export function Shell({
     (child) => typeof child !== "string",
   );
   return (
-    <SafeAreaView style={[s.safe, { backgroundColor: c.background }]}>
+    <SafeAreaView
+      style={[
+        s.safe,
+        { backgroundColor: fullscreen ? "#0b1114" : c.background },
+      ]}
+    >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={[s.frame, { backgroundColor: c.background, maxWidth: frameMaxWidth, overflow: "hidden" }]}>
-          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View
+          style={[
+            s.frame,
+            {
+              backgroundColor: fullscreen ? "#0b1114" : c.background,
+              maxWidth: fullscreen ? undefined : frameMaxWidth,
+              overflow: "hidden",
+            },
+          ]}
+        >
+          {!fullscreen && <View pointerEvents="none" style={StyleSheet.absoluteFill}>
             <View style={{ position: "absolute", width: 240, height: 240, borderRadius: 120, top: 108, right: -156, backgroundColor: "rgba(176,47,70,0.022)" }} />
             <View style={{ position: "absolute", width: 184, height: 184, borderRadius: 92, top: 430, left: -126, backgroundColor: "rgba(233,201,133,0.035)" }} />
             <View style={{ position: "absolute", width: 126, height: 126, borderRadius: 63, bottom: 104, right: -58, backgroundColor: "rgba(215,106,125,0.025)" }} />
-          </View>
-          <Row style={s.header}>
+          </View>}
+          {!fullscreen && <Row style={s.header}>
             {title ? (
               <>
                 <IconButton
@@ -1212,7 +1266,7 @@ export function Shell({
                 </Pressable>
               </>
             )}
-          </Row>
+          </Row>}
           {d.active && !immersive && (
             <Pressable
               onPress={() =>
@@ -1280,12 +1334,36 @@ export function Shell({
               {loading && !skipSkeleton ? <PageSkeleton /> : safeChildren}
             </ScrollView>
           ) : (
-            <View style={[s.content, { flex: 1 }]}>
+            <View
+              style={[
+                fullscreen
+                  ? { flex: 1, minHeight: 0 }
+                  : s.content,
+                { flex: 1 },
+              ]}
+            >
               {loading && !skipSkeleton ? <PageSkeleton /> : safeChildren}
             </View>
           )}
           {footer && (
-            <View style={{ padding: 16, backgroundColor: c.background }}>
+            <View
+              style={
+                fullscreen
+                  ? {
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      paddingHorizontal: 12,
+                      paddingTop: 12,
+                      paddingBottom: 12,
+                      backgroundColor: "rgba(8,13,16,0.78)",
+                      borderTopWidth: 1,
+                      borderTopColor: "rgba(255,255,255,0.12)",
+                    }
+                  : { padding: 16, backgroundColor: c.background }
+              }
+            >
               {footer}
             </View>
           )}

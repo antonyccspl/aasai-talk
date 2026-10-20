@@ -23,6 +23,7 @@ import {
 } from "@/data/android-incoming-calls";
 import type { CallNetworkQuality } from "@/data/zego";
 import { router } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, AppState, Modal, Platform, Pressable, useWindowDimensions, Vibration, View } from "react-native";
 import {
@@ -186,6 +187,7 @@ function CallScreenContent({
     incoming ? "Incoming" : outgoing ? "Ringing" : "Connected",
   );
   const ringing = state === "Incoming" || state === "Ringing";
+  const fullscreenVideo = video && !ringing;
   const [muted, setMuted] = useState(false);
   const [camera, setCamera] = useState(true);
   const [front, setFront] = useState(true);
@@ -870,6 +872,8 @@ function CallScreenContent({
     <Shell
       title={incoming ? "Incoming call" : video ? "Video call" : "Audio call"}
       immersive
+      fullscreen={fullscreenVideo}
+      scroll={!fullscreenVideo}
       skipSkeleton
       footer={
         ringing ? (
@@ -946,23 +950,34 @@ function CallScreenContent({
           <View style={{ gap: 10 }}>
             <Row
               style={{
-                backgroundColor: c.surface,
-                borderColor: c.line,
-                borderWidth: 1,
-                borderRadius: 28,
-                padding: 10,
+                backgroundColor: fullscreenVideo ? "transparent" : c.surface,
+                borderColor: fullscreenVideo ? "transparent" : c.line,
+                borderWidth: fullscreenVideo ? 0 : 1,
+                borderRadius: fullscreenVideo ? 0 : 28,
+                padding: fullscreenVideo ? 0 : 10,
+                gap: fullscreenVideo ? 4 : 10,
                 justifyContent: "space-around",
               }}
             >
               <IconButton
                 label="Safety options"
                 icon="shield"
+                tone={fullscreenVideo ? "dark" : "light"}
                 onPress={() => setSafetyVisible(true)}
               />
+              {fullscreenVideo && (
+                <IconButton
+                  label="Switch camera"
+                  icon="refresh-cw"
+                  tone="dark"
+                  onPress={() => setFront((current) => !current)}
+                />
+              )}
               <IconButton
                 label={muted ? "Unmute microphone" : "Mute microphone"}
                 icon={muted ? "mic-off" : "mic"}
                 active={!muted}
+                tone={fullscreenVideo ? "dark" : "light"}
                 onPress={() => setMuted(!muted)}
               />
               <IconButton
@@ -975,6 +990,7 @@ function CallScreenContent({
                 }
                 icon={route === "Speaker" ? "volume-2" : "headphones"}
                 active={route === "Speaker"}
+                tone={fullscreenVideo ? "dark" : "light"}
                 onPress={() => {
                   const next = route !== "Speaker";
                   setRoute(next ? "Speaker" : "Earpiece");
@@ -1000,6 +1016,8 @@ function CallScreenContent({
                       ? "video"
                       : "message-circle"
                 }
+                active={video ? camera : undefined}
+                tone={fullscreenVideo ? "dark" : "light"}
                 onPress={() =>
                   video
                     ? setCamera(!camera)
@@ -1012,6 +1030,7 @@ function CallScreenContent({
                 label="End call"
                 icon="phone-off"
                 danger
+                tone={fullscreenVideo ? "dark" : "light"}
                 onPress={() => end()}
               />
             </Row>
@@ -1019,7 +1038,8 @@ function CallScreenContent({
         )
       }
     >
-      <Row style={{ justifyContent: "space-between", alignItems: "center" }}>
+      {fullscreenVideo && <StatusBar hidden style="light" animated />}
+      {!fullscreenVideo && <Row style={{ justifyContent: "space-between", alignItems: "center" }}>
         <View style={{ gap: 4 }}>
           <T mono size={11} color={c.mint} bold>
             {video ? "VIDEO CALL" : "AUDIO CALL"}
@@ -1035,14 +1055,14 @@ function CallScreenContent({
           }
           warning={!!hostUnavailable || (state !== "Connected" && !ringing)}
         />
-      </Row>
-      {!ringing && networkQuality !== "unknown" && (
+      </Row>}
+      {!fullscreenVideo && !ringing && networkQuality !== "unknown" && (
         <Badge
           text={`Network ${networkQuality}`}
           warning={networkQuality === "poor" || networkQuality === "disconnected"}
         />
       )}
-      {!ringing && (mediaStatus === "Reconnecting" || mediaStatus === "Reconnect failed") && (
+      {!fullscreenVideo && !ringing && (mediaStatus === "Reconnecting" || mediaStatus === "Reconnect failed") && (
         <Card style={{ gap: 6 }}>
           <T bold>{mediaStatus === "Reconnecting" ? "Reconnecting your call" : "Connection interrupted"}</T>
           <T size={13} color={c.secondary}>
@@ -1075,8 +1095,16 @@ function CallScreenContent({
         </Card>
       )}
       {video && !ringing ? (
-        <View style={{ width: "100%", gap: 10 }}>
-          {showVideoSafetyReminder && (
+        <View
+          style={{
+            width: "100%",
+            gap: fullscreenVideo ? 0 : 10,
+            flex: fullscreenVideo ? 1 : undefined,
+            minHeight: fullscreenVideo ? 0 : undefined,
+            backgroundColor: fullscreenVideo ? "#0b1114" : "transparent",
+          }}
+        >
+          {!fullscreenVideo && showVideoSafetyReminder && (
             <View
               accessibilityLiveRegion="polite"
               style={{
@@ -1115,20 +1143,20 @@ function CallScreenContent({
               </Pressable>
             </View>
           )}
-          <Card
+          <View
             style={{
-            // Adapt to compact screens instead of reserving a fixed desktop-like
-            // panel height. The frame stays comfortably tall for portrait video.
-            width: "100%",
-            height: videoStageHeight,
-            backgroundColor: "#14201c",
-            borderColor: c.line,
-            borderWidth: 1,
-            overflow: "hidden",
-            padding: 0,
-            borderRadius: 26,
-          }}
-        >
+              width: "100%",
+              height: fullscreenVideo ? undefined : videoStageHeight,
+              flex: fullscreenVideo ? 1 : undefined,
+              minHeight: fullscreenVideo ? 0 : undefined,
+              backgroundColor: "#14201c",
+              borderColor: fullscreenVideo ? "transparent" : c.line,
+              borderWidth: fullscreenVideo ? 0 : 1,
+              overflow: "hidden",
+              padding: 0,
+              borderRadius: fullscreenVideo ? 0 : 26,
+            }}
+          >
           {!ringing && mediaSessionId && auth.demoPhone && (
             <CallMediaBoundary
               key={`${mediaSessionId}-${mediaRetryKey}`}
@@ -1183,8 +1211,8 @@ function CallScreenContent({
             style={{
               position: "absolute",
               zIndex: 3,
-              top: 16,
-              left: 16,
+              top: fullscreenVideo ? 18 : 16,
+              left: fullscreenVideo ? 18 : 16,
             }}
           >
             <View
@@ -1210,8 +1238,164 @@ function CallScreenContent({
               </Row>
             </View>
           </View>
-          </Card>
-          <View
+          {fullscreenVideo && (
+            <>
+              <View
+                pointerEvents="box-none"
+                style={{
+                  position: "absolute",
+                  zIndex: 3,
+                  top: 16,
+                  right: 16,
+                  left: 82,
+                  flexDirection: "row",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
+                <View
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    gap: 3,
+                    paddingHorizontal: 12,
+                    paddingVertical: 9,
+                    borderRadius: 18,
+                    backgroundColor: "rgba(8,13,16,0.68)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.16)",
+                  }}
+                >
+                  <T size={15} bold color="#ffffff" numberOfLines={1}>
+                    {p.name}
+                  </T>
+                  <T size={11} color="#d1d5db" numberOfLines={1}>
+                    {mediaStatus === "Connected" ? "Connected" : mediaStatus}
+                    {networkQuality !== "unknown"
+                      ? ` · ${networkQuality} network`
+                      : ""}
+                  </T>
+                </View>
+                <View
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    borderRadius: 18,
+                    backgroundColor: "rgba(8,13,16,0.68)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.16)",
+                  }}
+                >
+                  <T mono size={12} bold color="#ffffff">
+                    {d.active?.incoming
+                      ? duration(d.active?.seconds ?? 0)
+                      : talkTime(remainingTalkSeconds)}
+                  </T>
+                </View>
+              </View>
+              {showVideoSafetyReminder && (
+                <View
+                  accessibilityLiveRegion="polite"
+                  style={{
+                    position: "absolute",
+                    zIndex: 3,
+                    top: 82,
+                    left: 18,
+                    right: 18,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 9,
+                    borderRadius: 14,
+                    backgroundColor: "rgba(8,13,16,0.72)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.16)",
+                  }}
+                >
+                  <Icon name="shield" size={16} color="#b9f5d5" />
+                  <T
+                    size={11}
+                    color="#ffffff"
+                    style={{ flex: 1, lineHeight: 15 }}
+                  >
+                    Keep video respectful. Use Safety to report a concern.
+                  </T>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Dismiss video safety reminder"
+                    hitSlop={8}
+                    onPress={() => setShowVideoSafetyReminder(false)}
+                    style={{ padding: 3 }}
+                  >
+                    <Icon name="x" size={17} color="#ffffff" />
+                  </Pressable>
+                </View>
+              )}
+              {(mediaStatus === "Reconnecting" ||
+                mediaStatus === "Reconnect failed") && (
+                <View
+                  style={{
+                    position: "absolute",
+                    zIndex: 3,
+                    top: "42%",
+                    left: 24,
+                    right: 24,
+                    alignItems: "center",
+                    gap: 10,
+                    padding: 16,
+                    borderRadius: 18,
+                    backgroundColor: "rgba(8,13,16,0.8)",
+                  }}
+                >
+                  <T size={14} bold color="#ffffff">
+                    {mediaStatus === "Reconnecting"
+                      ? "Reconnecting your call…"
+                      : "Connection interrupted"}
+                  </T>
+                  {mediaStatus === "Reconnect failed" && (
+                    <Button
+                      title="Reconnect"
+                      variant="secondary"
+                      icon="refresh-cw"
+                      onPress={() => {
+                        setCallError("");
+                        setMediaStatus("Reconnecting");
+                        setMediaRetryKey((value) => value + 1);
+                      }}
+                    />
+                  )}
+                </View>
+              )}
+              {(callError || safetyConfirmation) && (
+                <View
+                  accessibilityLiveRegion="polite"
+                  style={{
+                    position: "absolute",
+                    zIndex: 3,
+                    top: "34%",
+                    left: 24,
+                    right: 24,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    borderRadius: 16,
+                    backgroundColor: "rgba(8,13,16,0.82)",
+                    borderWidth: 1,
+                    borderColor: callError
+                      ? "rgba(255,120,140,0.6)"
+                      : "rgba(93,220,173,0.55)",
+                  }}
+                >
+                  <T size={13} color="#ffffff" style={{ textAlign: "center" }}>
+                    {callError || safetyConfirmation}
+                  </T>
+                </View>
+              )}
+            </>
+          )}
+          </View>
+          {!fullscreenVideo && <View
             style={{
               minHeight: 58,
               flexDirection: "row",
@@ -1243,7 +1427,7 @@ function CallScreenContent({
                 {mediaStatus === "Connected" ? "Connected" : mediaStatus}
               </T>
             </View>
-          </View>
+          </View>}
         </View>
       ) : (
         <View
@@ -1327,15 +1511,15 @@ function CallScreenContent({
         </View>
       )}
       {!ringing && !video && <Wave />}
-      {soundError ? <Notice error>{soundError}</Notice> : null}
-      {safetyConfirmation ? <Notice>{safetyConfirmation}</Notice> : null}
-      {blocked || conflict ? (
+      {!fullscreenVideo && soundError ? <Notice error>{soundError}</Notice> : null}
+      {!fullscreenVideo && safetyConfirmation ? <Notice>{safetyConfirmation}</Notice> : null}
+      {!fullscreenVideo && (blocked || conflict) ? (
         <Notice error>
           {blocked
             ? "This person is blocked. Unblock them from their profile before calling."
             : "You already have an ongoing call. Return to that call to end it first."}
         </Notice>
-      ) : callError ? (
+      ) : !fullscreenVideo && callError ? (
         <Notice error>{callError}</Notice>
       ) : null}
       <Modal
