@@ -149,12 +149,12 @@ function CallScreenContent({
   const { height: viewportHeight } = useWindowDimensions();
   const directoryPerson = people.find((person) => person.id === id);
   const p = directoryPerson
-    ? mode === "incoming" && participantName
+    ? participantName
       ? { ...directoryPerson, name: participantName }
       : directoryPerson
     : {
         id,
-        name: mode === "incoming" && participantName
+        name: participantName
           ? participantName
           : "Aasai Talk member",
         status: "Available" as const,
@@ -600,7 +600,7 @@ function CallScreenContent({
       if (!d.active?.incoming && typeof result.remainingCoins === "number")
         d.setBalance(result.remainingCoins);
       router.replace(
-        `/calls/video/${id}?session=${mediaSessionId}&type=video` as never,
+        `/calls/video/${id}?session=${mediaSessionId}&type=video&name=${encodeURIComponent(p.name)}` as never,
       );
     } catch (error) {
       setCallError(
@@ -725,7 +725,7 @@ function CallScreenContent({
     }
     if (incoming || session.status === "connected")
       router.replace(
-        `/calls/${video ? "video" : "audio"}/${id}?session=${session.id}&type=${video ? "video" : "audio"}` as never,
+        `/calls/${video ? "video" : "audio"}/${id}?session=${session.id}&type=${video ? "video" : "audio"}&name=${encodeURIComponent(p.name)}` as never,
       );
   }
   useEffect(() => {
@@ -851,7 +851,7 @@ function CallScreenContent({
           current ? { ...current, status: "Connected" } : current,
         );
         router.replace(
-          `/calls/${video ? "video" : "audio"}/${id}?session=${activeId}&type=${video ? "video" : "audio"}` as never,
+          `/calls/${video ? "video" : "audio"}/${id}?session=${activeId}&type=${video ? "video" : "audio"}&name=${encodeURIComponent(p.name)}` as never,
         );
       } else if (status === "missed" && outgoing) {
         void continueWithAnotherAvailablePerson();
