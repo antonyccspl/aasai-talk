@@ -4,11 +4,11 @@
     "slug": "aasai-talk",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/aasai-talk-mark.png",
+    "icon": "./assets/images/aasai-talk-logo.jpg",
     "scheme": "aasai-talk",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/images/aasai-talk-mark.png",
+      "icon": "./assets/images/aasai-talk-logo.jpg",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "phonepe",
@@ -22,8 +22,8 @@
       "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#faf7ff",
-        "foregroundImage": "./assets/images/aasai-talk-mark.png"
+        "backgroundColor": "#31185a",
+        "foregroundImage": "./assets/images/aasai-talk-logo.jpg"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
