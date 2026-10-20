@@ -38,6 +38,16 @@ export const defaultFacets = {
   maxAge: "",
   maxPrice: "",
 };
+const defaultPreferences: Record<string, boolean> = {
+  "Show online status": true,
+  "Show last seen": true,
+  "Allow messages": true,
+  "Allow calls": true,
+  "Message alerts": true,
+  "Call alerts": true,
+  "Payment updates": true,
+  Announcements: true,
+};
 const EMPTY_PROFILE = {
   name: "",
   username: "",
@@ -461,18 +471,9 @@ function useDemoState() {
     "drafts",
     {},
   );
-  const [prefs, setPrefs] = useWorkspaceField<Record<string, boolean>>(
+  const [prefs, setPrefs] = useWorkspaceField(
     "prefs",
-    {
-      "Show online status": true,
-      "Show last seen": true,
-      "Allow messages": true,
-      "Allow calls": true,
-      "Message alerts": true,
-      "Call alerts": true,
-      "Payment updates": true,
-      Announcements: true,
-    },
+    defaultPreferences,
   );
   const [filter, setFilter] = useWorkspaceField("filter", "All");
   const [facets, setFacets] = useWorkspaceField("facets", defaultFacets);
