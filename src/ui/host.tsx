@@ -500,13 +500,21 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
         <View style={{ alignSelf: "flex-start", paddingHorizontal: 11, paddingVertical: 7, borderRadius: 999, backgroundColor: "#ffffff14" }}><T size={11} bold color="#ffffff">Minimum withdrawal · ₹100</T></View>
       </Card>
       {payoutAccount && (
-        <Card style={{ padding: 14 }}>
-          <T mono size={10} color={c.secondary}>PAYOUT STATUS</T>
-          <Setting title={payoutAccount.payout_method === "upi" ? "UPI ID verification" : "Bank account verification"} detail={payoutAccount.status === "verified" ? "Verified" : payoutAccount.status === "rejected" ? "Action needed" : "In review"} icon={payoutAccount.status === "verified" ? "check-circle" : "clock"} />
-          <Setting title="Withdrawal requests" detail={withdrawals.length ? `${withdrawals.filter((item) => ["pending", "in_review", "processing"].includes(item.status)).length} in progress` : "No requests yet"} icon="credit-card" />
-        </Card>
+        <View style={{ gap: 12, paddingVertical: 6 }}>
+          <T mono size={10} color={c.secondary}>PAYOUT OVERVIEW</T>
+          <Row style={{ justifyContent: "space-between" }}>
+            <View style={{ flex: 1, gap: 3 }}>
+              <T bold>{payoutAccount.payout_method === "upi" ? "UPI verification" : "Bank verification"}</T>
+              <T size={12} color={c.secondary}>{withdrawals.length ? `${withdrawals.filter((item) => ["pending", "in_review", "processing"].includes(item.status)).length} withdrawal${withdrawals.filter((item) => ["pending", "in_review", "processing"].includes(item.status)).length === 1 ? "" : "s"} in progress` : "No withdrawals in progress"}</T>
+            </View>
+            <Chip title={payoutAccount.status === "verified" ? "Verified" : payoutAccount.status === "rejected" ? "Action needed" : "In review"} />
+          </Row>
+        </View>
       )}
-      <T size={19} bold>Withdraw your earnings</T>
+      <View style={{ gap: 4 }}>
+        <T size={21} bold>Withdraw your earnings</T>
+        <T size={12} color={c.secondary}>Manage your payout details and request a transfer.</T>
+      </View>
       {earningsError ? <PayoutAlert tone="error" title="We couldn’t load your earnings">{earningsError}</PayoutAlert> : null}
       {activeWithdrawal?.status === "pending" && (
         <PayoutAlert tone="review" title="Withdrawal request under review">Your ₹{(activeWithdrawal.amount_paise / 100).toLocaleString("en-IN")} request is being reviewed. Manual payouts are usually completed within 2–3 business days. Your earnings are safely reserved, so please don’t submit another request.</PayoutAlert>
@@ -517,7 +525,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
       {activeWithdrawal?.status === "processing" && (
         <PayoutAlert tone="processing" title="Your withdrawal is being processed">We are preparing your ₹{(activeWithdrawal.amount_paise / 100).toLocaleString("en-IN")} manual payout. The status will update once the transfer is completed.</PayoutAlert>
       )}
-      {!payoutAccount ? <Card>
+      {!payoutAccount ? <View style={{ gap: 12, paddingVertical: 6 }}>
         <T bold size={17}>Add your payout destination</T>
         <T size={12} color={c.secondary}>Choose a bank account or UPI ID. Your details stay private and must be verified before you can withdraw earnings.</T>
         <Chips items={["Bank account", "UPI ID"]} selected={payoutMethod === "bank" ? "Bank account" : "UPI ID"} onChange={(value) => setPayoutMethod(value === "UPI ID" ? "upi" : "bank")} />
@@ -537,7 +545,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
             .catch((error) => setPayoutMessage(error instanceof Error ? error.message : "Unable to save payout destination."))
             .finally(() => setBusy(false));
         }} />
-      </Card> : <Card>
+      </View> : <View style={{ gap: 12, paddingVertical: 6 }}>
         <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
           <View style={{ gap: 3, flex: 1 }}>
             <T bold>{payoutAccount.account_holder_name}</T>
@@ -547,9 +555,9 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
         </Row>
         {payoutAccount.status === "verified" ? <PayoutAlert tone="success" title="Payout destination verified">Withdrawals will be sent only to this verified {payoutAccount.payout_method === "upi" ? "UPI ID" : "bank account"}.</PayoutAlert> : payoutAccount.status === "rejected" ? <PayoutAlert tone="error" title="Payout details need correction">{payoutAccount.verification_note || "Please correct your payout details and submit them again for verification."}</PayoutAlert> : <PayoutAlert tone="review" title="Payout destination under review">Your payout details are locked while our team reviews them. Withdrawals unlock after verification, and we’ll notify you once it is complete.</PayoutAlert>}
         {payoutAccount.status !== "pending_verification" && <Button title={payoutAccount.status === "rejected" ? "Correct payout destination" : "Change payout destination"} variant="secondary" onPress={() => { setPayoutAccount(null); setPayoutMethod(payoutAccount.payout_method); setAccountNumber(""); setConfirmAccountNumber(""); setIfscCode(payoutAccount.ifsc_code || ""); setUpiId(""); setAccountHolderName(payoutAccount.account_holder_name); }} />}
-      </Card>}
+      </View>}
       {payoutMessage ? <PayoutAlert tone={/unable|invalid|match|failed|couldn’t/i.test(payoutMessage) ? "error" : "success"} title={/submitted|completed/i.test(payoutMessage) ? "Request submitted" : "Payout update"}>{payoutMessage}</PayoutAlert> : null}
-      {payoutAccount?.status === "verified" && <Card>
+      {payoutAccount?.status === "verified" && <View style={{ gap: 12, paddingVertical: 6 }}>
         <T bold size={18}>How much would you like to withdraw?</T>
         <T size={12} color={c.secondary}>Enter the amount you want to receive. You can withdraw from ₹100 onwards.</T>
         <Field label="How much would you like to withdraw? (₹)" value={withdrawalAmount} onChange={setWithdrawalAmount} placeholder="Example: 500" numeric error={withdrawalAmount && !hasValidWithdrawalAmount ? requestedWithdrawalAmount < 100 ? "Minimum withdrawal is ₹100." : requestedWithdrawalAmount > availableEarnings ? "This is more than your available earnings." : "Enter a valid amount, up to two decimal places." : undefined} />
@@ -563,14 +571,20 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
             .catch((error) => setPayoutMessage(error instanceof Error ? error.message : "Unable to request withdrawal."))
             .finally(() => setBusy(false));
         }} />
-      </Card>}
-      {withdrawals.length > 0 && <Card>
-        <T bold size={16}>Withdrawal history</T>
-        {withdrawals.map((withdrawal) => <Row key={withdrawal.id} style={{ justifyContent: "space-between" }}>
-          <View><T bold>₹{(withdrawal.amount_paise / 100).toLocaleString("en-IN")}</T><T size={11} color={c.secondary}>{hostDate(withdrawal.created_at)}</T></View>
+      </View>}
+      {withdrawals.length > 0 && <View style={{ gap: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.line }}>
+        <View style={{ gap: 3 }}>
+          <T bold size={18}>Withdrawal history</T>
+          <T size={12} color={c.secondary}>A record of your recent payout requests.</T>
+        </View>
+        {withdrawals.map((withdrawal, index) => <Row key={withdrawal.id} style={{ justifyContent: "space-between", paddingTop: index ? 12 : 2, borderTopWidth: index ? 1 : 0, borderTopColor: c.line }}>
+          <View style={{ gap: 3 }}>
+            <T bold size={16}>₹{(withdrawal.amount_paise / 100).toLocaleString("en-IN")}</T>
+            <T size={11} color={c.secondary}>{hostDate(withdrawal.created_at)}</T>
+          </View>
           <Chip title={withdrawal.status === "in_review" ? "Under review" : withdrawal.status === "completed" ? "Paid" : withdrawal.status === "pending" ? "Awaiting review" : withdrawal.status === "processing" ? "Payment in progress" : withdrawal.status === "rejected" ? "Not approved" : withdrawal.status === "failed" ? "Payment failed" : withdrawal.status} />
         </Row>)}
-      </Card>}
+      </View>}
     </Shell>
   );
 }

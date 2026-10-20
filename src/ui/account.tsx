@@ -13,7 +13,12 @@ import {
     setPhoneBlock,
     type PhoneDeletionReason,
 } from "@/data/phone-safety";
-  import { fetchPushPreferences, registerPushDevice, showPushTestNotification, updatePushPreferences } from "@/data/push-notifications";
+import {
+    fetchHostPayoutNotifications,
+    markHostPayoutNotificationRead,
+    type HostPayoutNotification,
+} from "@/data/host-payouts";
+import { fetchPushPreferences, registerPushDevice, showPushTestNotification, updatePushPreferences } from "@/data/push-notifications";
 import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
 import { profileInterests, profileLanguages } from "@/data/profile-options";
 import { createSupportTicket, fetchSupportTickets, replyToSupportTicket, type SupportTicket } from "@/data/support-tickets";
@@ -2128,6 +2133,7 @@ export function Notifications() {
   const d = useDemo();
   const [messages, setMessages] = useState<PhoneMessageNotification[]>([]);
   const [calls, setCalls] = useState<PhoneCallNotification[]>([]);
+  const [payouts, setPayouts] = useState<HostPayoutNotification[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -2136,11 +2142,13 @@ export function Notifications() {
     const load = () => Promise.all([
       fetchPhoneMessageNotifications(auth.demoPhone!),
       fetchPhoneCallNotifications(auth.demoPhone!),
+      fetchHostPayoutNotifications(auth.demoPhone!),
     ])
-      .then(([messageRows, callRows]) => {
+      .then(([messageRows, callRows, payoutRows]) => {
         if (!active) return;
         setMessages(messageRows);
         setCalls(callRows);
+        setPayouts(payoutRows);
       })
       .catch((cause) => {
         if (active) setError(cause instanceof Error ? cause.message : "Unable to load notifications.");
@@ -2192,7 +2200,7 @@ export function Notifications() {
         <Row style={{ justifyContent: "space-between" }}>
           <View style={{ flex: 1, gap: 2 }}>
             <T bold size={14}>Your inbox</T>
-            <T size={11} color={c.secondary}>Messages, call updates, safety updates, and announcements in one place.</T>
+            <T size={11} color={c.secondary}>Messages, call updates, payout updates, safety updates, and announcements in one place.</T>
           </View>
           <Button title="Preferences" variant="secondary" onPress={() => go("/settings/notifications")} />
         </Row>
@@ -2214,9 +2222,50 @@ export function Notifications() {
       {loading ? <LoadingCards count={4} /> : ["Today", "Yesterday", "Earlier"].map((period) => {
         const messageItems = groupedMessages.filter((item) => groupForDate(item.latest.created_at) === period);
         const callItems = calls.filter((call) => groupForDate(call.created_at) === period);
-        if (!messageItems.length && !callItems.length) return null;
+        const payoutItems = payouts.filter((payout) => groupForDate(payout.created_at) === period);
+        if (!messageItems.length && !callItems.length && !payoutItems.length) return null;
         return <View key={period} style={{ gap: 2 }}>
           <Section title={period} />
+          {payoutItems.map((payout) => (
+            <Setting
+              key={`payout-${payout.id}`}
+              title={`${payout.read_at ? "" : "• "}${{
+                pending: "Withdrawal request received",
+                in_review: "Withdrawal under review",
+                processing: "Withdrawal processing",
+                completed: "Withdrawal paid",
+                rejected: "Withdrawal rejected",
+                failed: "Withdrawal failed",
+              }[payout.status]}`}
+              detail={`${{
+                pending: "Your withdrawal request has been received",
+                in_review: "Your withdrawal request is under review",
+                processing: "Your withdrawal is being processed",
+                completed: "Your withdrawal has been paid",
+                rejected: "Your withdrawal request was rejected",
+                failed: "Your withdrawal could not be completed",
+              }[payout.status]} · ₹${(payout.amount_paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${payout.review_note ? ` · ${payout.review_note}` : ""} · ${formatTime(payout.created_at)}`}
+              icon="credit-card"
+              onPress={() => {
+                if (!auth.demoPhone) return;
+                void (async () => {
+                  try {
+                    if (!payout.read_at) {
+                      await markHostPayoutNotificationRead(payout.id, auth.demoPhone!);
+                      await d.refreshUnreadNotificationCount();
+                      setPayouts((current) => current.map((item) =>
+                        item.id === payout.id ? { ...item, read_at: new Date().toISOString() } : item,
+                      ));
+                    }
+                    go("/host/withdraw");
+                  } catch (cause: unknown) {
+                    console.error("Unable to mark payout notification as read:", cause);
+                    setError("Unable to open this payout notification. Please try again.");
+                  }
+                })();
+              }}
+            />
+          ))}
           {messageItems.map((item) => {
             const contact = people.find((person) => person.id === `phone_${item.senderPhone.replace("+", "")}`);
             const name = contact?.name || "New message";
@@ -2249,7 +2298,7 @@ export function Notifications() {
           })}
         </View>;
       })}
-      {!loading && !groupedMessages.length && !calls.length && !announcements.length && (
+      {!loading && !groupedMessages.length && !calls.length && !payouts.length && !announcements.length && (
         <Empty
           title="You’re all caught up"
           message="Messages, missed calls, and announcements will appear here."
