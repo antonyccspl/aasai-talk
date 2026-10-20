@@ -8,6 +8,7 @@ import {
 import { setupAndroidCallUi } from "@/data/android-incoming-calls";
 import { fetchPhoneCallNotifications, markPhoneCallNotificationRead, type PhoneCallNotification } from "@/data/call-sessions";
 import { fetchPhoneMessageNotifications, subscribeToAllPhoneMessages, type PhoneMessageNotification } from "@/data/chat";
+import { clearAllPhoneNotifications, fetchDismissedPhoneAnnouncementIds } from "@/data/phone-notifications";
 import {
     requestPhoneAccountDeletion,
     setPhoneBlock,
@@ -25,7 +26,7 @@ import { createSupportTicket, fetchSupportTickets, replyToSupportTicket, type Su
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
 import { createElement, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Linking, Platform, Pressable, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, TextInput, View } from "react-native";
 import { AuthButton, authColors, AuthField, AuthFrame, AuthText } from "./auth-design";
 import {
     Avatar,
@@ -2134,8 +2135,11 @@ export function Notifications() {
   const [messages, setMessages] = useState<PhoneMessageNotification[]>([]);
   const [calls, setCalls] = useState<PhoneCallNotification[]>([]);
   const [payouts, setPayouts] = useState<HostPayoutNotification[]>([]);
+  const [dismissedAnnouncementIds, setDismissedAnnouncementIds] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [clearing, setClearing] = useState(false);
+  const [clearMessage, setClearMessage] = useState("");
   useEffect(() => {
     if (!auth.demoPhone) return;
     let active = true;
@@ -2143,12 +2147,14 @@ export function Notifications() {
       fetchPhoneMessageNotifications(auth.demoPhone!),
       fetchPhoneCallNotifications(auth.demoPhone!),
       fetchHostPayoutNotifications(auth.demoPhone!),
+      fetchDismissedPhoneAnnouncementIds(auth.demoPhone!),
     ])
-      .then(([messageRows, callRows, payoutRows]) => {
+      .then(([messageRows, callRows, payoutRows, dismissedIds]) => {
         if (!active) return;
         setMessages(messageRows);
         setCalls(callRows);
         setPayouts(payoutRows);
+        setDismissedAnnouncementIds(dismissedIds);
       })
       .catch((cause) => {
         if (active) setError(cause instanceof Error ? cause.message : "Unable to load notifications.");
@@ -2180,7 +2186,30 @@ export function Notifications() {
   const announcements =
     d.prefs.Announcements === false
       ? []
-      : d.announcements.filter((announcement) => announcement.is_active);
+      : d.announcements.filter((announcement) =>
+        announcement.is_active && !dismissedAnnouncementIds.includes(announcement.id),
+      );
+  const hasNotifications = groupedMessages.length > 0 || calls.length > 0 || payouts.length > 0 || announcements.length > 0;
+  const clearNotifications = () => {
+    if (!auth.demoPhone || clearing) return;
+    setClearing(true);
+    setError("");
+    setClearMessage("");
+    void clearAllPhoneNotifications(auth.demoPhone)
+      .then(async (dismissedIds) => {
+        setMessages([]);
+        setCalls([]);
+        setPayouts([]);
+        setDismissedAnnouncementIds(dismissedIds);
+        await d.refreshUnreadNotificationCount();
+        setClearMessage("All notifications have been cleared.");
+      })
+      .catch((cause: unknown) => {
+        console.error("Unable to clear notifications:", cause);
+        setError(cause instanceof Error ? cause.message : "Unable to clear notifications. Please try again.");
+      })
+      .finally(() => setClearing(false));
+  };
   const formatTime = (value: string) => new Date(value).toLocaleDateString([], {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
   });
@@ -2197,15 +2226,31 @@ export function Notifications() {
   return (
     <Shell title="Notifications">
       <Card style={{ padding: 14 }}>
-        <Row style={{ justifyContent: "space-between" }}>
-          <View style={{ flex: 1, gap: 2 }}>
+        <View style={{ gap: 10 }}>
+          <View style={{ gap: 2 }}>
             <T bold size={14}>Your inbox</T>
             <T size={11} color={c.secondary}>Messages, call updates, payout updates, safety updates, and announcements in one place.</T>
           </View>
-          <Button title="Preferences" variant="secondary" onPress={() => go("/settings/notifications")} />
-        </Row>
+          <Row style={{ justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <Button title="Preferences" variant="secondary" onPress={() => go("/settings/notifications")} />
+            <Button
+              title={clearing ? "Clearing…" : "Clear all"}
+              variant="secondary"
+              disabled={loading || clearing || !hasNotifications}
+              onPress={() => Alert.alert(
+                "Clear all notifications?",
+                "This clears your current inbox notifications. It won’t delete chats or affect other users.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Clear all", style: "destructive", onPress: clearNotifications },
+                ],
+              )}
+            />
+          </Row>
+        </View>
       </Card>
       {error ? <Notice error>{error}</Notice> : null}
+      {clearMessage ? <Notice>{clearMessage}</Notice> : null}
       {announcements.length ? (
         <View style={{ gap: 2 }}>
           <Section title="Announcements" />

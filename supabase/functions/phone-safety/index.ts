@@ -104,6 +104,14 @@ Deno.serve(async (request) => {
       const details = typeof body.details === "string" ? body.details.trim() : "";
       if (!deletionReasons.has(reason) || details.length > 2000 || (reason === "Others" && !details))
         return Response.json({ error: "Invalid account-deletion request." }, { status: 400, headers: corsHeaders });
+      const { data: existingRequest, error: existingRequestError } = await admin
+        .from("phone_account_deletion_requests")
+        .select("status,scheduled_for")
+        .eq("phone", identity.phone)
+        .maybeSingle();
+      if (existingRequestError) throw existingRequestError;
+      if (existingRequest && ["pending", "processing"].includes(existingRequest.status))
+        return Response.json({ scheduled_for: existingRequest.scheduled_for }, { headers: corsHeaders });
       const requestedAt = new Date();
       const scheduledFor = new Date(requestedAt.getTime() + 15 * 24 * 60 * 60 * 1000);
       const { error } = await admin.from("phone_account_deletion_requests").upsert({
@@ -113,6 +121,9 @@ Deno.serve(async (request) => {
         status: "pending",
         requested_at: requestedAt.toISOString(),
         scheduled_for: scheduledFor.toISOString(),
+        reviewed_at: null,
+        reviewed_by: null,
+        review_note: null,
       });
       if (error) throw error;
       return Response.json({ scheduled_for: scheduledFor.toISOString() }, { headers: corsHeaders });

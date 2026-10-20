@@ -7,10 +7,10 @@ const headers = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const defaultPages: Record<string, string[]> = {
-  super_admin: ["Overview", "Performance", "Hosts", "Payouts", "Payments", "Users", "Reports", "Support", "Coin packs", "Admin access", "Audit log"],
+  super_admin: ["Overview", "Performance", "Hosts", "Payouts", "Payments", "Users", "Account deletions", "Reports", "Support", "Coin packs", "Admin access", "Audit log"],
   finance_admin: ["Overview", "Payouts", "Payments", "Coin packs"],
   moderator: ["Overview", "Hosts", "Users", "Reports", "Support"],
-  support: ["Overview", "Users", "Support"],
+  support: ["Overview", "Users", "Account deletions", "Support"],
 };
 
 function pageAccessFor(role: string, requested: unknown) {
@@ -569,6 +569,67 @@ Deno.serve(async (request) => {
     if (action === "list_payments") { requireRole(role,["super_admin","finance_admin"]); requirePage(pages,"Payments"); const {data,error}=await admin.from("phone_payment_orders").select("id,phone,coins,amount_paise,currency,provider_order_id,provider_payment_id,status,created_at,captured_at,credited_at").order("created_at",{ascending:false}).limit(150); if(error)throw error; const phones=(data||[]).map((item)=>item.phone); const {data:profiles,error:profileError}=phones.length?await admin.from("phone_profiles").select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at").in("phone",phones):{data:[],error:null}; if(profileError)throw profileError; const byPhone=new Map((profiles||[]).map((profile)=>[profile.phone,profile])); return reply({items:(data||[]).map((item)=>({...item,profile:byPhone.get(item.phone)}))}); }
     if (action === "reconcile_payment") { requireRole(role,["super_admin","finance_admin"]); requirePage(pages,"Payments"); const id=typeof body.id==="string"?body.id:""; if(!id)throw new Error("Choose a payment order."); const {data:before,error:beforeError}=await admin.from("phone_payment_orders").select("status,credited_at,provider_payment_id").eq("id",id).maybeSingle(); if(beforeError||!before)throw beforeError||new Error("Payment order not found."); if(before.status!=="captured")throw new Error("Only a captured payment can be reconciled."); const {data,error}=await admin.rpc("credit_phone_wallet_payment",{input_payment_order_id:id}); if(error)throw error; await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:"payment_reconciled",entity_type:"payment_order",entity_id:id,before_state:before,after_state:data}); return reply({ok:true,result:data}); }
     if (action === "list_users") { requireRole(role,["super_admin","moderator","support"]); requirePage(pages,"Users"); const { data,error }=await admin.from("phone_profiles").select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at").order("created_at",{ascending:false}).limit(150); if(error)throw error; const phones=(data||[]).map((profile)=>profile.phone); const [{data:statuses,error:statusError},{data:applications,error:applicationError},{data:presence,error:presenceError}]=await Promise.all([phones.length?admin.from("phone_user_admin_status").select("phone,status,updated_at,archived_at").in("phone",phones):Promise.resolve({data:[],error:null}),phones.length?admin.from("host_applications").select("phone,status").in("phone",phones):Promise.resolve({data:[],error:null}),phones.length?admin.from("phone_user_presence").select("phone,last_seen_at").in("phone",phones):Promise.resolve({data:[],error:null})]);if(statusError||applicationError||presenceError)throw statusError||applicationError||presenceError;const statusesByPhone=new Map((statuses||[]).map((status)=>[status.phone,status]));const approvedHosts=new Set((applications||[]).filter((application)=>application.status==="approved").map((application)=>application.phone));const presenceByPhone=new Map((presence||[]).map((record)=>[record.phone,record.last_seen_at]));const onlineThreshold=Date.now()-60000;return reply({items:(data||[]).map((profile)=>{const lastSeenAt=presenceByPhone.get(profile.phone)||null;return {...profile,account_status:statusesByPhone.get(profile.phone)?.status||"active",account_status_updated_at:statusesByPhone.get(profile.phone)?.updated_at||null,is_host:approvedHosts.has(profile.phone),last_seen_at:lastSeenAt,is_online:!!lastSeenAt&&Date.parse(lastSeenAt)>=onlineThreshold&&(!statusesByPhone.get(profile.phone)||statusesByPhone.get(profile.phone)?.status==="active")};})}); }
+    if (action === "list_account_deletion_requests") {
+      requireRole(role, ["super_admin", "support"]);
+      requirePage(pages, "Account deletions");
+      const { data: requests, error: requestError } = await admin
+        .from("phone_account_deletion_requests")
+        .select("phone,reason,details,status,requested_at,scheduled_for,reviewed_at,reviewed_by,review_note")
+        .order("requested_at", { ascending: false })
+        .limit(200);
+      if (requestError) throw requestError;
+      const phones = (requests || []).map((item) => item.phone);
+      const { data: profiles, error: profileError } = phones.length
+        ? await admin.from("phone_profiles").select("phone,display_name,username").in("phone", phones)
+        : { data: [], error: null };
+      if (profileError) throw profileError;
+      const profilesByPhone = new Map((profiles || []).map((profile) => [profile.phone, profile]));
+      return reply({
+        items: (requests || []).map((item) => ({
+          ...item,
+          profile: profilesByPhone.get(item.phone) || null,
+        })),
+      });
+    }
+    if (action === "review_account_deletion_request") {
+      requireRole(role, ["super_admin", "support"]);
+      requirePage(pages, "Account deletions");
+      const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+      const status = typeof body.status === "string" ? body.status : "";
+      const note = typeof body.note === "string" ? body.note.trim() : "";
+      if (!/^\+91\d{10}$/.test(phone) || !["processing", "cancelled"].includes(status))
+        throw new Error("Choose a valid account-deletion request and review status.");
+      if (note.length > 2000) throw new Error("Keep the review note under 2,000 characters.");
+      const { data: before, error: beforeError } = await admin
+        .from("phone_account_deletion_requests")
+        .select("phone,reason,details,status,requested_at,scheduled_for")
+        .eq("phone", phone)
+        .maybeSingle();
+      if (beforeError || !before) throw beforeError || new Error("Account-deletion request was not found.");
+      if (before.status === "completed" || before.status === "cancelled")
+        throw new Error("This account-deletion request is already closed.");
+      const reviewedAt = new Date().toISOString();
+      const { error: updateError } = await admin
+        .from("phone_account_deletion_requests")
+        .update({
+          status,
+          reviewed_at: reviewedAt,
+          reviewed_by: user.id,
+          review_note: note || null,
+        })
+        .eq("phone", phone);
+      if (updateError) throw updateError;
+      const { error: auditError } = await admin.from("admin_audit_logs").insert({
+        admin_user_id: user.id,
+        action: "account_deletion_request_reviewed",
+        entity_type: "account_deletion_request",
+        entity_id: phone,
+        before_state: before,
+        after_state: { status, note: note || null },
+      });
+      if (auditError) throw auditError;
+      return reply({ ok: true });
+    }
     if (action === "set_user_status") { requireRole(role,["super_admin","moderator"]); requirePage(pages,"Users"); const phone=typeof body.phone === "string"?body.phone:""; const status=typeof body.status === "string"?body.status:""; if(!phone||!["active","suspended","inactive","archived"].includes(status))throw new Error("Invalid user status."); const {error}=await admin.from("phone_user_admin_status").upsert({phone,status,reason:typeof body.reason === "string"?body.reason:null,updated_by:user.id,updated_at:new Date().toISOString(),archived_at:status==="archived"?new Date().toISOString():null},{onConflict:"phone"});if(error)throw error;await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:"user_status_changed",entity_type:"phone_user",entity_id:phone,after_state:{status}});return reply({ok:true}); }
     if (action === "list_safety") { requireRole(role,["super_admin","moderator"]); requirePage(pages,"Reports"); const {data,error}=await admin.from("safety_reports").select("id,reporter_name,reported_user_id,reported_user_name,reason,details,status,resolution_note,created_at").order("created_at",{ascending:false}).limit(100);if(error)throw error; const ids=(data||[]).map((item)=>item.id); const {data:notes,error:noteError}=ids.length?await admin.from("admin_moderation_notes").select("id,entity_id,note,created_by,created_at").eq("entity_type","safety_report").in("entity_id",ids).order("created_at",{ascending:false}):{data:[],error:null};if(noteError)throw noteError; const notesById=new Map<string,unknown[]>();for(const note of notes||[]){const values=notesById.get(note.entity_id)||[];values.push(note);notesById.set(note.entity_id,values);}return reply({items:(data||[]).map((item)=>({...item,moderation_notes:notesById.get(item.id)||[]}))}); }
     if (action === "list_audit_logs") { requireSuperAdmin(role); requirePage(pages,"Audit log"); const {data,error}=await admin.from("admin_audit_logs").select("id,admin_user_id,action,entity_type,entity_id,before_state,after_state,created_at").order("created_at",{ascending:false}).limit(150);if(error)throw error;return reply({items:data||[]}); }
