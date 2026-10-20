@@ -2,7 +2,10 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { ActivityIndicator, AppState, Platform, Pressable, Text, View } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
-import { supabaseUrl, supabasePublishableKey } from './supabase-config';
+import {
+  supabaseUrl,
+  supabasePublishableKey,
+} from './supabase-config';
 import { DirectoryPerson, fetchDirectoryProfiles } from './directory';
 import {
   Announcement,
@@ -65,12 +68,27 @@ async function rpc(name: string, body: object) {
       body: JSON.stringify(body),
       signal: controller.signal,
     });
-    if (!response.ok)
+    if (!response.ok) {
+      const payload: unknown = await response.json().catch(() => null);
+      const serverMessage =
+        payload &&
+        typeof payload === 'object' &&
+        'message' in payload &&
+        typeof payload.message === 'string'
+          ? payload.message
+          : '';
+      if (
+        name === 'save_demo_workspace' &&
+        response.status === 400 &&
+        /revision|workspace changed/i.test(serverMessage)
+      )
+        throw new Error('Save conflict. Keep this screen open and try again.');
       throw new Error(
-        response.status === 400
-          ? 'Save conflict. Keep this screen open and try again.'
-          : 'Unable to connect. Check your internet connection.'
+        serverMessage
+          ? `Supabase ${name} request failed (${response.status}): ${serverMessage}`
+          : `Supabase ${name} request failed with HTTP ${response.status}.`,
       );
+    }
     return await response.json();
   } finally {
     clearTimeout(timer);
@@ -128,6 +146,10 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
   }, []);
 
   const loadAll = useCallback(async () => {
+    if (!supabaseUrl || !supabasePublishableKey)
+      throw new Error(
+        'Supabase build configuration is missing. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY to the EAS preview environment, then build again.',
+      );
     const token = await workspaceToken(identityKey);
     const [
       ws,
@@ -239,7 +261,7 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
               ? ` ${err.message}`
               : '';
           setError(
-            `Unable to load your data. Check your connection and try again.${detail}`,
+            `Unable to load your app data.${detail}`,
           );
         }
       });

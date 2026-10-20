@@ -81,7 +81,21 @@ export async function fetchDirectoryProfiles(signal?: AbortSignal): Promise<Dire
     body: "{}",
     signal,
   });
-  if (!response.ok) throw new Error('Unable to load people.');
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => null);
+    const serverMessage =
+      payload &&
+      typeof payload === 'object' &&
+      'message' in payload &&
+      typeof payload.message === 'string'
+        ? payload.message
+        : '';
+    throw new Error(
+      serverMessage
+        ? `Supabase directory request failed (${response.status}): ${serverMessage}`
+        : `Supabase directory request failed with HTTP ${response.status}.`,
+    );
+  }
   const rows: unknown = await response.json();
   if (!Array.isArray(rows) || !rows.every((row): row is DirectoryRow =>
     row && typeof row.id === 'string' && typeof row.display_name === 'string' &&

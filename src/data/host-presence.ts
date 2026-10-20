@@ -3,6 +3,10 @@ import { supabasePublishableKey, supabaseUrl } from "./supabase-config";
 export type HostPresenceSettings = {
   acceptingCalls: boolean;
   showLastSeen: boolean;
+  acceptingAudioCalls: boolean;
+  acceptingVideoCalls: boolean;
+  canAcceptAudioCalls: boolean;
+  canAcceptVideoCalls: boolean;
 };
 
 async function requestHostPresence(
@@ -62,11 +66,26 @@ export async function fetchHostPresenceSettings(
   const acceptingCalls =
     settings.accepting_calls ?? settings.acceptingCalls;
   const showLastSeen = settings.show_last_seen ?? settings.showLastSeen;
-  if (typeof acceptingCalls !== "boolean" || typeof showLastSeen !== "boolean")
+  const acceptingAudioCalls = settings.accepting_audio_calls;
+  const acceptingVideoCalls = settings.accepting_video_calls;
+  const canAcceptAudioCalls = settings.audio_capable;
+  const canAcceptVideoCalls = settings.video_capable;
+  if (
+    typeof acceptingCalls !== "boolean" ||
+    typeof showLastSeen !== "boolean" ||
+    typeof acceptingAudioCalls !== "boolean" ||
+    typeof acceptingVideoCalls !== "boolean" ||
+    typeof canAcceptAudioCalls !== "boolean" ||
+    typeof canAcceptVideoCalls !== "boolean"
+  )
     throw new Error("Unable to load your call availability. Please try again.");
   return {
     acceptingCalls,
     showLastSeen,
+    acceptingAudioCalls,
+    acceptingVideoCalls,
+    canAcceptAudioCalls,
+    canAcceptVideoCalls,
   };
 }
 
@@ -100,6 +119,18 @@ export async function setHostCallAvailability(
   await requestHostPresence(idToken, {
     action: "availability",
     accepting_calls: acceptingCalls,
+  });
+}
+
+export async function setHostCallPreference(
+  idToken: string,
+  callType: "audio" | "video",
+  accepting: boolean,
+) {
+  await requestHostPresence(idToken, {
+    action: "call-preference",
+    call_type: callType,
+    accepting,
   });
 }
 

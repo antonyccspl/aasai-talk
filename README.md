@@ -88,6 +88,13 @@ presented by Android Telecom after the Host enables the feature and accepts the
 phone-account prompt. The project must be rebuilt with EAS after native
 CallKeep configuration changes. iOS keeps the existing alert notification
 flow; native iOS call UI is not implemented.
+Hosts can independently accept audio and video calls under Profile > Call
+availability. Those preferences are combined with each Host's approved
+capabilities, reflected in male members' call options, and enforced when a
+call or video upgrade is requested. Apply
+`20261020000100_host_call_acceptance_preferences.sql` and deploy the updated
+`host-presence` function and app together. Existing Hosts default to accepting
+both call types, subject to the types enabled in their approved Host profile.
 When **Show last seen** is enabled, male users can see a Host's relative last
 active time in Favorites and call history; switching it off hides that time.
 
@@ -148,6 +155,12 @@ identifier once the app is published.
    ```bash
    npx eas-cli build --platform android --profile preview
    ```
+
+   A successful EAS build only confirms that the APK compiled; the Supabase
+   settings must also be present in the EAS **preview** environment. If the app
+   cannot load its initial data, check the error details shown below the
+   startup message for an HTTP status or missing RPC rather than assuming the
+   device is offline.
 
 4. Test Firebase phone sign-in, profile/photo permissions, chat, notifications,
    audio/video calls, and Cashfree flows on a real Android device. A successful

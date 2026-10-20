@@ -13,6 +13,7 @@ import {
 } from "@/data/call-sessions";
 import { startCallSound, stopAllCallSounds, stopCallSound } from "@/data/call-sounds";
 import { fetchDirectoryProfiles, formatLastSeen, type DirectoryStatus } from "@/data/directory";
+import { usePhoneHostCallCapabilities } from "@/hooks/use-phone-host-call-capabilities";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { setPhoneBlock, submitPhoneSafetyReport } from "@/data/phone-safety";
 import { sendPushEvent } from "@/data/push-notifications";
@@ -1536,18 +1537,11 @@ export function CallsList() {
                 )}
               </Pressable>
               {!isHost && canCallPerson && (
-                <>
-                  <IconButton
-                    icon="phone"
-                    label={`Audio call ${person.name}`}
-                    onPress={() => go(`/calls/outgoing/${person.id}?type=audio`)}
-                  />
-                  <IconButton
-                    icon="video"
-                    label={`Video call ${person.name}`}
-                    onPress={() => go(`/calls/outgoing/${person.id}?type=video`)}
-                  />
-                </>
+                <CallHistoryActions
+                  key={person.id}
+                  personId={person.id}
+                  personName={person.name}
+                />
               )}
               <IconButton
                 icon="more-vertical"
@@ -1591,6 +1585,39 @@ export function CallsList() {
     </Shell>
   );
 }
+
+function CallHistoryActions({
+  personId,
+  personName,
+}: {
+  personId: string;
+  personName: string;
+}) {
+  const hostPhone = personId.startsWith("phone_")
+    ? `+${personId.slice("phone_".length)}`
+    : "";
+  const capabilities = usePhoneHostCallCapabilities(hostPhone);
+  if (!capabilities || (!capabilities.audio && !capabilities.video)) return null;
+  return (
+    <>
+      {capabilities.audio && (
+        <IconButton
+          icon="phone"
+          label={`Audio call ${personName}`}
+          onPress={() => go(`/calls/outgoing/${personId}?type=audio`)}
+        />
+      )}
+      {capabilities.video && (
+        <IconButton
+          icon="video"
+          label={`Video call ${personName}`}
+          onPress={() => go(`/calls/outgoing/${personId}?type=video`)}
+        />
+      )}
+    </>
+  );
+}
+
 export function CallDetail({
   id,
   result,
@@ -1619,6 +1646,10 @@ export function CallDetail({
   > | null>(null);
   const [summaryError, setSummaryError] = useState("");
   const p = personFor(call.person);
+  const hostPhone = call.person.startsWith("phone_")
+    ? `+${call.person.slice("phone_".length)}`
+    : "";
+  const callCapabilities = usePhoneHostCallCapabilities(hostPhone);
   const sessionId = /^[0-9a-f-]{36}$/.test(call.id) ? call.id : "";
   useEffect(() => {
     if (!sessionId || !auth.demoPhone) return;
@@ -1661,6 +1692,7 @@ export function CallDetail({
   };
   const canCallAgain =
     d.profile.gender === "Male" && d.hostStatus !== "approved" && p.status === "Available";
+  const callAgainType = summary?.call_type ?? call.type;
   if (result && noOneAvailable)
     return (
       <Shell title="Find someone new">
@@ -1719,12 +1751,12 @@ export function CallDetail({
         icon="message-circle"
         onPress={() => go(hostViewer ? "/messages" : `/chat/${p.id}`)}
       />
-      {canCallAgain && (
+      {canCallAgain && callCapabilities?.[callAgainType] === true && (
         <Button
           title="Call again"
           variant="secondary"
           icon="phone"
-          onPress={() => go(`/calls/outgoing/${p.id}?type=${summary?.call_type ?? call.type}`)}
+          onPress={() => go(`/calls/outgoing/${p.id}?type=${callAgainType}`)}
         />
       )}
       {d.paid && !call.incoming && d.balance < 20 && (

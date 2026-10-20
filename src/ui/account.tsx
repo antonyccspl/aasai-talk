@@ -1,8 +1,8 @@
 import { useAuth } from "@/data/auth";
 import {
-    fetchHostCallAvailability,
     fetchHostPresenceSettings,
     setHostCallAvailability,
+    setHostCallPreference,
     setHostLastSeenVisibility,
 } from "@/data/host-presence";
 import { setupAndroidCallUi } from "@/data/android-incoming-calls";
@@ -1049,6 +1049,10 @@ export function Settings({
   const [notificationPreferencesBusy, setNotificationPreferencesBusy] = useState(false);
   const [notificationPreferencesError, setNotificationPreferencesError] = useState("");
   const [callAvailability, setCallAvailability] = useState(false);
+  const [acceptAudioCalls, setAcceptAudioCalls] = useState(true);
+  const [acceptVideoCalls, setAcceptVideoCalls] = useState(true);
+  const [canAcceptAudioCalls, setCanAcceptAudioCalls] = useState(false);
+  const [canAcceptVideoCalls, setCanAcceptVideoCalls] = useState(false);
   const [availabilityLoading, setAvailabilityLoading] = useState(
     mode === "privacy" || mode === "availability",
   );
@@ -1118,16 +1122,15 @@ export function Settings({
     void auth
       .getIdentityToken()
       .then(async (idToken) => {
-        if (mode === "availability") {
-          const acceptingCalls = await fetchHostCallAvailability(idToken);
-          if (active) setCallAvailability(acceptingCalls);
-        } else {
-          const settings = await fetchHostPresenceSettings(idToken);
-          if (!active) return;
-          setCallAvailability(settings.acceptingCalls);
-          setHostShowLastSeen(settings.showLastSeen);
-          setHostPrivacyLoaded(true);
-        }
+        const settings = await fetchHostPresenceSettings(idToken);
+        if (!active) return;
+        setCallAvailability(settings.acceptingCalls);
+        setAcceptAudioCalls(settings.acceptingAudioCalls);
+        setAcceptVideoCalls(settings.acceptingVideoCalls);
+        setCanAcceptAudioCalls(settings.canAcceptAudioCalls);
+        setCanAcceptVideoCalls(settings.canAcceptVideoCalls);
+        setHostShowLastSeen(settings.showLastSeen);
+        setHostPrivacyLoaded(true);
       })
       .catch((error: unknown) => {
         if (mode === "availability")
@@ -1150,6 +1153,30 @@ export function Settings({
       active = false;
     };
   }, [approvedHost, auth.demoPhone, auth.getIdentityToken, mode, availabilityRetry]);
+  const saveHostCallPreference = (
+    callType: "audio" | "video",
+    accepting: boolean,
+  ) => {
+    if (availabilityBusy || availabilityLoading) return;
+    setAvailabilityBusy(true);
+    setAvailabilityError("");
+    void auth
+      .getIdentityToken()
+      .then((idToken) => setHostCallPreference(idToken, callType, accepting))
+      .then(() => {
+        if (callType === "audio") setAcceptAudioCalls(accepting);
+        else setAcceptVideoCalls(accepting);
+      })
+      .catch((error: unknown) => {
+        console.error("Unable to update Host call preferences:", error);
+        setAvailabilityError(
+          error instanceof Error
+            ? error.message
+            : "We could not update your call preference. Please try again.",
+        );
+      })
+      .finally(() => setAvailabilityBusy(false));
+  };
   useEffect(() => {
     if (mode !== "help" || !auth.demoPhone) return;
     let active = true;
@@ -1238,6 +1265,33 @@ export function Settings({
       <Shell title="Call availability">
         <T size={24} bold>Choose when callers can reach you</T>
         <Card style={{ gap: 12 }}>
+          <T bold size={17}>Call types</T>
+          <T size={12} color={c.secondary}>
+            Choose which kinds of calls male members can start with you.
+          </T>
+          {canAcceptAudioCalls ? (
+            <Setting
+              title="Accept audio calls"
+              detail="Show the audio call option on your Host profile."
+              icon="phone"
+              value={acceptAudioCalls}
+              onToggle={(next) => saveHostCallPreference("audio", next)}
+            />
+          ) : (
+            <Notice>Audio calls are not enabled in your approved Host profile.</Notice>
+          )}
+          {canAcceptVideoCalls ? (
+            <Setting
+              title="Accept video calls"
+              detail="Show the video call option on your Host profile."
+              icon="video"
+              value={acceptVideoCalls}
+              onToggle={(next) => saveHostCallPreference("video", next)}
+            />
+          ) : (
+            <Notice>Video calls are not enabled in your approved Host profile.</Notice>
+          )}
+          <Section title="Availability" />
           <T bold size={17}>Accept calls while away</T>
           <Badge
             text={

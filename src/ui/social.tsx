@@ -2,6 +2,7 @@ import { useAuth } from "@/data/auth";
 import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
 import { sendPushEvent } from "@/data/push-notifications";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
+import { usePhoneHostCallCapabilities } from "@/hooks/use-phone-host-call-capabilities";
 import { router, useFocusEffect } from "expo-router";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, TextInput, useWindowDimensions, View } from "react-native";
@@ -711,8 +712,12 @@ function FiltersContent() {
 }
 export function UserProfile({ id }: { id: string }) {
   const d = useDemo();
-  if (d.profile.gender === "Female") return <HostDirectoryUnavailable title="Host dashboard" />;
   const p = personFor(id);
+  const hostPhone = id.startsWith("phone_")
+    ? `+${id.slice("phone_".length)}`
+    : "";
+  const callCapabilities = usePhoneHostCallCapabilities(hostPhone);
+  if (d.profile.gender === "Female") return <HostDirectoryUnavailable title="Host dashboard" />;
   const blocked = d.blocked.includes(id);
   const isApprovedHost = d.hostStatus === "approved";
   return (
@@ -743,21 +748,26 @@ export function UserProfile({ id }: { id: string }) {
       </Card>
       {!blocked && (
         <>
-          {!isApprovedHost && p.status === "Available" && <Row>
-            <Button
+          {!isApprovedHost && p.status === "Available" && callCapabilities &&
+            (callCapabilities.audio || callCapabilities.video) && <Row>
+            {callCapabilities.audio && <Button
               title="Audio call"
               icon="phone"
               style={{ flex: 1 }}
               onPress={() => go(`/calls/outgoing/${id}?type=audio`)}
-            />
-            <Button
+            />}
+            {callCapabilities.video && <Button
               title="Video"
               icon="video"
               variant="secondary"
               style={{ flex: 1 }}
               onPress={() => go(`/calls/outgoing/${id}?type=video`)}
-            />
+            />}
           </Row>}
+          {!isApprovedHost && p.status === "Available" && callCapabilities &&
+            !callCapabilities.audio && !callCapabilities.video && (
+              <Notice>This Host is not accepting calls right now.</Notice>
+            )}
           {!isApprovedHost && p.status !== "Available" && (
             <Notice>
               {p.status === "Busy" ? "This Host is busy on another call." : "This Host is offline."}
@@ -922,6 +932,10 @@ export function Chat({ id }: { id: string }) {
   const { refreshUnreadMessageCount, refreshUnreadNotificationCount, setOpenChatPhone } = d;
   const auth = useAuth();
   const p = personFor(id);
+  const hostPhone = id.startsWith("phone_")
+    ? `+${id.slice("phone_".length)}`
+    : "";
+  const callCapabilities = usePhoneHostCallCapabilities(hostPhone);
   const isApprovedHost = d.hostStatus === "approved";
   const [hostCallerUsername, setHostCallerUsername] = useState("");
   const chatPerson = isApprovedHost
@@ -1050,12 +1064,12 @@ export function Chat({ id }: { id: string }) {
             label="Safety options"
             onPress={() => go(`/report/${id}`)}
           />}
-          {!isApprovedHost && !blocked && <IconButton
+          {!isApprovedHost && !blocked && callCapabilities?.audio === true && <IconButton
             icon="phone"
             label="Audio call"
             onPress={() => go(`/calls/outgoing/${id}?type=audio`)}
           />}
-          {!isApprovedHost && !blocked && <IconButton
+          {!isApprovedHost && !blocked && callCapabilities?.video === true && <IconButton
             icon="video"
             label="Video call"
             onPress={() => go(`/calls/outgoing/${id}?type=video`)}

@@ -3,6 +3,7 @@ import {
     type HostCurrentSlab,
 } from "@/data/host-metrics";
 import { formatLastSeen } from "@/data/directory";
+import { usePhoneHostCallCapabilities } from "@/hooks/use-phone-host-call-capabilities";
 import { Feather, FontAwesome6 } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -699,6 +700,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
   const hostPhone = person.id.startsWith("phone_")
     ? `+${person.id.slice("phone_".length)}`
     : "";
+  const hostCapabilities = usePhoneHostCallCapabilities(hostPhone);
   useEffect(() => {
     if (!hostPhone) return;
     let active = true;
@@ -796,8 +798,9 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
             <T size={10} color="#f1ebff">Last seen {formatLastSeen(person.lastSeenAt)}</T>
           ) : null}
         </Pressable>
-        <View style={{ flexDirection: "row", gap: 7 }}>
-          {(["audio", "video"] as const).map((type) => (
+        {hostCapabilities && (hostCapabilities.audio || hostCapabilities.video) ? (
+          <View style={{ flexDirection: "row", gap: 7 }}>
+          {(["audio", "video"] as const).filter((type) => hostCapabilities[type]).map((type) => (
             <Pressable
               key={type}
               accessibilityRole="button"
@@ -824,7 +827,8 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
               <T size={11} bold color={type === "audio" ? "#fff" : c.mint}>{slabsLoading ? "…" : (type === "audio" ? audioRate : videoRate) === undefined ? "—" : `${type === "audio" ? audioRate : videoRate}/min`}</T>
             </Pressable>
           ))}
-        </View>
+          </View>
+        ) : null}
       </View>
     );
   }
@@ -896,9 +900,10 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
           <Chip key={x} title={x} />
         ))}
       </Row>
-      {effectiveStatus === "Available" ? (
+      {effectiveStatus === "Available" && hostCapabilities &&
+      (hostCapabilities.audio || hostCapabilities.video) ? (
         <Row>
-          <Pressable
+          {hostCapabilities.audio && <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Audio call with ${person.name}, ${audioRate === undefined ? "rate unavailable" : `${audioRate} hearts per minute`}`}
             onPress={() => go(`/calls/outgoing/${person.id}?type=audio`)}
@@ -928,8 +933,8 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
                     : `${audioRate} hearts/min`}
               </T>
             </Row>
-          </Pressable>
-          <Pressable
+          </Pressable>}
+          {hostCapabilities.video && <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Video call with ${person.name}, ${videoRate === undefined ? "rate unavailable" : `${videoRate} hearts per minute`}`}
             onPress={() => go(`/calls/outgoing/${person.id}?type=video`)}
@@ -960,10 +965,12 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
                     : `${videoRate} hearts/min`}
               </T>
             </Row>
-          </Pressable>
+          </Pressable>}
         </Row>
+      ) : effectiveStatus === "Available" && hostCapabilities ? (
+        <Notice>This Host is not accepting calls right now.</Notice>
       ) : (
-        <Row>
+        effectiveStatus !== "Available" ? <Row>
           <View style={[s.button, { flex: 1, backgroundColor: c.high }]}>
             <Icon
               name={effectiveStatus === "Busy" ? "phone-off" : "slash"}
@@ -974,7 +981,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
               {effectiveStatus === "Busy" ? "Busy on another call" : "Offline"}
             </T>
           </View>
-        </Row>
+        </Row> : null
       )}
     </Card>
   );

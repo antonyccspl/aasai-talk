@@ -12,6 +12,15 @@ export type CoinPack = {
   available_until: string | null;
 };
 
+function isValidCoinAmount(value: unknown, allowZero = false): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    (allowZero ? value >= 0 : value > 0) &&
+    Number.isSafeInteger(value * 10)
+  );
+}
+
 export async function fetchCoinPacks(signal?: AbortSignal): Promise<CoinPack[]> {
   const url = supabaseUrl;
   const key = supabasePublishableKey;
@@ -23,9 +32,11 @@ export async function fetchCoinPacks(signal?: AbortSignal): Promise<CoinPack[]> 
   if (!response.ok) throw new Error('Unable to load coin packs. Please try again.');
   const rows: unknown = await response.json();
   if (!Array.isArray(rows) || !rows.every(row =>
-    typeof row.id === 'string' && Number.isSafeInteger(row.coins) && row.coins > 0 &&
+    row && typeof row === 'object' &&
+    typeof row.id === 'string' && isValidCoinAmount(row.coins) &&
     Number.isSafeInteger(row.price_paise) && row.price_paise > 0 &&
-    Number.isSafeInteger(row.bonus_coins) && row.bonus_coins >= 0 &&
+    isValidCoinAmount(row.bonus_coins, true) &&
+    Number.isSafeInteger(row.sort_order) &&
     typeof row.is_special === 'boolean' &&
     (typeof row.special_label === 'string' || row.special_label === null) &&
     (typeof row.available_from === 'string' || row.available_from === null) &&

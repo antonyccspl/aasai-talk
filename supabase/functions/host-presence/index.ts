@@ -89,7 +89,7 @@ Deno.serve(async (request) => {
 
     const { data: host, error: hostError } = await admin
       .from("host_applications")
-      .select("phone")
+      .select("phone,application_profile")
       .eq("phone", identity.phone)
       .eq("status", "approved")
       .maybeSingle();
@@ -100,14 +100,41 @@ Deno.serve(async (request) => {
     if (action === "settings") {
       const { data: settings, error } = await admin
         .from("phone_host_presence")
-        .select("accepting_calls,show_last_seen")
+        .select("accepting_calls,show_last_seen,accepting_audio_calls,accepting_video_calls")
         .eq("host_phone", identity.phone)
         .maybeSingle();
       if (error) throw error;
+      const applicationProfile =
+        host.application_profile &&
+        typeof host.application_profile === "object" &&
+        !Array.isArray(host.application_profile)
+          ? host.application_profile as Record<string, unknown>
+          : {};
       return Response.json({
         accepting_calls: settings?.accepting_calls ?? false,
         show_last_seen: settings?.show_last_seen ?? true,
+        accepting_audio_calls: settings?.accepting_audio_calls ?? true,
+        accepting_video_calls: settings?.accepting_video_calls ?? true,
+        audio_capable:
+          applicationProfile.audio === true || applicationProfile.audio === "true",
+        video_capable:
+          applicationProfile.video === true || applicationProfile.video === "true",
       }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+    }
+
+    if (action === "call-preference") {
+      if (
+        (body.call_type !== "audio" && body.call_type !== "video") ||
+        typeof body.accepting !== "boolean"
+      )
+        return Response.json({ error: "Invalid call preference." }, { status: 400, headers: corsHeaders });
+      const { error } = await admin.rpc("set_phone_host_call_preference", {
+        input_host_phone: identity.phone,
+        input_call_type: body.call_type,
+        input_accepting: body.accepting,
+      });
+      if (error) throw error;
+      return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
     }
 
     if (action === "availability") {
