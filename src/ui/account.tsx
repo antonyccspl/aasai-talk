@@ -77,11 +77,19 @@ function otpErrorMessage(error: unknown) {
       ? error.code.toLowerCase()
       : "";
   const providerError = `${code} ${detail}`.toLowerCase();
-  if (/unauthorized-domain|app-not-authorized|auth\/invalid-tenant-id|firebase web app settings/i.test(providerError)) {
+  if (
+    Platform.OS !== "web" &&
+    /app-not-authorized|invalid-app-credential|missing-app-credential|captcha/i.test(
+      providerError,
+    )
+  ) {
+    return `We couldn't verify this app for phone sign-in. Check your connection and try again. If the problem continues, contact support with code: ${code || "unknown"}.`;
+  }
+  if (/unauthorized-domain|auth\/invalid-tenant-id|firebase web app settings/i.test(providerError)) {
     return "Phone sign-in is not available on this website yet. Please try again later.";
   }
   if (/captcha|invalid-app-credential|missing-app-credential/i.test(providerError)) {
-    return "We could not verify this request. Refresh the page and try again.";
+    return "We couldn't verify this request. Check your connection and refresh the page before trying again.";
   }
   if (/operation-not-allowed|provider.*disabled|phone.*disabled/i.test(providerError)) {
     return "Phone sign-in is not available right now. Please try again later.";
@@ -96,6 +104,17 @@ function otpErrorMessage(error: unknown) {
     return "We could not send the code. Check your connection and try again.";
   }
   return "We could not send a verification code. Please try again.";
+}
+
+function logPhoneVerificationFailure(stage: "send" | "resend", error: unknown) {
+  const code =
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof error.code === "string"
+      ? error.code
+      : "unknown";
+  console.error(`Firebase phone verification ${stage} failed`, { code });
 }
 
 function OnboardingProgress({ step, label }: { step: number; label: string }) {
@@ -543,6 +562,7 @@ export function Auth({ mode }: { mode: string }) {
               void auth
                 .sendOtp(otpPhone)
                 .catch((sendError) => {
+                  logPhoneVerificationFailure("resend", sendError);
                   setError(otpErrorMessage(sendError));
                   setResendSeconds(0);
                 })
@@ -598,6 +618,7 @@ export function Auth({ mode }: { mode: string }) {
                   });
                 })
                 .catch((sendError) => {
+                  logPhoneVerificationFailure("send", sendError);
                   setError(otpErrorMessage(sendError));
                 })
                 .finally(() => setBusy(false));
