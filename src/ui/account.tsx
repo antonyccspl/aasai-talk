@@ -1326,7 +1326,7 @@ export function Settings({
             }
             warning={d.active?.status === "Connected" || d.active?.status === "Ringing"}
           />
-          {Platform.OS === "android" || Platform.OS === "web" ? (
+          {Platform.OS === "android" ? (
             <Setting
               title={availabilityLoading ? "Checking setting…" : "Accept calls while away"}
               detail="Choose whether callers can reach you when you are away from Aasai Talk."
@@ -1368,7 +1368,7 @@ export function Settings({
             />
           ) : (
             <Notice>
-              You can receive calls while using Aasai Talk.
+              Accepting calls while away requires the Android app.
             </Notice>
           )}
           <T color={c.secondary}>Turn this off whenever you do not want to receive calls.</T>
@@ -1386,6 +1386,20 @@ export function Settings({
                   setAvailabilityRetry((retry) => retry + 1);
                 }}
               />
+              {Platform.OS === "android" ? (
+                <Button
+                  title="Open app settings"
+                  variant="secondary"
+                  onPress={() => {
+                    void Linking.openSettings().catch((error: unknown) => {
+                      console.error("Unable to open Android app settings:", error);
+                      setAvailabilityError(
+                        "Unable to open app settings. Open Android Settings and allow notifications for Aasai Talk.",
+                      );
+                    });
+                  }}
+                />
+              ) : null}
             </>
           ) : null}
         </Card>

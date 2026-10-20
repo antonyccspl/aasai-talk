@@ -234,7 +234,7 @@ Deno.serve(async (request) => {
 
     const preferences = await readPreferences(admin, recipientPhone);
     const enabledForAccount = event === "incoming_call"
-      ? preferences.calls
+      ? preferences.calls || presenceAcceptingCalls
       : event === "message"
         ? preferences.messages
         : preferences.wallet;
