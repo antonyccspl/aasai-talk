@@ -46,7 +46,7 @@ function activeSpecialOffers(packs: CoinPack[]) {
 
 function SpecialOfferWelcome() {
   const { authenticated, demoPhone } = useAuth();
-  const { profile, setPack } = useDemo();
+  const { profile, setSelectedCoinPackId } = useDemo();
   const pathname = usePathname();
   const { width } = useWindowDimensions();
   const [offers, setOffers] = useState<CoinPack[]>([]);
@@ -94,7 +94,8 @@ function SpecialOfferWelcome() {
   const dismiss = (openWallet = false) => {
     setVisible(false);
     if (openWallet) {
-      setPack(offers[offerIndex]?.coins ?? offers[0]?.coins ?? 0);
+      const selectedOffer = offers[offerIndex] ?? offers[0];
+      if (selectedOffer) setSelectedCoinPackId(selectedOffer.id);
       router.push("/wallet" as never);
     }
   };

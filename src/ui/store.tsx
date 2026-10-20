@@ -350,7 +350,7 @@ function useDemoState() {
     "transactions",
     [],
   );
-  const [pack, setPack] = useWorkspaceField("pack", 500);
+  const [selectedCoinPackId, setSelectedCoinPackId] = useWorkspaceField("selectedCoinPackId", "");
   const [creditedOrders, setCreditedOrders] = useWorkspaceField<string[]>(
     "creditedOrders",
     [],
@@ -611,8 +611,8 @@ function useDemoState() {
     refreshWalletBalance,
     transactions,
     setTransactions,
-    pack,
-    setPack,
+    selectedCoinPackId,
+    setSelectedCoinPackId,
     creditedOrders,
     setCreditedOrders,
     messages,

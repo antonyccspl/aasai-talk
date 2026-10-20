@@ -178,7 +178,10 @@ export function Wallet({
   });
   const specialCoinPacks = visibleCoinPacks.filter(pack => pack.is_special);
   const regularCoinPacks = visibleCoinPacks.filter(pack => !pack.is_special);
-  const selectedPack = visibleCoinPacks.find(pack => pack.coins === d.pack);
+  const selectedPack = visibleCoinPacks.find(pack => pack.id === d.selectedCoinPackId)
+    ?? regularCoinPacks.find((pack) => pack.coins === 500)
+    ?? regularCoinPacks[0]
+    ?? visibleCoinPacks[0];
   const packPrice = selectedPack ? money(selectedPack.price_paise / 100) : "Price unavailable";
   const [filter, setFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -187,7 +190,7 @@ export function Wallet({
   const compactLayout = width < 390;
   const offerCardWidth = wideLayout ? "23.8%" : "48.5%";
   const renderCoinPack = (pack: CoinPack) => {
-    const selected = d.pack === pack.coins;
+    const selected = selectedPack?.id === pack.id;
     const totalCoins = pack.coins + pack.bonus_coins;
     const isRecommended = pack.is_special && pack.price_paise === 100000;
     const label = isRecommended ? "RECOMMENDED" : pack.is_special ? pack.special_label?.toUpperCase() || "SPECIAL OFFER" : "";
@@ -196,7 +199,7 @@ export function Wallet({
         accessibilityRole="button"
         accessibilityState={{ selected }}
         key={pack.id}
-        onPress={() => d.setPack(pack.coins)}
+        onPress={() => d.setSelectedCoinPackId(pack.id)}
         style={{
           width: offerCardWidth,
           padding: compactLayout ? 9 : 10,
@@ -429,7 +432,7 @@ export function Wallet({
         <Empty
           icon="shield"
           title="Continue with Cashfree"
-          message={`Your selected ${coins(d.pack)} pack costs ${packPrice}. Return to the wallet to continue securely.`}
+          message={`Your selected ${selectedPack ? coins(selectedPack.coins + selectedPack.bonus_coins) : "coin"} pack costs ${packPrice}. Return to the wallet to continue securely.`}
         />
         <Button title="Back to wallet" variant="secondary" onPress={() => go("/wallet")} />
       </Shell>
@@ -443,7 +446,7 @@ export function Wallet({
         <Card>
           <T color={c.secondary}>Coin top-up</T>
           <T size={32} bold>
-            {coins(d.pack)}
+            {selectedPack ? coins(selectedPack.coins + selectedPack.bonus_coins) : "Coin pack unavailable"}
           </T>
           <T color={c.secondary}>{packPrice}</T>
           <Setting
@@ -451,7 +454,7 @@ export function Wallet({
             detail={coins(d.balance)}
             icon="hexagon"
           />
-            <Setting title="Selected pack" detail={coins(d.pack)} icon="plus" />
+          <Setting title="Selected pack" detail={selectedPack ? coins(selectedPack.coins + selectedPack.bonus_coins) : "Unavailable"} icon="plus" />
           <T size={12} color={c.muted}>Your coins are added only after payment is confirmed.</T>
         </Card>
         {!!paymentError && <Notice error>{paymentError}</Notice>}
@@ -564,7 +567,7 @@ export function Wallet({
         10 coins = 1 heart
       </T>
       <Button
-        title={`Buy ${coins(d.pack)}`}
+        title={`Buy ${selectedPack ? coins(selectedPack.coins + selectedPack.bonus_coins) : "coins"}`}
         disabled={catalogLoading || !!catalogError || !selectedPack}
         icon="credit-card"
         onPress={() => go("/wallet/recharge")}
