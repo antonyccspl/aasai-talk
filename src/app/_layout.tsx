@@ -132,10 +132,10 @@ function SpecialOfferWelcome() {
             {offers.map((offer) => (
               <View key={offer.id} style={{ width: cardWidth, borderRadius: 20, backgroundColor: "#fff8ed", padding: compact ? 16 : 18, alignItems: "center", gap: 3 }}>
                 <Text style={{ color: "#ad6e12", fontFamily: "Poppins_800ExtraBold", fontSize: 11, letterSpacing: 0.7 }}>SPECIAL OFFER</Text>
-                <Text style={{ color: colors.text, fontFamily: "Poppins_800ExtraBold", fontSize: compact ? 34 : 38, lineHeight: compact ? 43 : 48 }}>{offer.coins.toLocaleString("en-IN")}</Text>
+                <Text style={{ color: colors.text, fontFamily: "Poppins_800ExtraBold", fontSize: compact ? 34 : 38, lineHeight: compact ? 43 : 48 }}>{(offer.coins + offer.bonus_coins).toLocaleString("en-IN")}</Text>
                 <Text style={{ color: colors.secondary, fontFamily: "Poppins_700Bold", fontSize: 13 }}>coins</Text>
                 <View style={{ marginTop: 5, borderRadius: 999, backgroundColor: "#ffe1a4", paddingHorizontal: 12, paddingVertical: 5 }}>
-                  <Text style={{ color: "#965905", fontFamily: "Poppins_800ExtraBold", fontSize: 12 }}>+{offer.bonus_coins.toLocaleString("en-IN")} bonus coins</Text>
+                  <Text style={{ color: "#965905", fontFamily: "Poppins_800ExtraBold", fontSize: 12 }}>{offer.bonus_coins > 0 ? `includes +${offer.bonus_coins.toLocaleString("en-IN")} bonus coins` : "No bonus coins"}</Text>
                 </View>
                 <Text style={{ color: colors.mint, fontFamily: "Poppins_800ExtraBold", fontSize: 16, marginTop: 4 }}>₹{(offer.price_paise / 100).toLocaleString("en-IN")}</Text>
               </View>
