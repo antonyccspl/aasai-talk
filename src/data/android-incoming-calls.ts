@@ -64,8 +64,8 @@ export async function setupAndroidCallUi() {
   const ready = await CallKeep.setup({
     ios: { appName: "Aasai Talk" },
     android: {
-      alertTitle: "Enable incoming calls",
-      alertDescription: "Aasai Talk needs phone-account access to show incoming calls while the app is away.",
+      alertTitle: "Enable Aasai Talk internet calls",
+      alertDescription: "Add Aasai Talk as a calling account so Android can show app calls while you are away. This does not replace your Phone app or change regular SIM calls.",
       cancelButton: "Not now",
       okButton: "Continue",
       additionalPermissions: [],

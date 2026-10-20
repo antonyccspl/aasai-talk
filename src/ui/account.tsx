@@ -1313,15 +1313,17 @@ export function Settings({
             <Notice>Video calls are not enabled in your approved Host profile.</Notice>
           )}
           <Section title="Availability" />
-          <T bold size={17}>Accept calls while away</T>
+          <T bold size={17}>
+            {Platform.OS === "web" ? "Browser availability" : "Accept calls while away"}
+          </T>
           <Badge
             text={
-              d.active?.status === "Connected" || d.active?.status === "Ringing"
-                ? "On a call"
+                d.active?.status === "Connected" || d.active?.status === "Ringing"
+                  ? "On a call"
                 : callAvailability
                   ? "Available for calls"
-                  : Platform.OS === "web" || Platform.OS === "android"
-                    ? "Not available for calls"
+                  : Platform.OS === "web"
+                    ? "Online while browser is open"
                     : "Available while using the app"
             }
             warning={d.active?.status === "Connected" || d.active?.status === "Ringing"}
@@ -1329,7 +1331,7 @@ export function Settings({
           {Platform.OS === "android" ? (
             <Setting
               title={availabilityLoading ? "Checking setting…" : "Accept calls while away"}
-              detail="Choose whether callers can reach you when you are away from Aasai Talk."
+              detail="Let Android show Aasai Talk internet calls while the app is away. This will not replace your Phone app or affect regular SIM calls."
               icon="phone"
               value={callAvailability}
               onToggle={(next) => {
@@ -1366,12 +1368,23 @@ export function Settings({
                   .finally(() => setAvailabilityBusy(false));
               }}
             />
+          ) : Platform.OS === "web" ? (
+            <Notice>
+              You are available for calls while Aasai Talk is open in this browser. Closing the browser pauses your availability.
+            </Notice>
           ) : (
             <Notice>
               Accepting calls while away requires the Android app.
             </Notice>
           )}
-          <T color={c.secondary}>Turn this off whenever you do not want to receive calls.</T>
+          {Platform.OS === "android" ? (
+            <T size={12} color={c.secondary}>
+              This only enables Aasai Talk internet calls. Your regular phone calls and default Phone app stay unchanged.
+            </T>
+          ) : null}
+          {Platform.OS === "android" ? (
+            <T color={c.secondary}>Turn this off whenever you do not want to receive calls while away.</T>
+          ) : null}
           {availabilityBusy ? <ActivityIndicator color={c.mint} /> : null}
           {availabilityError ? (
             <>
