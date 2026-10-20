@@ -188,6 +188,7 @@ export function Wallet({
   const offerCardWidth = wideLayout ? "23.8%" : "48.5%";
   const renderCoinPack = (pack: CoinPack) => {
     const selected = d.pack === pack.coins;
+    const totalCoins = pack.coins + pack.bonus_coins;
     const isRecommended = pack.is_special && pack.price_paise === 100000;
     const label = isRecommended ? "RECOMMENDED" : pack.is_special ? pack.special_label?.toUpperCase() || "SPECIAL OFFER" : "";
     return (
@@ -218,11 +219,11 @@ export function Wallet({
         </View>
         <CoinStack size={compactLayout ? 25 : 27} />
         <T size={compactLayout ? 16 : 17} bold color={selected ? c.mint : c.text} style={{ textAlign: "center" }}>
-          {pack.coins}
+          {totalCoins}
         </T>
         <T mono size={11} color={c.secondary} style={{ textAlign: "center" }}>coins</T>
         <View style={{ height: 15 }}>
-          {pack.bonus_coins > 0 && <T mono size={10} bold color={c.mint}>+{pack.bonus_coins} bonus</T>}
+          {pack.bonus_coins > 0 && <T mono size={10} bold color={c.mint}>includes +{pack.bonus_coins} bonus</T>}
         </View>
         <T mono size={10} color={c.muted} style={{ textAlign: "center" }}>
           {money(pack.price_paise / 100)}

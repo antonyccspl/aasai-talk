@@ -29,16 +29,19 @@ Deno.serve(async (request) => {
     if (!/^[0-9a-f-]{36}$/i.test(coinPackId)) return reply({ error: "Choose an available coin pack." }, 400);
     const admin = adminClient();
     const { data: pack, error: packError } = await admin.from("coin_packs")
-      .select("id,coins,price_paise,available_from,available_until").eq("id", coinPackId).eq("active", true).maybeSingle();
+      .select("id,coins,bonus_coins,price_paise,available_from,available_until").eq("id", coinPackId).eq("active", true).maybeSingle();
     if (packError || !pack) return reply({ error: "This coin pack is no longer available." }, 409);
     const now = Date.now();
     if ((pack.available_from && Date.parse(pack.available_from) > now) || (pack.available_until && Date.parse(pack.available_until) <= now))
       return reply({ error: "This coin pack is not currently available." }, 409);
+    const totalCoins = Number(pack.coins) + Number(pack.bonus_coins || 0);
+    if (!Number.isSafeInteger(totalCoins) || totalCoins <= 0)
+      throw new Error("This coin pack has an invalid coin amount.");
 
     const providerOrderId = `atcf_${crypto.randomUUID().replace(/-/g, "")}`;
     const checkoutTokenHash = await tokenHash(crypto.randomUUID());
     const { data: order, error: orderError } = await admin.from("phone_payment_orders").insert({
-      phone: identity.phone, coin_pack_id: pack.id, coins: pack.coins, amount_paise: pack.price_paise,
+      phone: identity.phone, coin_pack_id: pack.id, coins: totalCoins, amount_paise: pack.price_paise,
       provider: "cashfree", provider_order_id: providerOrderId, checkout_token_hash: checkoutTokenHash, status: "created",
     }).select("id").single();
     if (orderError || !order) throw orderError || new Error("Could not save the payment order.");
@@ -51,10 +54,10 @@ Deno.serve(async (request) => {
           // destination. It is never supplied by the app client.
           notify_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/cashfree-webhook`,
         },
-        order_note: `Aasai Talk wallet top-up: ${pack.coins} coins`,
+        order_note: `Aasai Talk wallet top-up: ${totalCoins} coins`,
       });
       if (typeof cashfreeOrder.payment_session_id !== "string" || typeof cashfreeOrder.order_id !== "string") throw new Error("Cashfree returned an invalid payment session.");
-      return reply({ order_id: providerOrderId, payment_session_id: cashfreeOrder.payment_session_id, amount_paise: pack.price_paise, coins: pack.coins });
+      return reply({ order_id: providerOrderId, payment_session_id: cashfreeOrder.payment_session_id, amount_paise: pack.price_paise, coins: totalCoins });
     } catch (error) {
       await admin.from("phone_payment_orders").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", order.id);
       throw error;

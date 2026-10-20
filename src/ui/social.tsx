@@ -2,6 +2,7 @@ import { useAuth } from "@/data/auth";
 import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
 import { sendPushEvent } from "@/data/push-notifications";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
+import { profileLanguages } from "@/data/profile-options";
 import { usePhoneHostCallCapabilities } from "@/hooks/use-phone-host-call-capabilities";
 import { router, useFocusEffect } from "expo-router";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
@@ -35,6 +36,7 @@ import { useLanguage } from "./language";
 
 const formatCallTime = formatTalkDuration;
 const formatRupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+const normalizeLanguage = (language: string) => language.trim().toLocaleLowerCase();
 
 function chatDateKey(value: string) {
   const date = new Date(value);
@@ -367,15 +369,20 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
   if (isHostAccount) return <HostDirectoryUnavailable title={searching ? "Search people" : favorites ? "Favorites" : "Host dashboard"} />;
   const preferredLanguages = [...new Set(
     d.profile.languages
-      .map((language) => language.trim().toLocaleLowerCase())
+      .map(normalizeLanguage)
       .filter(Boolean),
   )];
+  const quickLanguageFilters = d.profile.gender === "Male" && preferredLanguages.length > 0
+    ? [...new Set(d.profile.languages.map((language) => language.trim()).filter(Boolean))]
+    : [...profileLanguages];
+  const quickFilters = ["All", "Available", ...quickLanguageFilters];
+  const activeQuickFilter = quickFilters.includes(d.filter) ? d.filter : "All";
   const hasPreferredLanguageMatch =
     d.profile.gender !== "Male" ||
     preferredLanguages.length === 0 ||
     d.people.some((person) =>
       person.languages.some((language) =>
-        preferredLanguages.includes(language.trim().toLocaleLowerCase()),
+        preferredLanguages.includes(normalizeLanguage(language)),
       ),
     );
   const result = d.people.filter(
@@ -384,12 +391,14 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
       (d.profile.gender !== "Male" ||
         preferredLanguages.length === 0 ||
         p.languages.some((language) =>
-          preferredLanguages.includes(language.trim().toLocaleLowerCase()),
+          preferredLanguages.includes(normalizeLanguage(language)),
         )) &&
       (!favorites || d.favorites.includes(p.id)) &&
       (d.facets.availability === "All" || p.status === d.facets.availability) &&
       (d.facets.language === "All" ||
-        p.languages.includes(d.facets.language)) &&
+        p.languages.some((language) =>
+          normalizeLanguage(language) === normalizeLanguage(d.facets.language),
+        )) &&
       (d.facets.gender === "All" || p.gender === d.facets.gender) &&
       (d.facets.interest === "All" ||
         p.interests.some((x) =>
@@ -398,12 +407,13 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
       (!d.facets.minAge || p.age >= Number(d.facets.minAge)) &&
       (!d.facets.maxAge || p.age <= Number(d.facets.maxAge)) &&
       (!d.paid || !d.facets.maxPrice || Number(d.facets.maxPrice) >= 5) &&
-      (d.filter === "All" ||
-        p.status === d.filter ||
-        p.languages.includes(d.filter) ||
-        p.interests.some((x) =>
-          x.toLowerCase().includes(d.filter.toLowerCase()),
-        )) &&
+      (mode !== "explore" ||
+        activeQuickFilter === "All" ||
+        (activeQuickFilter === "Available"
+          ? p.status === "Available"
+          : p.languages.some(
+              (language) => normalizeLanguage(language) === normalizeLanguage(activeQuickFilter),
+            ))) &&
       (!searching ||
         `${p.name} ${p.bio} ${p.city}`
           .toLowerCase()
@@ -510,7 +520,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
           Hosts speaking {d.profile.languages.join(", ")}
         </T>
       )}
-      {mode === "explore" && <Chips compact items={["All", "Available", "Hindi", "Tamil", "English"]} selected={d.filter} onChange={d.setFilter} />}
+      {mode === "explore" && <Chips compact items={quickFilters} selected={activeQuickFilter} onChange={d.setFilter} />}
       {directoryLoading ? <LoadingCards count={mode === "explore" ? 4 : 3} /> : mode === "explore" ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: result.length === 1 ? "center" : "flex-start", gap: 14 }}>
           {result.map((p, index) => (
