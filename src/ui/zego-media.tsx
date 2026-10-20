@@ -29,6 +29,7 @@ type Props = {
   onStatus?: (status: string) => void;
   onNetworkQuality?: (quality: CallNetworkQuality) => void;
   onError?: (message: string) => void;
+  onCameraSwitchError?: (requestedFront: boolean, error: unknown) => void;
   onSafetyViolation?: (resumeScanning: () => void) => void;
 };
 
@@ -54,6 +55,7 @@ export function ZegoMedia({
   onStatus,
   onNetworkQuality,
   onError,
+  onCameraSwitchError,
   onSafetyViolation,
 }: Props) {
   const authContext = useAuth();
@@ -68,8 +70,20 @@ export function ZegoMedia({
   const audioRouteQueue = useRef(Promise.resolve());
   const [remoteStream, setRemoteStream] = useState(false);
   const [textureView, setTextureView] = useState<React.ComponentType | null>(null);
-  const callbacks = useRef({ onStatus, onNetworkQuality, onError, onSafetyViolation });
-  callbacks.current = { onStatus, onNetworkQuality, onError, onSafetyViolation };
+  const callbacks = useRef({
+    onStatus,
+    onNetworkQuality,
+    onError,
+    onCameraSwitchError,
+    onSafetyViolation,
+  });
+  callbacks.current = {
+    onStatus,
+    onNetworkQuality,
+    onError,
+    onCameraSwitchError,
+    onSafetyViolation,
+  };
   const controls = useRef({ muted, camera, front, speaker });
   controls.current = { muted, camera, front, speaker };
 
@@ -347,7 +361,11 @@ export function ZegoMedia({
 
   useEffect(() => {
     const engine = engineRef.current;
-    if (engine && video) void engine.useFrontCamera(front, undefined);
+    if (!engine || !video) return;
+    void engine.useFrontCamera(front, undefined).catch((error) => {
+      console.warn("[RTC] unable to switch camera", error);
+      callbacks.current.onCameraSwitchError?.(front, error);
+    });
   }, [front, video]);
 
   if (Platform.OS === "web") return null;
@@ -384,7 +402,7 @@ export function ZegoMedia({
 const styles = StyleSheet.create({
   media: { ...StyleSheet.absoluteFill },
   localFrame: {
-    position: "absolute", top: 14, right: 14, width: 94, height: 132, zIndex: 2,
+    position: "absolute", top: 140, right: 14, width: 94, height: 132, zIndex: 2,
     borderRadius: 16, borderWidth: 2, borderColor: "rgba(255,255,255,0.82)", overflow: "hidden",
     backgroundColor: "#111714",
   },

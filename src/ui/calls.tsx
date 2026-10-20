@@ -222,6 +222,7 @@ function CallScreenContent({
   const [mediaRetryKey, setMediaRetryKey] = useState(0);
   const [networkQuality, setNetworkQuality] = useState<CallNetworkQuality>("unknown");
   const [showVideoSafetyReminder, setShowVideoSafetyReminder] = useState(true);
+  const [cameraSwitchError, setCameraSwitchError] = useState("");
   const resumeSafetyScanRef = useRef<(() => void) | null>(null);
   const connectingRef = useRef(false);
   const actionRef = useRef(false);
@@ -315,6 +316,14 @@ function CallScreenContent({
     },
     [activePhone, setActiveCall, incomingCall, mediaSessionId],
   );
+  const onCameraSwitchError = useCallback((requestedFront: boolean) => {
+    setFront((current) =>
+      current === requestedFront ? !requestedFront : current,
+    );
+    setCameraSwitchError(
+      "Could not switch cameras. Check camera permissions and try again.",
+    );
+  }, []);
   function onMediaSafetyViolation(resumeScanning: () => void) {
     if (policyEndingRef.current || closedRef.current) return;
     policyEndingRef.current = true;
@@ -967,10 +976,15 @@ function CallScreenContent({
               />
               {fullscreenVideo && (
                 <IconButton
-                  label="Switch camera"
+                  label={
+                    front ? "Switch to back camera" : "Switch to front camera"
+                  }
                   icon="refresh-cw"
                   tone="dark"
-                  onPress={() => setFront((current) => !current)}
+                  onPress={() => {
+                    setCameraSwitchError("");
+                    setFront((current) => !current);
+                  }}
                 />
               )}
               <IconButton
@@ -1174,6 +1188,7 @@ function CallScreenContent({
                 onStatus={onMediaStatus}
                 onNetworkQuality={onMediaNetworkQuality}
                 onError={onMediaError}
+                onCameraSwitchError={onCameraSwitchError}
                 onSafetyViolation={onMediaSafetyViolation}
                 videoPlaceholder={
                   <View
@@ -1389,6 +1404,28 @@ function CallScreenContent({
                 >
                   <T size={13} color="#ffffff" style={{ textAlign: "center" }}>
                     {callError || safetyConfirmation}
+                  </T>
+                </View>
+              )}
+              {!!cameraSwitchError && (
+                <View
+                  accessibilityLiveRegion="polite"
+                  style={{
+                    position: "absolute",
+                    zIndex: 3,
+                    top: 280,
+                    right: 18,
+                    maxWidth: 250,
+                    paddingHorizontal: 12,
+                    paddingVertical: 9,
+                    borderRadius: 14,
+                    backgroundColor: "rgba(8,13,16,0.82)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,120,140,0.6)",
+                  }}
+                >
+                  <T size={11} color="#ffffff" style={{ textAlign: "center" }}>
+                    {cameraSwitchError}
                   </T>
                 </View>
               )}

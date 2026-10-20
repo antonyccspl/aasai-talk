@@ -17,6 +17,7 @@ type Props = {
   onStatus?: (status: string) => void;
   onNetworkQuality?: (quality: CallNetworkQuality) => void;
   onError?: (message: string) => void;
+  onCameraSwitchError?: (requestedFront: boolean, error: unknown) => void;
   onSafetyViolation?: (resumeScanning: () => void) => void;
 };
 
@@ -34,6 +35,7 @@ export function ZegoMedia({
   onStatus,
   onNetworkQuality,
   onError,
+  onCameraSwitchError,
   onSafetyViolation,
 }: Props) {
   const authContext = useAuth();
@@ -51,8 +53,20 @@ export function ZegoMedia({
   const [audioPlaybackConfirmed, setAudioPlaybackConfirmed] = useState(false);
   const controlsRef = useRef({ muted, camera, front, speaker });
   controlsRef.current = { muted, camera, front, speaker };
-  const callbacksRef = useRef({ onStatus, onNetworkQuality, onError, onSafetyViolation });
-  callbacksRef.current = { onStatus, onNetworkQuality, onError, onSafetyViolation };
+  const callbacksRef = useRef({
+    onStatus,
+    onNetworkQuality,
+    onError,
+    onCameraSwitchError,
+    onSafetyViolation,
+  });
+  callbacksRef.current = {
+    onStatus,
+    onNetworkQuality,
+    onError,
+    onCameraSwitchError,
+    onSafetyViolation,
+  };
 
   useEffect(() => {
     let disposed = false;
@@ -311,10 +325,15 @@ export function ZegoMedia({
 
   useEffect(() => {
     const track = localStreamRef.current?.getVideoTracks()[0];
-    if (track)
-      void track.applyConstraints({
-        facingMode: front ? "user" : "environment",
-      }).catch(() => undefined);
+    if (!track) return;
+    void track
+      .applyConstraints({
+        facingMode: { exact: front ? "user" : "environment" },
+      })
+      .catch((error) => {
+        console.warn("[RTC] unable to switch browser camera", error);
+        callbacksRef.current.onCameraSwitchError?.(front, error);
+      });
   }, [front]);
 
   // Browsers deliberately restrict changing output hardware from a web page.
@@ -372,7 +391,7 @@ export function ZegoMedia({
             autoPlay
             playsInline
             muted
-            style={{ position: "absolute", top: 12, right: 12, width: 96, height: 128, objectFit: "cover", borderRadius: 14, backgroundColor: "#26352f" }}
+            style={{ position: "absolute", top: 140, right: 12, width: 96, height: 128, objectFit: "cover", borderRadius: 14, backgroundColor: "#26352f" }}
           />
         </>
       ) : (

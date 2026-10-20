@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLanguage } from "./language";
 import { colors as c } from "./theme";
 
-export const authColors = { background: c.background, ink: c.text, muted: c.secondary, line: c.line, brand: c.mint };
+export const authColors = { background: c.background, low: c.low, ink: c.text, muted: c.secondary, line: c.line, brand: c.mint };
 const FontReady = createContext(false);
 export function AuthText({ children, size = 14, bold = false, color = authColors.ink }: { children: React.ReactNode; size?: number; bold?: boolean; color?: string }) {
   const ready = useContext(FontReady);
@@ -24,14 +24,15 @@ export function AuthButton({ title, onPress, disabled, loading, variant }: { tit
   </Pressable>;
 }
 
-export function AuthField({ value, onChange, error }: { label?: string; value: string; onChange: (value: string) => void; error?: string; numeric?: boolean; placeholder?: string }) {
+export function AuthField({ label, value, onChange, error, placeholder }: { label?: string; value: string; onChange: (value: string) => void; error?: string; numeric?: boolean; placeholder?: string }) {
   const [focused, setFocused] = useState(false);
   const ready = useContext(FontReady);
   const { translate, usesIndicScript } = useLanguage();
-  return <View>
-    <View style={[styles.field, { borderColor: focused || error ? authColors.brand : authColors.line }]}>
-      <View style={styles.country}><AuthText size={16} bold>🇮🇳 +91</AuthText></View>
-      <TextInput accessibilityLabel={translate("Mobile number")} value={value} onChangeText={onChange} keyboardType="phone-pad" autoComplete="tel-national" maxLength={10} placeholder={translate("Enter mobile number")} placeholderTextColor="#96908b" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={[{ flex: 1, minWidth: 0, height: "100%", padding: 0, color: authColors.ink, fontSize: 16, textAlignVertical: "center", includeFontPadding: false, fontFamily: usesIndicScript ? undefined : ready ? "Figtree_600SemiBold" : undefined }, Platform.OS === "web" ? ({ outlineStyle: "none", outlineWidth: 0, outlineColor: "transparent" } as never) : undefined]} />
+  return <View style={styles.fieldGroup}>
+    {!!label && <AuthText size={13} bold color={authColors.muted}>{label}</AuthText>}
+    <View style={[styles.field, { borderColor: focused || error ? authColors.brand : authColors.line, backgroundColor: focused ? "#fff" : authColors.background }]}>
+      <View style={styles.country}><Text style={{ fontSize: 19 }}>🇮🇳</Text><AuthText size={15} bold>+91</AuthText></View>
+      <TextInput accessibilityLabel={translate("Mobile number")} value={value} onChangeText={onChange} keyboardType="phone-pad" autoComplete="tel-national" maxLength={10} placeholder={translate(placeholder || "Enter mobile number")} placeholderTextColor="#96908b" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={[{ flex: 1, minWidth: 0, height: "100%", padding: 0, color: authColors.ink, fontSize: 16, textAlignVertical: "center", includeFontPadding: false, fontFamily: usesIndicScript ? undefined : ready ? "Figtree_600SemiBold" : undefined }, Platform.OS === "web" ? ({ outlineStyle: "none", outlineWidth: 0, outlineColor: "transparent" } as never) : undefined]} />
       {value.length === 10 && <View style={styles.check}><AuthText bold color="#fff">✓</AuthText></View>}
     </View>
     {!!error && <View accessibilityRole="alert" style={{ marginTop: 8 }}><AuthText size={12} color={authColors.brand}>{error}</AuthText></View>}
@@ -80,10 +81,11 @@ const styles = StyleSheet.create({
   avatar: { position: "absolute", borderRadius: 99, borderWidth: 3, borderColor: "#ffffffeb", alignItems: "center", justifyContent: "center", overflow: "hidden", elevation: 5 },
   pill: { position: "absolute", bottom: -5, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingVertical: 7, paddingHorizontal: 12, borderRadius: 99, elevation: 5 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#3ecf8e" },
-  card: { marginHorizontal: 22, borderTopWidth: 1, borderColor: authColors.line, paddingHorizontal: 0, paddingTop: 22, paddingBottom: 16, gap: 10, shadowColor: "#281a21", shadowOpacity: 0.04, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
-  compactCard: { marginHorizontal: 16, paddingTop: 16, paddingBottom: 12, gap: 9 },
-  field: { flexDirection: "row", alignItems: "center", height: 54, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, gap: 10, backgroundColor: "transparent" },
-  country: { flexShrink: 0, alignItems: "center", justifyContent: "center", paddingRight: 10, borderRightWidth: 1.5, borderColor: authColors.line },
+  card: { marginHorizontal: 22, borderWidth: 1, borderColor: authColors.line, borderRadius: 20, backgroundColor: authColors.low, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 16, gap: 12, shadowColor: "#281a21", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
+  compactCard: { marginHorizontal: 16, paddingHorizontal: 14, paddingTop: 15, paddingBottom: 12, gap: 10 },
+  fieldGroup: { gap: 7 },
+  field: { flexDirection: "row", alignItems: "center", height: 58, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 12, gap: 12 },
+  country: { minWidth: 76, height: 30, flexShrink: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingRight: 12, borderRightWidth: 1, borderColor: authColors.line },
   check: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#3ecf8e", alignItems: "center", justifyContent: "center" },
   button: { minHeight: 52, borderRadius: 14, backgroundColor: authColors.brand, alignItems: "center", justifyContent: "center", padding: 12, shadowColor: "#48243f", shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
   secondary: { minHeight: 44, backgroundColor: "#fff", borderWidth: 1.5, borderColor: authColors.line, shadowColor: "#281a21", shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
