@@ -418,7 +418,7 @@ export function subscribeToIncomingCalls(
   onCall: (call: {
     id: string;
     caller_phone: string;
-    caller_username?: string;
+    caller_name?: string;
     call_type: CallType;
     room_id: string;
   }) => void,
@@ -433,7 +433,7 @@ export function subscribeToIncomingCalls(
       typeof row.id !== "string" ||
       row.id === lastCallId ||
       typeof row.caller_phone !== "string" ||
-      (row.caller_username !== undefined && typeof row.caller_username !== "string") ||
+      (row.caller_name !== undefined && typeof row.caller_name !== "string") ||
       typeof row.room_id !== "string" ||
       (row.call_type !== "audio" && row.call_type !== "video")
     )
@@ -442,7 +442,7 @@ export function subscribeToIncomingCalls(
     onCall({
       id: row.id,
       caller_phone: row.caller_phone,
-      ...(typeof row.caller_username === "string" ? { caller_username: row.caller_username } : {}),
+      ...(typeof row.caller_name === "string" ? { caller_name: row.caller_name } : {}),
       call_type: row.call_type,
       room_id: row.room_id,
     });

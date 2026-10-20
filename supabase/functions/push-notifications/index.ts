@@ -170,9 +170,13 @@ Deno.serve(async (request) => {
         .maybeSingle();
       if (presenceError) throw presenceError;
       presenceAcceptingCalls = presence?.accepting_calls === true;
-      const { data: caller } = await admin.from("phone_profiles").select("username")
+      const { data: caller } = await admin.from("phone_profiles").select("display_name,username")
         .eq("phone", identity.phone).maybeSingle();
-      const callerName = typeof caller?.username === "string" && caller.username ? `@${caller.username}` : "A caller";
+      const callerName = typeof caller?.display_name === "string" && caller.display_name.trim()
+        ? caller.display_name.trim()
+        : typeof caller?.username === "string" && caller.username
+          ? `@${caller.username}`
+          : "Aasai Talk member";
       title = "Incoming call";
       message = `${callerName} is calling you.`;
       channelId = "calls";

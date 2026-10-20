@@ -20,9 +20,9 @@ import { colors as c } from "./theme";
 
 export function Welcome() {
   const inset = useSafeAreaInsets();
-  const { width: viewportWidth } = useWindowDimensions();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const wideWeb = Platform.OS === "web" && viewportWidth >= 900;
-  const compact = viewportWidth < 380;
+  const compact = viewportWidth < 380 || viewportHeight - inset.top - inset.bottom < 760;
   const [policiesAccepted, setPoliciesAccepted] = useState(false);
   const features: [IconName, string, string][] = [
     ["mic", "Talk instantly", "Audio and video"],
@@ -57,7 +57,7 @@ export function Welcome() {
             backgroundColor: c.mint,
             paddingTop: wideWeb ? 40 : inset.top + 18,
             paddingHorizontal: wideWeb ? 42 : compact ? 18 : 22,
-            paddingBottom: wideWeb ? 40 : 48,
+            paddingBottom: wideWeb ? 40 : compact ? 32 : 48,
             borderRadius: wideWeb ? 34 : undefined,
             borderBottomLeftRadius: 34,
             borderBottomRightRadius: 34,
@@ -122,8 +122,8 @@ export function Welcome() {
           </View>
           <View
             style={{
-              marginTop: wideWeb ? 22 : 16,
-              marginBottom: 12,
+              marginTop: wideWeb ? 22 : compact ? 10 : 16,
+              marginBottom: compact ? 8 : 12,
               padding: 4,
               borderRadius: 28,
               backgroundColor: "#ffffff55",

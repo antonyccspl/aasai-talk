@@ -146,21 +146,26 @@ function CallScreenContent({
   const d = useDemo();
   const auth = useAuth();
   const { height: viewportHeight } = useWindowDimensions();
-  const p = people.find((person) => person.id === id) ?? {
-    id,
-    name: mode === "incoming" && participantName
-      ? `@${participantName.replace(/^@/, "")}`
-      : "Caller",
-    status: "Available" as const,
-    photo: undefined,
-    color: c.mint,
-    age: 0,
-    gender: "",
-    city: "",
-    languages: [],
-    interests: [],
-    bio: "",
-  };
+  const directoryPerson = people.find((person) => person.id === id);
+  const p = directoryPerson
+    ? mode === "incoming" && participantName
+      ? { ...directoryPerson, name: participantName }
+      : directoryPerson
+    : {
+        id,
+        name: mode === "incoming" && participantName
+          ? participantName
+          : "Aasai Talk member",
+        status: "Available" as const,
+        photo: undefined,
+        color: c.mint,
+        age: 0,
+        gender: "",
+        city: "",
+        languages: [],
+        interests: [],
+        bio: "",
+      };
   const requestedVideo = mode === "video" || type === "video";
   const activeForThisCall =
     d.active?.person === id && (!sessionId || d.active.id === sessionId);

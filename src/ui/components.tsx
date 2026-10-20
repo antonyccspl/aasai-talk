@@ -250,7 +250,7 @@ export function IconButton({
         },
       ]}
     >
-      <Icon name={icon} color={danger ? c.danger : active ? c.ink : c.text} />
+      <Icon name={icon} color={danger ? c.danger : active ? c.mint : c.text} />
     </Pressable>
   );
 }

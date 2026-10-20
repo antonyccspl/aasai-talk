@@ -48,8 +48,9 @@ export function ZegoMedia({
   const roomIdRef = useRef("");
   const [remoteStream, setRemoteStream] = useState(false);
   const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
-  const controlsRef = useRef({ muted, camera, front });
-  controlsRef.current = { muted, camera, front };
+  const [audioPlaybackConfirmed, setAudioPlaybackConfirmed] = useState(false);
+  const controlsRef = useRef({ muted, camera, front, speaker });
+  controlsRef.current = { muted, camera, front, speaker };
   const callbacksRef = useRef({ onStatus, onNetworkQuality, onError, onSafetyViolation });
   callbacksRef.current = { onStatus, onNetworkQuality, onError, onSafetyViolation };
 
@@ -89,7 +90,13 @@ export function ZegoMedia({
         remoteStreamIdRef.current = streamId;
         const element = video ? remoteVideoRef.current : remoteAudioRef.current;
         if (!element) throw new Error("The remote media element is unavailable.");
+        if (!video) setAudioPlaybackConfirmed(false);
+        stream.getAudioTracks().forEach((track) => {
+          track.enabled = true;
+        });
         element.srcObject = stream;
+        element.muted = !controlsRef.current.speaker;
+        element.volume = 1;
         try {
           await element.play();
           setAudioPlaybackBlocked(false);
@@ -328,19 +335,30 @@ export function ZegoMedia({
       .catch(() => setAudioPlaybackBlocked(true));
   }, [remoteStream, speaker, video]);
 
-  const enableRemoteAudio = () => {
+  const enableRemoteAudio = async () => {
     const element = video ? remoteVideoRef.current : remoteAudioRef.current;
     if (!element) return;
+    const stream = element.srcObject;
+    if (stream instanceof MediaStream)
+      stream.getAudioTracks().forEach((track) => {
+        track.enabled = true;
+      });
     element.muted = false;
-    void element.play().then(() => setAudioPlaybackBlocked(false)).catch(() => {
-      callbacksRef.current.onError?.("Sound needs permission before this call can continue.");
-    });
+    element.volume = 1;
+    try {
+      await element.play();
+      setAudioPlaybackBlocked(false);
+      setAudioPlaybackConfirmed(true);
+    } catch {
+      setAudioPlaybackBlocked(true);
+      setAudioPlaybackConfirmed(false);
+    }
   };
 
   return (
     <View style={video
       ? { width: "100%", height: "100%", minHeight: 220, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: "#14201c", overflow: "hidden" }
-      : { width: "100%", height: audioPlaybackBlocked ? 64 : 1, minHeight: audioPlaybackBlocked ? 64 : 1, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", overflow: "visible" }}>
+      : { width: "100%", height: audioPlaybackBlocked || (remoteStream && !audioPlaybackConfirmed) ? 64 : 1, minHeight: audioPlaybackBlocked || (remoteStream && !audioPlaybackConfirmed) ? 64 : 1, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: "transparent", overflow: "visible" }}>
       {video ? (
         <>
           <video
@@ -365,9 +383,11 @@ export function ZegoMedia({
           {videoPlaceholder}
         </View>
       ) : null}
-      {audioPlaybackBlocked ? (
-        <Pressable accessibilityRole="button" onPress={enableRemoteAudio} style={{ position: "absolute", bottom: 12, alignSelf: "center", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 22, backgroundColor: "#fff" }}>
-          <Text style={{ color: "#14201c", fontWeight: "600" }}>Tap to enable call audio</Text>
+      {audioPlaybackBlocked || (remoteStream && !audioPlaybackConfirmed) ? (
+        <Pressable accessibilityRole="button" onPress={() => void enableRemoteAudio()} style={{ position: "absolute", bottom: 12, alignSelf: "center", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 22, backgroundColor: "#fff" }}>
+          <Text style={{ color: "#14201c", fontWeight: "600" }}>
+            {audioPlaybackBlocked ? "Tap to enable call audio" : "Can't hear? Tap for audio"}
+          </Text>
         </Pressable>
       ) : null}
     </View>

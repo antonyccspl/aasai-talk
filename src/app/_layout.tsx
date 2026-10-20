@@ -1,36 +1,36 @@
+import {
+  endAndroidCallUi,
+  handleAndroidCallAnswer,
+  handleAndroidCallEnd,
+  listenForAndroidCallActions,
+} from "@/data/android-incoming-calls";
 import { AuthProvider, useAuth } from "@/data/auth";
 import {
-    chargePhoneCallMinute,
-    settlePhoneCall,
-    subscribeToIncomingCalls,
-    subscribeToPhoneCallState,
-    updatePhoneCall,
+  chargePhoneCallMinute,
+  settlePhoneCall,
+  subscribeToIncomingCalls,
+  subscribeToPhoneCallState,
+  updatePhoneCall,
 } from "@/data/call-sessions";
 import { startCallSound, stopCallSound } from "@/data/call-sounds";
+import { CoinPack, fetchCoinPacks } from "@/data/coin-packs";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import {
-    sendPresenceHeartbeat,
+  sendPresenceHeartbeat,
 } from "@/data/host-presence";
-import {
-    handleAndroidCallAnswer,
-    handleAndroidCallEnd,
-    listenForAndroidCallActions,
-    endAndroidCallUi,
-} from "@/data/android-incoming-calls";
+import { sendPushEvent } from "@/data/push-notifications";
 import { SampleWorkspaceProvider } from "@/data/sample-workspace";
 import { fetchPhoneWalletBalance } from "@/data/wallet";
-import { sendPushEvent } from "@/data/push-notifications";
-import { CoinPack, fetchCoinPacks } from "@/data/coin-packs";
-import { DemoProvider, people, useDemo } from "@/ui/store";
 import { LanguageProvider } from "@/ui/language";
-import { ActivityIndicator, Animated, AppState, Modal, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
-import type { NotificationResponse } from "expo-notifications";
+import { DemoProvider, people, useDemo } from "@/ui/store";
 import { colors } from "@/ui/theme";
 import { Figtree_400Regular, Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold, useFonts } from "@expo-google-fonts/figtree";
 import { Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold } from "@expo-google-fonts/poppins";
-import { Stack, router, usePathname } from "expo-router";
+import type { NotificationResponse } from "expo-notifications";
+import { router, Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Animated, AppState, Modal, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 
 const phoneCallId = (value: string) => /^[0-9a-f-]{36}$/.test(value);
 
@@ -514,6 +514,7 @@ function PresenceLifecycle() {
 function AppNavigator() {
   const { demoPhone, loading, authenticated } = useAuth();
   const { identityLoading, hostStatus, profile } = useDemo();
+  const pathname = usePathname();
   const incomingSessionRef = useRef("");
   const incomingSoundKeyRef = useRef("");
   const stopIncomingStatusRef = useRef<(() => void) | null>(null);
@@ -591,7 +592,7 @@ function AppNavigator() {
       });
       stopIncomingStatusRef.current = stopWatching;
       router.replace(
-        `/calls/incoming/phone_${call.caller_phone.replace(/^\+/, "")}?type=${call.call_type}&session=${call.id}&name=${encodeURIComponent(call.caller_username || "Caller")}` as never,
+        `/calls/incoming/phone_${call.caller_phone.replace(/^\+/, "")}?type=${call.call_type}&session=${call.id}&name=${encodeURIComponent(call.caller_name || "Aasai Talk member")}` as never,
       );
     });
     return () => {
@@ -623,7 +624,15 @@ function AppNavigator() {
   }
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <StatusBar style="dark" />
+      <StatusBar
+        style={
+          pathname === "/auth/splash" ||
+          pathname === "/auth/login" ||
+          pathname === "/auth/otp"
+            ? "light"
+            : "dark"
+        }
+      />
       <ActiveCallLifecycle />
       <PresenceLifecycle />
       <Stack
@@ -663,3 +672,6 @@ export default function Layout() {
     </AuthProvider>
   );
 }
+
+
+//npx eas-cli@latest build --platform android --profile preview --clear-cache
