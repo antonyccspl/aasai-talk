@@ -1693,7 +1693,7 @@ export function Settings({
           </Card>
         ))}
         <T size={12} color={c.muted} style={{ textAlign: "center", paddingVertical: 8 }}>
-          Questions? Contact support@aasaitalk.app
+          Questions? Contact antony.ccspl@gmail.com
         </T>
       </Shell>
     );

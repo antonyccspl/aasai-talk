@@ -35,7 +35,7 @@ export const policyFallbacks: Record<string, PolicySection[]> = {
     {
       title: "Contact us",
       description:
-        "For privacy questions or requests, contact support@aasaitalk.app. This policy may be updated as Aasai Talk changes; we will make the current version available in the app.",
+        "For privacy questions or requests, contact antony.ccspl@gmail.com. This policy may be updated as Aasai Talk changes; we will make the current version available in the app.",
     },
   ],
   terms: [
@@ -77,7 +77,7 @@ export const policyFallbacks: Record<string, PolicySection[]> = {
     {
       title: "Contact",
       description:
-        "For help with these terms, purchases, or an account decision, contact support@aasaitalk.app or use in-app support.",
+        "For help with these terms, purchases, or an account decision, contact antony.ccspl@gmail.com or use in-app support.",
     },
   ],
   community: [
@@ -136,7 +136,7 @@ export const policyFallbacks: Record<string, PolicySection[]> = {
     {
       title: "Contact support",
       description:
-        "For help with a safety concern, contact support@aasaitalk.app or send a private request from the app.",
+        "For help with a safety concern, contact antony.ccspl@gmail.com or send a private request from the app.",
     },
   ],
   refund: [
@@ -148,7 +148,7 @@ export const policyFallbacks: Record<string, PolicySection[]> = {
     {
       title: "Payment issues",
       description:
-        "If a payment is successful but the related coins are missing, contact support@aasaitalk.app with your payment reference so we can investigate.",
+        "If a payment is successful but the related coins are missing, contact antony.ccspl@gmail.com with your payment reference so we can investigate.",
     },
     {
       title: "Call and message usage",
@@ -158,7 +158,7 @@ export const policyFallbacks: Record<string, PolicySection[]> = {
     {
       title: "Refund requests",
       description:
-        "Refund eligibility depends on the transaction, applicable law, and the rules of the payment provider or app store used. Contact support@aasaitalk.app for help with a refund request.",
+        "Refund eligibility depends on the transaction, applicable law, and the rules of the payment provider or app store used. Contact antony.ccspl@gmail.com for help with a refund request.",
     },
   ],
 };
