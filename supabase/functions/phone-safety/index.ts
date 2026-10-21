@@ -104,6 +104,17 @@ Deno.serve(async (request) => {
       const details = typeof body.details === "string" ? body.details.trim() : "";
       if (!deletionReasons.has(reason) || details.length > 2000 || (reason === "Others" && !details))
         return Response.json({ error: "Invalid account-deletion request." }, { status: 400, headers: corsHeaders });
+      const { data: account, error: accountError } = await admin
+        .from("phone_identities")
+        .select("profile_complete")
+        .eq("phone", identity.phone)
+        .maybeSingle();
+      if (accountError) throw accountError;
+      if (!account?.profile_complete)
+        return Response.json(
+          { error: "A registered Aasai Talk account was not found for this verified number." },
+          { status: 404, headers: corsHeaders },
+        );
       const { data: existingRequest, error: existingRequestError } = await admin
         .from("phone_account_deletion_requests")
         .select("status,scheduled_for")

@@ -4,6 +4,7 @@ import {
     Notifications,
     Profile,
     ProfileEdit,
+    PublicAccountDeletion,
     Safety,
     ServiceState,
     Settings,
@@ -39,12 +40,15 @@ export default function Route() {
     ? params.route
     : [params.route || ""];
   const [root, action, id] = parts;
+  const isPublicSettingsRoute =
+    root === "settings" &&
+    (action === "policies" || action === "delete-account");
   if (loading) return null;
   if (
     !authenticated &&
     !demoPhone &&
     root !== "auth" &&
-    !(root === "settings" && action === "policies")
+    !isPublicSettingsRoute
   )
     return <Redirect href="/auth/login" />;
   if (profile.gender === "Female" && ["search", "favorites", "filters", "user"].includes(root))
@@ -87,7 +91,10 @@ export default function Route() {
         <Profile />
       );
   else if (root === "settings")
-    screen = <Settings mode={action || "settings"} policy={id} />;
+    screen =
+      action === "delete-account" && !authenticated
+        ? <PublicAccountDeletion />
+        : <Settings mode={action || "settings"} policy={id} />;
   else if (root === "notifications") screen = <Notifications />;
   else if (root === "block" || root === "report" || root === "rate")
     screen = <Safety mode={root} id={action} />;

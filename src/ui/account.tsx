@@ -638,6 +638,114 @@ export function Auth({ mode }: { mode: string }) {
     </AuthFrame>
   );
 }
+/**
+ * This is intentionally separate from Settings: it is the only account route
+ * that may be opened without an existing session. It never accepts an account
+ * identifier as proof of ownership; Firebase must verify possession of the
+ * registered phone number before the existing deletion-request flow appears.
+ */
+export function PublicAccountDeletion() {
+  const auth = useAuth();
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const requestOtp = () => {
+    if (!/^\d{10}$/.test(phone)) {
+      setError("Enter the 10-digit mobile number registered with Aasai Talk.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    void auth
+      .sendOtp(`+91${phone}`)
+      .then(() => {
+        setSent(true);
+        setCode("");
+      })
+      .catch((sendError) => setError(otpErrorMessage(sendError)))
+      .finally(() => setBusy(false));
+  };
+
+  const verifyOwnership = () => {
+    if (code.length !== 6) {
+      setError("Enter the six-digit verification code.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    void auth
+      .verifyOtp(`+91${phone}`, code)
+      .catch((verificationError) =>
+        setError(
+          verificationError instanceof Error
+            ? verificationError.message
+            : "That code is invalid or expired. Request a new code and try again.",
+        ),
+      )
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <Shell title="Delete your Aasai Talk account" publicPage>
+      <T size={24} bold>Request account deletion</T>
+      <T color={c.secondary}>
+        To protect your account, verify the mobile number registered with Aasai Talk. We never process a request based only on a phone number or user ID.
+      </T>
+      <Card style={{ backgroundColor: c.low, borderWidth: 1, borderColor: c.line, borderRadius: 18, padding: 18, gap: 10 }}>
+        <T bold size={16}>How it works</T>
+        <T size={13} color={c.secondary}>1. Enter your registered Indian mobile number.</T>
+        <T size={13} color={c.secondary}>2. Verify the one-time code sent to that number.</T>
+        <T size={13} color={c.secondary}>3. Select a reason and type DELETE to send a review request.</T>
+      </Card>
+      <Card style={{ backgroundColor: c.low, borderWidth: 1, borderColor: c.line, borderRadius: 18, padding: 18, gap: 12 }}>
+        <T bold size={16}>Verify account ownership</T>
+        {!sent ? (
+          <>
+            <Field
+              label="Registered mobile number"
+              value={phone}
+              onChange={(value) => {
+                setPhone(value.replace(/\D/g, "").slice(0, 10));
+                setError("");
+              }}
+              placeholder="98765 43210"
+              numeric
+            />
+            {Platform.OS === "web" && <View nativeID="aasai-firebase-recaptcha" style={{ alignItems: "center" }} />}
+            <Button title={busy ? "Sending code…" : "Send verification code"} disabled={busy} onPress={requestOtp} />
+          </>
+        ) : (
+          <>
+            <T size={13} color={c.secondary}>A verification code was sent to +91 {phone}. Enter it below to continue.</T>
+            <Field
+              label="Verification code"
+              value={code}
+              onChange={(value) => {
+                setCode(value.replace(/\D/g, "").slice(0, 6));
+                setError("");
+              }}
+              placeholder="6-digit code"
+              numeric
+            />
+            <Button title={busy ? "Verifying…" : "Verify and continue"} disabled={busy} onPress={verifyOwnership} />
+            <Button title="Use a different number" variant="secondary" disabled={busy} onPress={() => { setSent(false); setCode(""); setError(""); }} />
+          </>
+        )}
+        {error ? <Notice error>{error}</Notice> : null}
+      </Card>
+      <Card style={{ backgroundColor: c.low, borderWidth: 1, borderColor: c.line, borderRadius: 18, padding: 18, gap: 8 }}>
+        <T bold size={16}>What happens to your data</T>
+        <T size={13} color={c.secondary}>After a verified request is submitted, Aasai Talk reviews it before any account deletion is completed. Your account remains active during review.</T>
+        <T size={13} color={c.secondary}>When deletion is approved and processed, we remove account profile data and associated in-app content where applicable. Payment, support, safety, and fraud-prevention records may be retained only when required for legal, accounting, security, dispute-resolution, or fraud-prevention purposes.</T>
+        <T size={13} color={c.secondary}>Need help? After verifying your number, you can use Help & support inside Aasai Talk.</T>
+      </Card>
+    </Shell>
+  );
+}
+
 export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
   const d = useDemo();
   const auth = useAuth();
@@ -1836,14 +1944,14 @@ export function Settings({
                     otherDeleteReason.trim(),
                   ),
                 )
-                .then((scheduledFor) => {
+                .then(() => {
                   d.setDeletionRequest({
                     reason: deleteReason,
                     details: otherDeleteReason.trim(),
                     requestedAt: new Date().toISOString(),
                   });
                   setMessage(
-                    `Your deletion request was recorded on ${new Date(scheduledFor).toLocaleDateString()}. We will review it before completing the deletion.`,
+                    "Your deletion request has been received. We will review it before completing the deletion.",
                   );
                 })
                 .catch((error) => {
