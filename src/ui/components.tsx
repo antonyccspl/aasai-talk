@@ -1073,6 +1073,7 @@ export function Shell({
   title,
   tab,
   children,
+  publicPage = false,
   immersive,
   fullscreen = false,
   footer,
@@ -1086,6 +1087,7 @@ export function Shell({
   title?: string;
   tab?: string;
   children: React.ReactNode;
+  publicPage?: boolean;
   immersive?: boolean;
   fullscreen?: boolean;
   footer?: React.ReactNode;
@@ -1183,13 +1185,15 @@ export function Shell({
           {!fullscreen && <Row style={s.header}>
             {title ? (
               <>
-                <IconButton
-                  icon="arrow-left"
-                  label="Go back"
-                  onPress={() =>
-                    back(title === "Create your profile" ? "/auth/login" : "/explore")
-                  }
-                />
+                {!publicPage && (
+                  <IconButton
+                    icon="arrow-left"
+                    label="Go back"
+                    onPress={() =>
+                      back(title === "Create your profile" ? "/auth/login" : "/explore")
+                    }
+                  />
+                )}
                 <T bold size={18} numberOfLines={1} style={{ flex: 1 }}>
                   {title}
                 </T>
@@ -1212,7 +1216,7 @@ export function Shell({
                 </T>
               </Pressable>
             )}
-            {!immersive && (
+            {!immersive && !publicPage && (
               <>
                 {canBuyCoins && !title && (
                   <Pressable
@@ -1267,7 +1271,7 @@ export function Shell({
               </>
             )}
           </Row>}
-          {d.active && !immersive && (
+          {d.active && !immersive && !publicPage && (
             <Pressable
               onPress={() =>
                 go(

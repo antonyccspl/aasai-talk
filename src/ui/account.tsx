@@ -1656,7 +1656,7 @@ export function Settings({
             ? "credit-card"
             : "shield";
     return (
-      <Shell title={policyTitle}>
+      <Shell title={policyTitle} publicPage>
         <Card style={{ gap: 12, padding: 20, backgroundColor: c.surface }}>
           <View style={{ width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: c.high }}>
             <Icon name={policyIcon} size={23} color={c.mint} />
