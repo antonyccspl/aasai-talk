@@ -1,3 +1,4 @@
+
 {
   "cli": {
     "version": ">= 16.0.0",
@@ -13,7 +14,11 @@
     },
     "production": {
       "environment": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      }
     }
   }
 }
+
