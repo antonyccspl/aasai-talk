@@ -678,6 +678,12 @@ export function PublicAccountDeletion() {
     setError("");
     void auth
       .verifyOtp(`+91${phone}`, code)
+      .then(() => {
+        // Firebase signs the verified owner into the app. Keep that session on
+        // the deletion route instead of letting the normal post-login route
+        // take them to Explore.
+        router.replace("/settings/delete-account");
+      })
       .catch((verificationError) =>
         setError(
           verificationError instanceof Error
