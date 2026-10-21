@@ -57,10 +57,11 @@ function SpecialOfferWelcome() {
 
   useEffect(() => {
     const onboardingActive = pathname === "/auth" || pathname.startsWith("/auth/");
+    const deletionRequestActive = pathname === "/settings/delete-account";
     const eligibleMember = profile.gender === "Male"
       && profile.guidelinesAccepted === true
       && profile.adultAgeConfirmed === true;
-    if (!authenticated || !demoPhone || onboardingActive || !eligibleMember) {
+    if (!authenticated || !demoPhone || onboardingActive || deletionRequestActive || !eligibleMember) {
       campaignRef.current = "";
       setVisible(false);
       setOffers([]);
