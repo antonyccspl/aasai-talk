@@ -1,4 +1,4 @@
-const { IOSConfig, withMainApplication, withDangerousMod } = require('expo/config-plugins');
+const { IOSConfig, withMainApplication, withDangerousMod } = require('@expo/config-plugins');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');

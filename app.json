@@ -19,6 +19,7 @@
       }
     },
     "android": {
+      "versionCode": 3,
       "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {

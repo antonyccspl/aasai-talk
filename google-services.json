@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "531346447220",
+    "project_id": "aasai-talk-f713d",
+    "storage_bucket": "aasai-talk-f713d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:531346447220:android:b692691acc316d63d2aa21",
+        "android_client_info": {
+          "package_name": "com.aasaitalk.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAo21gIJQJyFQ5rpiqJh9ncFfN_30wtEF4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:531346447220:android:808c92b13643d513d2aa21",
+        "android_client_info": {
+          "package_name": "com.anonymous.aasaitalk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAo21gIJQJyFQ5rpiqJh9ncFfN_30wtEF4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
