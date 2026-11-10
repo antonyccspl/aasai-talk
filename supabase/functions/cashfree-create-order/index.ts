@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyFirebasePhoneToken } from "../_shared/firebase-auth.ts";
 import { createCashfreePaymentOrder } from "../_shared/cashfree.ts";
+import { hashCashfreeCheckoutToken } from "../_shared/cashfree-checkout-token.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const reply = (body: Record<string, unknown>, status = 200) => Response.json(body, { status, headers: { ...corsHeaders, "Cache-Control": "no-store" } });
@@ -12,11 +13,6 @@ function adminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
-async function tokenHash(value: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return reply({ error: "POST required." }, 405);
@@ -26,6 +22,7 @@ Deno.serve(async (request) => {
     const identity = await verifyFirebasePhoneToken(token);
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const coinPackId = typeof body.coin_pack_id === "string" ? body.coin_pack_id : "";
+    const includeCheckoutToken = body.include_checkout_token === true;
     if (!/^[0-9a-f-]{36}$/i.test(coinPackId)) return reply({ error: "Choose an available coin pack." }, 400);
     const admin = adminClient();
     const { data: pack, error: packError } = await admin.from("coin_packs")
@@ -39,7 +36,8 @@ Deno.serve(async (request) => {
       throw new Error("This coin pack has an invalid coin amount.");
 
     const providerOrderId = `atcf_${crypto.randomUUID().replace(/-/g, "")}`;
-    const checkoutTokenHash = await tokenHash(crypto.randomUUID());
+    const checkoutToken = crypto.randomUUID();
+    const checkoutTokenHash = await hashCashfreeCheckoutToken(checkoutToken);
     const { data: order, error: orderError } = await admin.from("phone_payment_orders").insert({
       phone: identity.phone, coin_pack_id: pack.id, coins: totalCoins, amount_paise: pack.price_paise,
       provider: "cashfree", provider_order_id: providerOrderId, checkout_token_hash: checkoutTokenHash, status: "created",
@@ -57,7 +55,13 @@ Deno.serve(async (request) => {
         order_note: `Aasai Talk wallet top-up: ${totalCoins} coins`,
       });
       if (typeof cashfreeOrder.payment_session_id !== "string" || typeof cashfreeOrder.order_id !== "string") throw new Error("Cashfree returned an invalid payment session.");
-      return reply({ order_id: providerOrderId, payment_session_id: cashfreeOrder.payment_session_id, amount_paise: pack.price_paise, coins: totalCoins });
+      return reply({
+        order_id: providerOrderId,
+        payment_session_id: cashfreeOrder.payment_session_id,
+        ...(includeCheckoutToken ? { checkout_token: checkoutToken } : {}),
+        amount_paise: pack.price_paise,
+        coins: totalCoins,
+      });
     } catch (error) {
       await admin.from("phone_payment_orders").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", order.id);
       throw error;

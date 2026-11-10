@@ -45,6 +45,20 @@ export async function createCashfreePaymentOrder(input: Record<string, unknown>)
   return body as { payment_session_id?: unknown; order_id?: unknown };
 }
 
+export async function fetchCashfreePaymentOrder(orderId: string) {
+  const response = await fetch(`${baseUrl()}/pg/orders/${encodeURIComponent(orderId)}`, {
+    headers: headers(),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = body && typeof body === "object" && "message" in body && typeof body.message === "string"
+      ? body.message : "Cashfree checkout could not be opened.";
+    throw new Error(message);
+  }
+  if (!body || typeof body !== "object") throw new Error("Cashfree returned an invalid order.");
+  return body as { order_id?: unknown; payment_session_id?: unknown; order_amount?: unknown; order_currency?: unknown };
+}
+
 export async function fetchCashfreeOrderPayments(orderId: string) {
   const response = await fetch(`${baseUrl()}/pg/orders/${encodeURIComponent(orderId)}/payments`, {
     headers: headers(),

@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Pressable, useWindowDimensions, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Linking, Platform, Pressable, useWindowDimensions, View } from "react-native";
 import {
   Badge,
   Button,
@@ -112,9 +112,11 @@ function TransactionItem({ item }: { item: WalletTransaction }) {
 export function Wallet({
   mode = "wallet",
   id,
+  paymentOrderId,
 }: {
   mode?: string;
   id?: string;
+  paymentOrderId?: string;
 }) {
   const d = useDemo();
   const { width } = useWindowDimensions();
@@ -253,6 +255,15 @@ export function Wallet({
     setPendingCashfreeOrder(orderId);
     return false;
   }, [getIdentityToken]);
+  const checkedReturnedOrder = useRef("");
+  useEffect(() => {
+    if (!paymentOrderId || !demoPhone || checkedReturnedOrder.current === paymentOrderId) return;
+    checkedReturnedOrder.current = paymentOrderId;
+    setPendingCashfreeOrder(paymentOrderId);
+    setPaymentMessage("Checking your payment. Your wallet updates only after it is verified.");
+    void checkCashfreePayment(paymentOrderId)
+      .catch((error: unknown) => setPaymentError(error instanceof Error ? error.message : "Could not check payment status."));
+  }, [checkCashfreePayment, demoPhone, paymentOrderId]);
   const waitForCashfreePayment = useCallback(async (orderId: string) => {
     // Browser checkout opens asynchronously, so the first status request can
     // occur before the customer completes UPI/card authentication. Polling the
@@ -263,24 +274,36 @@ export function Wallet({
     }
     return false;
   }, [checkCashfreePayment]);
-  const startPayment = useCallback(async () => {
+  const startPayment = async () => {
     if (!selectedPack) return;
     setPaymentLoading(true);
     setPaymentError("");
     setPaymentMessage("");
     try {
       const token = await getIdentityToken();
-      const order = await createCashfreeOrder(token, selectedPack.id);
+      const order = await createCashfreeOrder(token, selectedPack.id, Platform.OS !== "web");
       setPendingCashfreeOrder(order.order_id);
-      await startCashfreeCheckout({ orderId: order.order_id, paymentSessionId: order.payment_session_id });
+      if (Platform.OS === "web") {
+        await startCashfreeCheckout({ orderId: order.order_id, paymentSessionId: order.payment_session_id });
+      } else {
+        if (!order.checkout_token) throw new Error("Secure browser checkout could not be prepared.");
+        const checkoutUrl = new URL("https://aasai-talk.vercel.app/wallet/recharge");
+        checkoutUrl.hash = new URLSearchParams({
+          checkout_token: order.checkout_token,
+          return_to_app: "1",
+        }).toString();
+        await Linking.openURL(checkoutUrl.toString());
+        setPaymentMessage("Secure checkout opened. Return here after payment to verify and update your wallet.");
+        return;
+      }
       const paid = await waitForCashfreePayment(order.order_id);
-      if (!paid) setPaymentMessage("Cashfree is still confirming this payment. You can safely check the status again in a few seconds.");
+      if (!paid) setPaymentMessage("Your payment is still being confirmed. You can safely check the status again in a few seconds.");
     } catch (error) {
-      setPaymentError(error instanceof Error ? error.message : "Cashfree payment could not start.");
+      setPaymentError(error instanceof Error ? error.message : "Payment could not be started.");
     } finally {
       setPaymentLoading(false);
     }
-  }, [getIdentityToken, selectedPack, waitForCashfreePayment]);
+  };
   if (isFemaleMember)
     return (
       <Shell title="Wallet">
@@ -421,7 +444,7 @@ export function Wallet({
         <Empty
           icon="shield"
           title="Payment status"
-          message="Return to your wallet to check the status of your Cashfree payment."
+          message="Return to your wallet to check your payment status."
         />
         <Button title="Back to wallet" onPress={() => go("/wallet")} />
       </Shell>
@@ -431,7 +454,7 @@ export function Wallet({
       <Shell title="Payment">
         <Empty
           icon="shield"
-          title="Continue with Cashfree"
+          title="Continue to secure payment"
           message={`Your selected ${selectedPack ? coins(selectedPack.coins + selectedPack.bonus_coins) : "coin"} pack costs ${packPrice}. Return to the wallet to continue securely.`}
         />
         <Button title="Back to wallet" variant="secondary" onPress={() => go("/wallet")} />
@@ -460,9 +483,9 @@ export function Wallet({
         {!!paymentError && <Notice error>{paymentError}</Notice>}
         {!!paymentMessage && <Notice>{paymentMessage}</Notice>}
         {pendingCashfreeOrder && !paymentLoading && (
-          <Notice>Payment confirmation can take a moment. Your coins are credited only after Cashfree verifies the payment.</Notice>
+          <Notice>Payment confirmation can take a moment. Your coins are credited only after the payment is verified.</Notice>
         )}
-        <Button title={paymentLoading ? "Opening secure checkout…" : `Pay ${packPrice} with Cashfree`} disabled={paymentLoading || !selectedPack} icon="credit-card" onPress={() => void startPayment()} />
+        <Button title={paymentLoading ? "Opening secure checkout…" : `Pay ${packPrice} securely`} disabled={paymentLoading || !selectedPack} icon="credit-card" onPress={() => void startPayment()} />
         {pendingCashfreeOrder && !paymentLoading && <Button title="Check payment status" variant="secondary" onPress={() => void checkCashfreePayment(pendingCashfreeOrder).catch(error => setPaymentError(error instanceof Error ? error.message : "Could not check payment status."))} />}
         <Button title="Change amount" variant="secondary" onPress={() => go("/wallet")} />
       </Shell>

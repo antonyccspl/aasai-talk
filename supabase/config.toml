@@ -39,6 +39,14 @@ verify_jwt = false
 # The function verifies Firebase identity tokens in its handler.
 verify_jwt = false
 
+[functions.cashfree-checkout-session]
+# The handler verifies its short-lived, order-scoped checkout token.
+verify_jwt = false
+
+[functions.cashfree-checkout-status]
+# The handler verifies its short-lived, order-scoped checkout token.
+verify_jwt = false
+
 [functions.cashfree-webhook]
 # Cashfree authenticates this endpoint with its signed webhook headers.
 verify_jwt = false

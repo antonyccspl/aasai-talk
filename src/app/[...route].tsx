@@ -19,10 +19,12 @@ import {
     UserProfile,
 } from "@/ui/social";
 import { Wallet } from "@/ui/wallet";
+import { CashfreeCheckoutHandoff } from "@/ui/cashfree-checkout-handoff";
 import { ModeratorOps } from "@/ui/moderator-ops";
 import { useDemo } from "@/ui/store";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import React from "react";
+import { Platform } from "react-native";
 
 export default function Route() {
   const { loading, authenticated, demoPhone } = useAuth();
@@ -35,11 +37,19 @@ export default function Route() {
     name?: string;
     tried?: string;
     autoAnswer?: string;
+    order_id?: string;
   }>();
   const parts = Array.isArray(params.route)
     ? params.route
     : [params.route || ""];
   const [root, action, id] = parts;
+  const checkoutFragment = Platform.OS === "web" && typeof window !== "undefined"
+    ? new URLSearchParams(window.location.hash.slice(1))
+    : null;
+  const checkoutToken = checkoutFragment?.get("checkout_token") || "";
+  const returnToApp = checkoutFragment?.get("return_to_app") === "1";
+  const paymentOrderId = Array.isArray(params.order_id) ? params.order_id[0] : params.order_id;
+  const isCashfreeCheckout = root === "wallet" && action === "recharge" && Boolean(checkoutToken);
   const isPublicSettingsRoute =
     root === "settings" &&
     (action === "policies" || action === "delete-account");
@@ -48,7 +58,8 @@ export default function Route() {
     !authenticated &&
     !demoPhone &&
     root !== "auth" &&
-    !isPublicSettingsRoute
+    !isPublicSettingsRoute &&
+    !isCashfreeCheckout
   )
     return <Redirect href="/auth/login" />;
   if (profile.gender === "Female" && ["search", "favorites", "filters", "user"].includes(root))
@@ -79,8 +90,10 @@ export default function Route() {
     ) : (
       <CallScreen mode={action} id={id} type={params.type} sessionId={params.session} participantName={params.name} attemptedIds={params.tried} autoAnswer={params.autoAnswer === "true"} />
     );
+  else if (isCashfreeCheckout)
+    screen = <CashfreeCheckoutHandoff checkoutToken={checkoutToken} returnToApp={returnToApp} />;
   else if (root === "wallet")
-    screen = <Wallet mode={action || "wallet"} id={id} />;
+    screen = <Wallet mode={action || "wallet"} id={id} paymentOrderId={paymentOrderId} />;
   else if (root === "profile")
     screen =
       action === "edit" ? (
