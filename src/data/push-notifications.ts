@@ -72,6 +72,62 @@ export async function registerPushDevice(idToken: string, preferences: PushPrefe
   return expoPushToken;
 }
 
+export function requestBrowserCallPushPermission() {
+  if (Platform.OS !== "web")
+    return Promise.reject(new Error("Browser call alerts are only available on the web."));
+  if (!window.isSecureContext || !("serviceWorker" in navigator) || !("PushManager" in window))
+    return Promise.reject(new Error("This browser does not support background call alerts."));
+  if (!("Notification" in window))
+    return Promise.reject(new Error("This browser does not support notifications."));
+  if (Notification.permission === "granted") return Promise.resolve();
+  if (Notification.permission === "denied")
+    return Promise.reject(new Error("Notifications are blocked for this site. Allow them in your browser settings, then try again."));
+  return Notification.requestPermission().then((permission) => {
+    if (permission !== "granted")
+      throw new Error("Allow notifications to receive call alerts while the browser is minimized.");
+  });
+}
+
+function decodeApplicationServerKey(value: string) {
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+}
+
+export async function registerBrowserCallPush(idToken: string) {
+  if (Platform.OS !== "web")
+    throw new Error("Browser call alerts are only available on the web.");
+  const result = await requestPushAction(idToken, "web_vapid_key");
+  if (!result || typeof result !== "object" || !("public_key" in result) || typeof result.public_key !== "string")
+    throw new Error("Background call alerts are not configured yet.");
+
+  const registration = await navigator.serviceWorker.register("/service-worker.js", { scope: "/" });
+  await navigator.serviceWorker.ready;
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: decodeApplicationServerKey(result.public_key),
+    });
+  }
+  await requestPushAction(idToken, "register_web", {
+    subscription: subscription.toJSON(),
+  });
+}
+
+export async function unregisterBrowserCallPush(idToken: string) {
+  if (
+    Platform.OS !== "web"
+    || !("serviceWorker" in navigator)
+    || !("PushManager" in window)
+  ) return;
+  const registration = await navigator.serviceWorker.getRegistration("/");
+  const subscription = await registration?.pushManager.getSubscription();
+  if (!subscription) return;
+  await requestPushAction(idToken, "unregister_web", { endpoint: subscription.endpoint });
+  await subscription.unsubscribe();
+}
+
 export async function updatePushPreferences(idToken: string, preferences: PushPreferences) {
   await requestPushAction(idToken, "preferences", { preferences });
 }

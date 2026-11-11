@@ -19,7 +19,14 @@ import {
     markHostPayoutNotificationRead,
     type HostPayoutNotification,
 } from "@/data/host-payouts";
-import { fetchPushPreferences, registerPushDevice, showPushTestNotification, updatePushPreferences } from "@/data/push-notifications";
+import {
+  fetchPushPreferences,
+  registerBrowserCallPush,
+  registerPushDevice,
+  requestBrowserCallPushPermission,
+  showPushTestNotification,
+  updatePushPreferences,
+} from "@/data/push-notifications";
 import { saveDemoProfile, saveOwnProfile } from "@/data/profile";
 import { profileInterests, profileLanguages } from "@/data/profile-options";
 import { createSupportTicket, fetchSupportTickets, replyToSupportTicket, type SupportTicket } from "@/data/support-tickets";
@@ -1652,6 +1659,41 @@ export function Settings({
         {mode === "notifications" && notificationPreferencesError ? (
           <Notice error>{notificationPreferencesError}</Notice>
         ) : null}
+        {mode === "notifications" && Platform.OS === "web" && approvedHost && (
+          <Card style={{ gap: 10 }}>
+            <T bold size={15}>Background call alerts</T>
+            <T size={12} color={c.muted}>
+              Allow browser notifications so this device can alert you about incoming calls while Aasai Talk is minimized. The alert sound follows your browser and device notification settings.
+            </T>
+            <Button
+              title={pushBusy ? "Enabling…" : "Enable browser call alerts"}
+              icon="bell"
+              disabled={pushBusy || !auth.demoPhone}
+              onPress={() => {
+                let permission: Promise<void>;
+                try {
+                  permission = requestBrowserCallPushPermission();
+                } catch (error) {
+                  setPushMessage(error instanceof Error ? error.message : "Unable to request notification permission.");
+                  return;
+                }
+                setPushBusy(true);
+                setPushMessage("");
+                void permission
+                  .then(() => auth.getIdentityToken())
+                  .then(registerBrowserCallPush)
+                  .then(() => setPushMessage("Background call alerts are enabled for this browser."))
+                  .catch((error: unknown) => setPushMessage(error instanceof Error ? error.message : "Unable to enable browser call alerts."))
+                  .finally(() => setPushBusy(false));
+              }}
+            />
+            {pushMessage ? (
+              <Notice error={/unable|blocked|allow|does not support/i.test(pushMessage)}>
+                {pushMessage}
+              </Notice>
+            ) : null}
+          </Card>
+        )}
         {mode === "notifications" ? (
           <Notice>
             Announcement preferences control which active announcements appear in your inbox.

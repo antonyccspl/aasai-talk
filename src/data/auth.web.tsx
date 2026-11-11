@@ -14,6 +14,7 @@ import {
 } from "firebase/auth";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
+import { unregisterBrowserCallPush } from "./push-notifications";
 
 type AuthContextValue = {
   user: User | null;
@@ -185,6 +186,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    const firebaseUser = isWebFirebaseConfigured() ? getFirebaseAuth().currentUser : null;
+    if (firebaseUser && typeof navigator !== "undefined" && "serviceWorker" in navigator)
+      await unregisterBrowserCallPush(await firebaseUser.getIdToken());
     if (isWebFirebaseConfigured()) await firebaseSignOut(getFirebaseAuth());
     confirmation.current = null;
     clearRecaptchaVerifier();

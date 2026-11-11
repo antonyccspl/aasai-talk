@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import webpush from "web-push";
 import { verifyFirebasePhoneToken } from "../_shared/firebase-auth.ts";
 
 const corsHeaders = {
@@ -14,6 +15,67 @@ type PushPreferences = {
   wallet: boolean;
   announcements: boolean;
 };
+type WebPushSubscription = {
+  endpoint: string;
+  keys: { auth: string; p256dh: string };
+};
+
+function getWebPushConfig() {
+  const publicKey = Deno.env.get("WEB_PUSH_VAPID_PUBLIC_KEY") || "";
+  const privateKey = Deno.env.get("WEB_PUSH_VAPID_PRIVATE_KEY") || "";
+  const subject = Deno.env.get("WEB_PUSH_SUBJECT") || "";
+  if (
+    !/^[A-Za-z0-9_-]{80,100}$/.test(publicKey)
+    || !/^[A-Za-z0-9_-]{40,50}$/.test(privateKey)
+    || !subject
+  )
+    throw new Error("Browser call alerts are not configured correctly.");
+  return { publicKey, privateKey, subject };
+}
+
+function isAllowedPushEndpoint(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    return url.protocol === "https:"
+      && !url.username
+      && !url.password
+      && (!url.port || url.port === "443")
+      && (
+        host === "fcm.googleapis.com"
+        || host === "web.push.apple.com"
+        || host.endsWith(".push.apple.com")
+        || host.endsWith(".push.services.mozilla.com")
+        || host.endsWith(".notify.windows.com")
+      );
+  } catch {
+    return false;
+  }
+}
+
+function parseWebPushSubscription(value: unknown): WebPushSubscription {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("Invalid browser notification subscription.");
+  const subscription = value as Record<string, unknown>;
+  const keys = subscription.keys;
+  if (
+    !isAllowedPushEndpoint(subscription.endpoint)
+    || !keys
+    || typeof keys !== "object"
+    || !("auth" in keys)
+    || !("p256dh" in keys)
+    || typeof keys.auth !== "string"
+    || typeof keys.p256dh !== "string"
+    || !/^[A-Za-z0-9_-]{16,64}$/.test(keys.auth)
+    || !/^[A-Za-z0-9_-]{80,120}$/.test(keys.p256dh)
+  )
+    throw new Error("Invalid browser notification subscription.");
+  return {
+    endpoint: subscription.endpoint,
+    keys: { auth: keys.auth, p256dh: keys.p256dh },
+  };
+}
 
 function parsePreferences(value: unknown): PushPreferences {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -31,16 +93,34 @@ function parsePreferences(value: unknown): PushPreferences {
   };
 }
 
-async function readPreferences(admin: ReturnType<typeof createClient>, phone: string): Promise<PushPreferences> {
-  const { data, error } = await admin.from("phone_notification_preferences")
-    .select("calls_enabled,messages_enabled,wallet_enabled,announcements_enabled")
-    .eq("phone", phone).maybeSingle();
+async function readPreferences(
+  read: () => PromiseLike<{ data: unknown; error: unknown }>,
+): Promise<PushPreferences> {
+  const { data, error } = await read();
   if (error) throw error;
+  if (data !== null) {
+    if (!data || typeof data !== "object" || Array.isArray(data))
+      throw new Error("Notification preferences have an invalid format.");
+    const row = data as Record<string, unknown>;
+    if (
+      typeof row.calls_enabled !== "boolean"
+      || typeof row.messages_enabled !== "boolean"
+      || typeof row.wallet_enabled !== "boolean"
+      || typeof row.announcements_enabled !== "boolean"
+    )
+      throw new Error("Notification preferences are incomplete.");
+    return {
+      calls: row.calls_enabled,
+      messages: row.messages_enabled,
+      wallet: row.wallet_enabled,
+      announcements: row.announcements_enabled,
+    };
+  }
   return {
-    calls: data?.calls_enabled ?? true,
-    messages: data?.messages_enabled ?? true,
-    wallet: data?.wallet_enabled ?? true,
-    announcements: data?.announcements_enabled ?? true,
+    calls: true,
+    messages: true,
+    wallet: true,
+    announcements: true,
   };
 }
 
@@ -69,6 +149,45 @@ Deno.serve(async (request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    if (action === "web_vapid_key") {
+      return Response.json({ public_key: getWebPushConfig().publicKey }, {
+        headers: { ...corsHeaders, "Cache-Control": "no-store" },
+      });
+    }
+
+    if (action === "register_web") {
+      const subscription = parseWebPushSubscription(body.subscription);
+      const { error: identityError } = await admin.rpc("open_phone_identity", { input_phone: identity.phone });
+      if (identityError) throw identityError;
+      const { data: existing, error: existingError } = await admin
+        .from("phone_web_push_subscriptions")
+        .select("phone")
+        .eq("endpoint", subscription.endpoint)
+        .maybeSingle();
+      if (existingError) throw existingError;
+      if (existing && existing.phone !== identity.phone)
+        return Response.json({ error: "This browser notification subscription belongs to another account." }, { status: 409, headers: corsHeaders });
+      const { error } = await admin.from("phone_web_push_subscriptions").upsert({
+        endpoint: subscription.endpoint,
+        phone: identity.phone,
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "endpoint" });
+      if (error) throw error;
+      return Response.json({ registered: true }, { headers: corsHeaders });
+    }
+
+    if (action === "unregister_web") {
+      const endpoint = body.endpoint;
+      if (!isAllowedPushEndpoint(endpoint))
+        return Response.json({ error: "Invalid browser notification subscription." }, { status: 400, headers: corsHeaders });
+      const { error } = await admin.from("phone_web_push_subscriptions")
+        .delete().eq("phone", identity.phone).eq("endpoint", endpoint);
+      if (error) throw error;
+      return Response.json({ unregistered: true }, { headers: corsHeaders });
+    }
+
     if (action === "register") {
       const pushToken = typeof body.expo_push_token === "string" ? body.expo_push_token : "";
       const platform = body.platform;
@@ -93,7 +212,9 @@ Deno.serve(async (request) => {
         }, { onConflict: "phone", ignoreDuplicates: true });
         if (insertPreferencesError) throw insertPreferencesError;
       }
-      const preferences = await readPreferences(admin, identity.phone);
+      const preferences = await readPreferences(() => admin.from("phone_notification_preferences")
+        .select("calls_enabled,messages_enabled,wallet_enabled,announcements_enabled")
+        .eq("phone", identity.phone).maybeSingle());
       const { error } = await admin.from("phone_push_tokens").upsert({
         expo_push_token: pushToken,
         phone: identity.phone,
@@ -132,7 +253,9 @@ Deno.serve(async (request) => {
 
     if (action === "get_preferences") {
       return Response.json({
-        preferences: await readPreferences(admin, identity.phone),
+        preferences: await readPreferences(() => admin.from("phone_notification_preferences")
+          .select("calls_enabled,messages_enabled,wallet_enabled,announcements_enabled")
+          .eq("phone", identity.phone).maybeSingle()),
       }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
     }
 
@@ -232,7 +355,9 @@ Deno.serve(async (request) => {
       message = "Coins were used for an Aasai Talk service.";
     }
 
-    const preferences = await readPreferences(admin, recipientPhone);
+    const preferences = await readPreferences(() => admin.from("phone_notification_preferences")
+      .select("calls_enabled,messages_enabled,wallet_enabled,announcements_enabled")
+      .eq("phone", recipientPhone).maybeSingle());
     const enabledForAccount = event === "incoming_call"
       ? preferences.calls || presenceAcceptingCalls
       : event === "message"
@@ -252,7 +377,19 @@ Deno.serve(async (request) => {
           : true;
       return true;
     });
-    if (!eligibleDevices.length) return Response.json({ sent: 0 }, { headers: corsHeaders });
+    let webSubscriptions: Array<{
+      endpoint: string;
+      p256dh: string;
+      auth: string;
+    }> = [];
+    if (event === "incoming_call") {
+      const { data, error } = await admin.from("phone_web_push_subscriptions")
+        .select("endpoint,p256dh,auth").eq("phone", recipientPhone);
+      if (error) throw error;
+      webSubscriptions = data ?? [];
+    }
+    if (!eligibleDevices.length && !webSubscriptions.length)
+      return Response.json({ sent: 0 }, { headers: corsHeaders });
 
     const { data: prior, error: priorError } = await admin.from("phone_push_deliveries")
       .select("event_key").eq("event_key", eventKey).eq("recipient_phone", recipientPhone).maybeSingle();
@@ -267,7 +404,7 @@ Deno.serve(async (request) => {
       return Response.json({ sent: 0, duplicate: true }, { headers: corsHeaders });
     if (reserveError) throw reserveError;
 
-    const results = await Promise.all(eligibleDevices.map(async ({ expo_push_token, platform }) => {
+    const nativeResults = eligibleDevices.map(async ({ expo_push_token, platform }) => {
       const androidIncomingCall = event === "incoming_call" && platform === "android";
       const response = await fetch("https://exp.host/--/api/v2/push/send", {
         method: "POST",
@@ -295,7 +432,43 @@ Deno.serve(async (request) => {
         return false;
       }
       return true;
-    }));
+    });
+    const webResults = webSubscriptions.map(async (subscription) => {
+      try {
+        const { publicKey, privateKey, subject } = getWebPushConfig();
+        await webpush.sendNotification({
+          endpoint: subscription.endpoint,
+          keys: { auth: subscription.auth, p256dh: subscription.p256dh },
+        }, JSON.stringify({
+          type: "incoming_call",
+          callId: eventId,
+          title: "Incoming call",
+          body: "Someone is calling you.",
+          expiresAt: incomingCallPayload?.expiresAt,
+        }), {
+          TTL: 30,
+          urgency: "high",
+          topic: eventId.replace(/-/g, "").slice(0, 32),
+          vapidDetails: { subject, publicKey, privateKey },
+        });
+        return true;
+      } catch (error) {
+        if (
+          error
+          && typeof error === "object"
+          && "statusCode" in error
+          && error.statusCode === 410
+        ) {
+          const { error: deleteError } = await admin.from("phone_web_push_subscriptions")
+            .delete().eq("endpoint", subscription.endpoint);
+          if (deleteError) console.error("Unable to remove expired browser push subscription:", deleteError);
+          return false;
+        }
+        console.error("Browser call alert delivery failed:", error);
+        return false;
+      }
+    });
+    const results = await Promise.all([...nativeResults, ...webResults]);
     const sent = results.filter(Boolean).length;
     if (!sent) {
       await admin.from("phone_push_deliveries").delete()
