@@ -66,7 +66,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "build:web": "expo export --platform web",
+    "build:web": "expo export --platform web && node ./scripts/inject-web-pwa-head.mjs",
     "build:android": "npx eas-cli build --platform android --profile production",
     "preview:serve": "node scripts/serve-preview.mjs",
     "format:ui": "prettier --write \"src/ui/**/*.{ts,tsx}\" \"src/app/*.tsx\""

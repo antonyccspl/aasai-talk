@@ -1663,7 +1663,7 @@ export function Settings({
           <Card style={{ gap: 10 }}>
             <T bold size={15}>Background call alerts</T>
             <T size={12} color={c.muted}>
-              Allow browser notifications so this device can alert you about incoming calls while Aasai Talk is minimized. The alert sound follows your browser and device notification settings.
+              Enable site notifications in a supported browser such as Chrome, Edge, Firefox, or Safari to get incoming-call alerts while Aasai Talk is in the background. Keep browser and device notifications enabled; the alert sound follows your device settings. On iPhone or iPad, use Safari’s Share menu to add Aasai Talk to your Home Screen, then open the new icon and enable alerts here. iPhone/iPad browser tabs cannot receive background call alerts.
             </T>
             <Button
               title={pushBusy ? "Enabling…" : "Enable browser call alerts"}

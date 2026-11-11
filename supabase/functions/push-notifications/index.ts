@@ -443,7 +443,8 @@ Deno.serve(async (request) => {
           type: "incoming_call",
           callId: eventId,
           title: "Incoming call",
-          body: "Someone is calling you.",
+          body: message,
+          route: incomingCallPayload?.route,
           expiresAt: incomingCallPayload?.expiresAt,
         }), {
           TTL: 30,

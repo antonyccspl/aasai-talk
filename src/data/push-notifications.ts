@@ -12,6 +12,17 @@ export type PushPreferences = {
 
 const tokenStorageKey = "aasai-expo-push-token";
 
+function iosNeedsHomeScreenInstall() {
+  const isIOS =
+    /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isInstalled =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    ("standalone" in navigator &&
+      (navigator as Navigator & { standalone?: boolean }).standalone === true);
+  return isIOS && !isInstalled;
+}
+
 function notificationsModule() {
   return require("expo-notifications") as typeof import("expo-notifications");
 }
@@ -75,6 +86,8 @@ export async function registerPushDevice(idToken: string, preferences: PushPrefe
 export function requestBrowserCallPushPermission() {
   if (Platform.OS !== "web")
     return Promise.reject(new Error("Browser call alerts are only available on the web."));
+  if (iosNeedsHomeScreenInstall())
+    return Promise.reject(new Error("On iPhone or iPad, first add Aasai Talk to your Home Screen, open it from the new icon, and enable alerts there. Safari tabs cannot receive background call alerts."));
   if (!window.isSecureContext || !("serviceWorker" in navigator) || !("PushManager" in window))
     return Promise.reject(new Error("This browser does not support background call alerts."));
   if (!("Notification" in window))
@@ -97,6 +110,8 @@ function decodeApplicationServerKey(value: string) {
 export async function registerBrowserCallPush(idToken: string) {
   if (Platform.OS !== "web")
     throw new Error("Browser call alerts are only available on the web.");
+  if (iosNeedsHomeScreenInstall())
+    throw new Error("On iPhone or iPad, first add Aasai Talk to your Home Screen, open it from the new icon, and enable alerts there. Safari tabs cannot receive background call alerts.");
   const result = await requestPushAction(idToken, "web_vapid_key");
   if (!result || typeof result !== "object" || !("public_key" in result) || typeof result.public_key !== "string")
     throw new Error("Background call alerts are not configured yet.");

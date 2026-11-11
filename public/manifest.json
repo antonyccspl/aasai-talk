@@ -1,0 +1,17 @@
+{
+  "name": "Aasai Talk",
+  "short_name": "Aasai Talk",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#faf7ff",
+  "theme_color": "#285647",
+  "icons": [
+    {
+      "src": "/aasai-talk-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
