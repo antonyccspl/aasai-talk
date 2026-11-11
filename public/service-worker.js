@@ -21,12 +21,14 @@ self.addEventListener("push", (event) => {
       if (clients.some((client) => client.visibilityState === "visible")) return;
       return self.registration.showNotification(payload.title, {
         body: payload.body,
-        icon: "/favicon.ico",
+        icon: "/aasai-talk-icon.png",
         badge: "/favicon.ico",
         tag: `incoming-call-${payload.callId}`,
         renotify: true,
         requireInteraction: true,
         silent: false,
+        vibrate: [500, 250, 500, 250, 500],
+        timestamp: Date.now(),
         data: { route },
       });
     }),
