@@ -6,7 +6,7 @@ type CheckoutInput = {
 declare global {
   interface Window {
     Cashfree?: (options: { mode: "sandbox" | "production" }) => {
-      checkout: (options: { paymentSessionId: string; redirectTarget?: "_self" | "_blank" | "_modal" }) => unknown;
+      checkout: (options: { paymentSessionId: string; redirectTarget?: "_self" | "_blank" | "_modal" }) => Promise<{ error?: { message?: string } } | undefined>;
     };
   }
 }
@@ -33,5 +33,6 @@ function loadCashfreeSdk() {
 export async function startCashfreeCheckout({ paymentSessionId }: CheckoutInput) {
   await loadCashfreeSdk();
   if (!window.Cashfree) throw new Error("Cashfree checkout could not load.");
-  window.Cashfree({ mode: "production" }).checkout({ paymentSessionId, redirectTarget: "_modal" });
+  const result = await window.Cashfree({ mode: "production" }).checkout({ paymentSessionId, redirectTarget: "_modal" });
+  if (result?.error) throw new Error(result.error.message || "Secure checkout could not be completed. Please try again.");
 }
