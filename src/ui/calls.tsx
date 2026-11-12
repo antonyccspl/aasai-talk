@@ -1561,7 +1561,18 @@ function CallScreenContent({
         </View>
       )}
       {!ringing && !video && <Wave />}
-      {!fullscreenVideo && soundError ? <Notice error>{soundError}</Notice> : null}
+      {!fullscreenVideo && soundError ? (
+        <>
+          <Notice error>{soundError}</Notice>
+          {Platform.OS === "web" && ringing && !actionPending ? (
+            <Button title="Enable ringtone" icon="volume-2" onPress={() => {
+              void startCallSound(soundKey, incoming, route === "Speaker")
+                .then(() => setSoundError(""))
+                .catch(() => setSoundError("Sound is blocked. Allow site sound and check your device volume, then tap Enable ringtone."));
+            }} />
+          ) : null}
+        </>
+      ) : null}
       {!fullscreenVideo && safetyConfirmation ? <Notice>{safetyConfirmation}</Notice> : null}
       {!fullscreenVideo && (blocked || conflict) ? (
         <Notice error>
