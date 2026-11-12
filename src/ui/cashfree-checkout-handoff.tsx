@@ -118,9 +118,9 @@ export function CashfreeCheckoutHandoff({
             <T color="#766871">₹{(checkout.amount_paise / 100).toLocaleString("en-IN")}</T>
             <T size={12} color="#766871">This purchase is securely linked to the account that started it in Aasai Talk.</T>
           </Card>
-          {state === "paid" && <Notice>Payment confirmed. Returning to Aasai Talk to update your wallet…</Notice>}
-          {state === "failed" && <Notice error>Payment was not completed. No coins were added.</Notice>}
-          {state === "pending" && <Notice>Waiting for payment confirmation. Please keep this page open until checkout finishes.</Notice>}
+          {state === "paid" && <Notice tone="success" title="Payment received">Payment confirmed. Returning to Aasai Talk to update your wallet…</Notice>}
+          {state === "failed" && <Notice tone="error" title="Payment incomplete">Payment was not completed. No coins were added.</Notice>}
+          {state === "pending" && <Notice tone="info" title="Confirming your payment">Waiting for payment confirmation. Please keep this page open until checkout finishes.</Notice>}
           {!!error && <Notice error>{error}</Notice>}
           {(state === "ready" || state === "opening") && (
             <Button title={state === "opening" ? "Opening secure checkout…" : `Pay ₹${(checkout.amount_paise / 100).toLocaleString("en-IN")} securely`} disabled={state === "opening"} onPress={() => void beginCheckout()} />

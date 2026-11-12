@@ -14,12 +14,25 @@ type BrowserCallSound = {
 const native = NativeModules.CallSounds as CallSounds | undefined;
 const browserSounds = new Map<string, BrowserCallSound>();
 let browserAudioContext: AudioContext | null = null;
+const audioReadyListeners = new Set<() => void>();
+export function onCallAudioReady(listener: () => void) {
+  audioReadyListeners.add(listener);
+  return () => { audioReadyListeners.delete(listener); };
+}
+export function prepareCallAudio() {
+  if (Platform.OS === "web") unlockBrowserAudio();
+}
 
 function getBrowserAudioContext() {
   const AudioContextConstructor = globalThis.AudioContext || (globalThis as typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AudioContextConstructor)
     throw new Error("This browser does not support call audio.");
-  if (!browserAudioContext || browserAudioContext.state === "closed") browserAudioContext = new AudioContextConstructor();
+  if (!browserAudioContext || browserAudioContext.state === "closed") {
+    browserAudioContext = new AudioContextConstructor();
+    browserAudioContext.onstatechange = () => {
+      if (browserAudioContext?.state === "running") audioReadyListeners.forEach(listener => listener());
+    };
+  }
   return browserAudioContext;
 }
 
@@ -78,60 +91,59 @@ async function stopBrowserCallSound(key: string) {
 }
 
 async function startBrowserCallSound(key: string, incoming: boolean) {
-  void stopBrowserCallSound(key);
   const context = getBrowserAudioContext();
-  const sound: BrowserCallSound = { context, timer: null, oscillators: new Set() };
+  const existing = browserSounds.get(key);
+  const sound: BrowserCallSound = existing ?? { context, timer: null, oscillators: new Set() };
   browserSounds.set(key, sound);
-  try {
-    // Call resume synchronously within a user gesture, and never hang silently.
-    const resume = context.resume();
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    try {
-      await Promise.race([resume, new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error("Tap Enable ringtone to allow sound in this browser.")), 2000);
-      })]);
-      if (context.state !== "running") throw new Error("Tap Enable ringtone to allow sound in this browser.");
-    } finally { if (timeout) clearTimeout(timeout); }
-  } catch (error) {
-    if (browserSounds.get(key) === sound) await stopBrowserCallSound(key);
-    throw error;
-  }
-  if (browserSounds.get(key) !== sound) {
-    return false;
-  }
-
-  if (incoming) {
-    // Loop in the audio engine rather than relying on throttled browser timers.
-    const rate = context.sampleRate;
-    const buffer = context.createBuffer(1, Math.ceil(rate * 3.2), rate);
-    const samples = buffer.getChannelData(0);
-    for (let i = 0; i < samples.length; i++) {
-      const time = i / rate;
-      for (const [start, frequency] of [[0, 660], [0.24, 880], [0.62, 660], [0.86, 880]]) {
-        const t = time - start;
-        if (t >= 0 && t < 0.22) {
-          const envelope = Math.min(1, t / 0.012, (0.22 - t) / 0.04);
-          samples[i] = 0.28 * envelope * (Math.sin(2 * Math.PI * frequency * t) + 0.25 * Math.sin(4 * Math.PI * frequency * t));
+  // Queue once, including while suspended: the next gesture resumes this call.
+  if (!existing) {
+    if (incoming) {
+      // Loop in the audio engine rather than relying on throttled browser timers.
+      const rate = context.sampleRate;
+      const buffer = context.createBuffer(1, Math.ceil(rate * 3.2), rate);
+      const samples = buffer.getChannelData(0);
+      for (let i = 0; i < samples.length; i++) {
+        const time = i / rate;
+        for (const [start, frequency] of [[0, 660], [0.24, 880], [0.62, 660], [0.86, 880]]) {
+          const t = time - start;
+          if (t >= 0 && t < 0.22) {
+            const envelope = Math.min(1, t / 0.012, (0.22 - t) / 0.04);
+            samples[i] = 0.28 * envelope * (Math.sin(2 * Math.PI * frequency * t) + 0.25 * Math.sin(4 * Math.PI * frequency * t));
+          }
         }
       }
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      source.connect(context.destination);
+      sound.ringtone = source;
+      source.start();
+    } else {
+  
+    const playCycle = () => {
+      if (browserSounds.get(key) !== sound) return;
+      for (const frequency of [440, 480])
+        playBrowserTone(sound, frequency, 0, 1.7);
+      sound.timer = setTimeout(playCycle, 6000);
+    };
+    playCycle();
     }
-    const source = context.createBufferSource();
-    source.buffer = buffer;
-    source.loop = true;
-    source.connect(context.destination);
-    sound.ringtone = source;
-    source.start();
-    return true;
   }
-
-  const playCycle = () => {
-    if (browserSounds.get(key) !== sound) return;
-    for (const frequency of [440, 480])
-      playBrowserTone(sound, frequency, 0, 1.7);
-    sound.timer = setTimeout(playCycle, 6000);
-  };
-  playCycle();
-  return true;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([context.resume(), new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => reject(new Error("Tap Play ringtone to turn on call sound. You can still answer this call.")), 2000);
+    })]);
+    if (browserSounds.get(key) !== sound) return false;
+    if (context.state !== "running") throw new Error("Tap Play ringtone to turn on call sound. You can still answer this call.");
+    return true;
+  } catch (error) {
+    if (browserSounds.get(key) !== sound) return false;
+    // Keep the queued sound so a later user gesture can recover it.
+    throw error;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 export async function startCallSound(key: string, incoming: boolean, speaker: boolean) {

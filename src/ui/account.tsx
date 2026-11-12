@@ -1,3 +1,4 @@
+import { prepareCallAudio } from "@/data/call-sounds";
 import { useAuth } from "@/data/auth";
 import {
     fetchHostPresenceSettings,
@@ -969,7 +970,7 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           </T>
         </View>
       ) : error ? <Notice error>{error}</Notice> : null}
-      {saved && <Notice>Profile saved.</Notice>}
+      {saved && <Notice tone="success" title="Profile updated">Your changes have been saved.</Notice>}
       <Button
         title={busy ? "Saving…" : onboarding ? "Continue" : "Save changes"}
         disabled={busy}
@@ -1464,6 +1465,7 @@ export function Settings({
               value={callAvailability}
               onToggle={(next) => {
                 if (availabilityBusy || availabilityLoading) return;
+                if (next) prepareCallAudio();
                 setAvailabilityBusy(true);
                 setAvailabilityError("");
                 void (async () => {
@@ -1702,7 +1704,7 @@ export function Settings({
               }}
             />
             {pushMessage ? (
-              <Notice error={/unable|blocked|allow|does not support|not registered|expired|could not be delivered/i.test(pushMessage)}>
+              <Notice tone={/enabled|test alert.*sent/i.test(pushMessage) ? "success" : /blocked|allow|does not support|home screen|permission/i.test(pushMessage) ? "warning" : "error"}>
                 {pushMessage}
               </Notice>
             ) : null}
@@ -1739,7 +1741,7 @@ export function Settings({
                   .finally(() => setPushBusy(false));
               }}
             />
-            {pushMessage ? <Notice>{pushMessage}</Notice> : null}
+            {pushMessage ? <Notice tone={/enabled|test alert.*sent/i.test(pushMessage) ? "success" : /blocked|allow|does not support|home screen|permission/i.test(pushMessage) ? "warning" : "error"}>{pushMessage}</Notice> : null}
             <Card style={{ gap: 10 }}>
               <T bold size={15}>Check your notifications</T>
               <T size={12} color={c.muted}>This sends a test alert only for you. It does not contact anyone.</T>
@@ -1913,7 +1915,7 @@ export function Settings({
         <Section title="Your support requests" />
         {supportLoading ? <LoadingCards /> : tickets.length ? tickets.map((ticket) => <Card key={ticket.id}><Setting title={ticket.subject} detail={`${ticket.category} · ${ticket.status.replaceAll("_", " ")}`} icon="help-circle" onPress={() => setSelectedTicket(ticket.id)} /></Card>) : <Empty icon="help-circle" title="No support requests yet" message="When you need help, your requests and our replies will appear here." />}
       </>}
-      {message && <Notice error={/unable|invalid|error/i.test(message)}>{message}</Notice>}
+      {message && <Notice tone={/unable|invalid|error|could not/i.test(message) ? "error" : "success"}>{message}</Notice>}
     </Shell>;
   }
   if (mode === "logout" || mode === "delete-account")
@@ -1929,7 +1931,7 @@ export function Settings({
           }
         />
         {d.active && (
-          <Notice error>An ongoing call must be ended first.</Notice>
+          <Notice tone="warning" title="You’re still on a call">End your current call before continuing.</Notice>
         )}
         {mode === "delete-account" && (
           <Card>
@@ -1970,7 +1972,7 @@ export function Settings({
             />
           </Card>
         )}
-        {message && <Notice>{message}</Notice>}
+        {message && <Notice tone={/could not|unable|failed/i.test(message) ? "error" : "success"}>{message}</Notice>}
         <Button
           title={mode === "logout" ? "Log out" : "Request account deletion"}
           variant="danger"
@@ -2209,7 +2211,7 @@ export function Safety({ id, mode }: { id: string; mode: string }) {
           onChange={setDescription}
           multiline
         />
-        {success && <Notice>Your {stars}-star rating has been added.</Notice>}
+        {success && <Notice tone="success" title="Thanks for your feedback">Your {stars}-star rating has been added.</Notice>}
         <Button
           title="Submit rating"
           disabled={!stars || success}
@@ -2420,7 +2422,7 @@ export function Notifications() {
         </View>
       </Card>
       {error ? <Notice error>{error}</Notice> : null}
-      {clearMessage ? <Notice>{clearMessage}</Notice> : null}
+      {clearMessage ? <Notice tone="success" title="Notifications cleared">{clearMessage}</Notice> : null}
       {announcements.length ? (
         <View style={{ gap: 2 }}>
           <Section title="Announcements" />

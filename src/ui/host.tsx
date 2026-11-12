@@ -107,7 +107,7 @@ function DocumentUpload({
         Upload a clear photo or PDF. Your document is only for verification.
       </T>
       {fileName ? (
-        <Notice>{fileName} selected</Notice>
+        <Notice tone="success" title="File selected">{fileName}</Notice>
       ) : (
         <Button
           title={busy ? "Opening files…" : `Upload ${label}`}
@@ -391,7 +391,7 @@ export function HostStatus() {
             ? "You can now use Host availability, calls, earnings, and withdrawals."
             : "Your Host application is under review. This usually takes 2–3 days."}
         </T>
-        <Notice>{approved ? "APPROVED" : "PENDING REVIEW"}</Notice>
+        <Notice tone={approved ? "success" : "info"} title={approved ? "You’re approved" : "Application under review"}>{approved ? "Your Host account is ready." : "We’ll let you know when your review is complete."}</Notice>
       </Card>
       <Card style={{ padding: 14 }}>
         <T mono size={10} color={c.secondary}>HOST CHECKLIST</T>
@@ -486,7 +486,7 @@ export function HostWithdrawals({ preview = false }: { preview?: boolean }) {
     );
   return (
     <Shell title="Host earnings">
-      {previewMode && <Notice>Your application is pending review.</Notice>}
+      {previewMode && <Notice tone="info" title="Review in progress">Your application is pending review.</Notice>}
       <Card style={{ backgroundColor: "#2a1b37", borderWidth: 1, borderColor: "#493056", padding: 22, gap: 16, overflow: "hidden" }}>
         <View style={{ position: "absolute", width: 180, height: 180, borderRadius: 90, right: -70, top: -70, backgroundColor: "#ffffff0d" }} />
         <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>

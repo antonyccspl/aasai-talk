@@ -124,7 +124,7 @@ export function ModeratorOps({ page = "dashboard", id }: { page?: string; id?: s
             <Chips items={["Open", "Under review", "Resolved", "Rejected"]} selected={status} onChange={(value) => setStatus(value as ModeratorReport["status"])} />
             <Field label="Moderator note" value={resolutionNote} onChange={setResolutionNote} multiline />
             {error ? <Notice error>{error}</Notice> : null}
-            {saved ? <Notice>{saved}</Notice> : null}
+            {saved ? <Notice tone="success" title="Changes saved">{saved}</Notice> : null}
             <Button title={refreshing ? "Saving…" : "Save resolution"} disabled={refreshing} onPress={() => void saveReport()} />
           </>
         ) : <Notice error>Report not found.</Notice>}

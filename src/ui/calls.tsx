@@ -11,7 +11,7 @@ import {
     subscribeToPhoneCall,
     updatePhoneCall,
 } from "@/data/call-sessions";
-import { startCallSound, stopAllCallSounds, stopCallSound } from "@/data/call-sounds";
+import { onCallAudioReady, startCallSound, stopAllCallSounds, stopCallSound } from "@/data/call-sounds";
 import { fetchDirectoryProfiles, formatLastSeen, type DirectoryStatus } from "@/data/directory";
 import { usePhoneHostCallCapabilities } from "@/hooks/use-phone-host-call-capabilities";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
@@ -210,6 +210,7 @@ function CallScreenContent({
   const fallbackRef = useRef(false);
   const fallbackHandlerRef = useRef<() => Promise<void>>(async () => {});
   const [soundError, setSoundError] = useState("");
+  useEffect(() => onCallAudioReady(() => setSoundError("")), []);
   const [foreground, setForeground] = useState(
     AppState.currentState === "active",
   );
@@ -1563,17 +1564,17 @@ function CallScreenContent({
       {!ringing && !video && <Wave />}
       {!fullscreenVideo && soundError ? (
         <>
-          <Notice error>{soundError}</Notice>
+          <Notice tone="warning" title="Your browser paused call sound">{soundError}</Notice>
           {Platform.OS === "web" && ringing && !actionPending ? (
-            <Button title="Enable ringtone" icon="volume-2" onPress={() => {
+            <Button title="Play ringtone" icon="volume-2" onPress={() => {
               void startCallSound(soundKey, incoming, route === "Speaker")
                 .then(() => setSoundError(""))
-                .catch(() => setSoundError("Sound is blocked. Allow site sound and check your device volume, then tap Enable ringtone."));
+                .catch(() => setSoundError("Sound is blocked. Allow site sound and check your device volume, then tap Play ringtone."));
             }} />
           ) : null}
         </>
       ) : null}
-      {!fullscreenVideo && safetyConfirmation ? <Notice>{safetyConfirmation}</Notice> : null}
+      {!fullscreenVideo && safetyConfirmation ? <Notice tone="success" title="Report received">{safetyConfirmation}</Notice> : null}
       {!fullscreenVideo && (blocked || conflict) ? (
         <Notice error>
           {blocked
@@ -1966,7 +1967,7 @@ export function CallDetail({
         <T color={c.secondary}>
           {counterpartName} · {summary?.call_type ?? call.type} call
         </T>
-        <Badge text={displayStatus} />
+        <Badge text={displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1).toLowerCase()} tone={/missed|rejected/i.test(displayStatus) ? "warning" : /cancelled/i.test(displayStatus) ? "info" : "success"} />
       </View>
       {summaryError ? <Notice error>{summaryError}</Notice> : null}
       <Card>
@@ -2010,11 +2011,11 @@ export function CallDetail({
         />
       )}
       {d.paid && !call.incoming && d.balance < 20 && (
-        <Notice error>Low balance for another paid call. Recharge before calling again.</Notice>
+        <Notice tone="warning" title="Your balance is running low">Add coins to make another call.</Notice>
       )}
       {!hostViewer && d.profile.gender === "Male" && p.status !== "Available" && (
-        <Notice>
-          {p.status === "Busy" ? "This Host is busy on another call." : "This Host is offline. Call again when they are Online."}
+        <Notice tone={p.status === "Busy" ? "warning" : "info"} title={p.status === "Busy" ? "Host is on another call" : "Host is offline"}>
+          {p.status === "Busy" ? "Try again in a little while, or send a message." : "You can send a message now or call when they’re back online."}
         </Notice>
       )}
       <Button

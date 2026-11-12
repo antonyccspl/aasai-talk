@@ -776,11 +776,11 @@ export function UserProfile({ id }: { id: string }) {
           </Row>}
           {!isApprovedHost && p.status === "Available" && callCapabilities &&
             !callCapabilities.audio && !callCapabilities.video && (
-              <Notice>This Host is not accepting calls right now.</Notice>
+              <Notice tone="info" title="Calls are paused">This Host isn’t accepting calls right now. You can still send a message.</Notice>
             )}
           {!isApprovedHost && p.status !== "Available" && (
-            <Notice>
-              {p.status === "Busy" ? "This Host is busy on another call." : "This Host is offline."}
+            <Notice tone={p.status === "Busy" ? "warning" : "info"} title={p.status === "Busy" ? "Host is on another call" : "Host is offline"}>
+              Send a message, or try calling when they’re available.
             </Notice>
           )}
           {d.paid && !isApprovedHost && (

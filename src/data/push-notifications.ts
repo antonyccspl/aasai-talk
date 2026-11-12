@@ -201,7 +201,16 @@ export async function sendPushEvent(
   eventId: string,
   source?: "call" | "message",
 ) {
-  const result = await requestPushAction(idToken, "send", { event, event_id: eventId, ...(source ? { source } : {}) });
+  let result;
+  try {
+    result = await requestPushAction(idToken, "send", { event, event_id: eventId, ...(source ? { source } : {}) });
+  } catch (error) {
+    if (event !== "incoming_call") throw error;
+    // A failed HTTP response must not cancel a call already received or answered.
+    const delivery = await requestPushAction(idToken, "call_delivery", { event_id: eventId }).catch(() => null);
+    if (delivery && typeof delivery === "object" && "received" in delivery && delivery.received === true) return;
+    throw new Error("We could not reach the host. Please try again shortly.");
+  }
   if (event === "incoming_call" && (!result || typeof result !== "object" || (!("received" in result) || result.received !== true) && (!("sent" in result) || typeof result.sent !== "number" || result.sent < 1)))
     throw new Error("This Host is unreachable. The call alert could not be delivered.");
 }

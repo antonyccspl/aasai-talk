@@ -38,7 +38,7 @@ import {
     talkTime,
     useDemo,
 } from "./store";
-import { colors as c, fonts } from "./theme";
+import { colors as c, fonts, feedback, type FeedbackTone } from "./theme";
 export type IconName = React.ComponentProps<typeof Feather>["name"];
 export const go = (path: string) => router.push(path as never);
 /** Return to the screen the member actually came from, with a safe fallback for direct links. */
@@ -431,13 +431,14 @@ export function Avatar({
     </View>
   );
 }
-export function Badge({ text, warning }: { text: string; warning?: boolean }) {
+export function Badge({ text, warning, tone }: { text: string; warning?: boolean; tone?: FeedbackTone }) {
+  const palette = feedback[tone ?? (warning ? "warning" : "success")];
   return (
     <Row
       style={{
         gap: 6,
         alignSelf: "flex-start",
-        backgroundColor: c.high,
+        backgroundColor: palette.background,
         borderRadius: 99,
         paddingHorizontal: 12,
         paddingVertical: 6,
@@ -448,10 +449,10 @@ export function Badge({ text, warning }: { text: string; warning?: boolean }) {
           width: 7,
           height: 7,
           borderRadius: 4,
-          backgroundColor: warning ? c.warning : c.success,
+          backgroundColor: palette.accent,
         }}
       />
-      <T mono size={11} color={warning ? c.warning : c.success}>
+      <T mono size={11} color={palette.accent}>
         {text}
       </T>
     </Row>
@@ -626,28 +627,34 @@ export function Setting({
   );
 }
 export function Notice({
-  children,
-  error,
+  children, error, tone, title,
 }: {
   children: React.ReactNode;
+  /** Backwards-compatible shorthand for existing failure messages. */
   error?: boolean;
+  tone?: FeedbackTone;
+  title?: string;
 }) {
+  const kind = error ? "error" : tone ?? "info";
+  const palette = feedback[kind];
   return (
     <View
-      accessibilityLiveRegion="polite"
+      accessibilityRole={kind === "error" ? "alert" : undefined}
+      accessibilityLiveRegion={kind === "error" ? "assertive" : "polite"}
       style={{
-        backgroundColor: error ? c.errorSurface : c.successSurface,
-        padding: 14,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: error ? "#f7c8cc" : c.line,
-        borderLeftWidth: 4,
-        borderLeftColor: error ? c.error : c.mint,
+        flexDirection: "row", alignItems: "flex-start", gap: 12,
+        backgroundColor: palette.background, borderColor: palette.border,
+        borderWidth: 1, borderRadius: 14, padding: 16, width: "100%",
       }}
     >
-      <T size={13} color={error ? c.error : c.secondary}>
-        {children}
-      </T>
+      <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+        style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: palette.iconBackground, alignItems: "center", justifyContent: "center" }}>
+        <Icon name={palette.icon} size={18} color={palette.accent} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+        <T bold size={14} color={palette.accent}>{title ?? palette.label}</T>
+        <T size={13} color={palette.text} style={{ lineHeight: 20 }}>{children}</T>
+      </View>
     </View>
   );
 }
@@ -1006,7 +1013,7 @@ export function UserCard({ person, grid = false, index = 0 }: { person: Person; 
           </Pressable>}
         </Row>
       ) : effectiveStatus === "Available" && hostCapabilities ? (
-        <Notice>This Host is not accepting calls right now.</Notice>
+        <Notice tone="info" title="Calls are paused">This Host isn’t accepting calls right now. You can still send a message.</Notice>
       ) : (
         effectiveStatus !== "Available" ? <Row>
           <View style={[s.button, { flex: 1, backgroundColor: c.high }]}>

@@ -481,7 +481,7 @@ export function Wallet({
           <T size={12} color={c.muted}>Your coins are added only after payment is confirmed.</T>
         </Card>
         {!!paymentError && <Notice error>{paymentError}</Notice>}
-        {!!paymentMessage && <Notice>{paymentMessage}</Notice>}
+        {!!paymentMessage && <Notice tone={paymentMessage.startsWith("Payment confirmed.") ? "success" : "info"} title={paymentMessage.startsWith("Payment confirmed.") ? "Payment confirmed" : "Payment update"}>{paymentMessage}</Notice>}
         {pendingCashfreeOrder && !paymentLoading && (
           <Notice>Payment confirmation can take a moment. Your coins are credited only after the payment is verified.</Notice>
         )}

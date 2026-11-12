@@ -149,6 +149,17 @@ Deno.serve(async (request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    if (action === "call_delivery") {
+      const { data, error } = await admin.from("call_sessions")
+        .select("caller_phone,status,host_received_at").eq("id", body.event_id).maybeSingle();
+      if (error) throw error;
+      if (!data || data.caller_phone !== identity.phone)
+        return Response.json({ error: "Call is not authorized." }, { status: 403, headers: corsHeaders });
+      return Response.json({ received: data.status === "connected" || (data.status === "ringing" && Boolean(data.host_received_at)) }, {
+        headers: { ...corsHeaders, "Cache-Control": "no-store" },
+      });
+    }
+
     if (action === "web_vapid_key") {
       return Response.json({ public_key: getWebPushConfig().publicKey }, {
         headers: { ...corsHeaders, "Cache-Control": "no-store" },
@@ -345,8 +356,11 @@ Deno.serve(async (request) => {
         .select("id,caller_phone,host_phone,call_type,status,created_at")
         .eq("id", eventId).maybeSingle();
       if (error) throw error;
-      if (!data || data.caller_phone !== identity.phone || data.status !== "ringing" || Date.parse(data.created_at) <= Date.now() - 60000)
+      if (!data || data.caller_phone !== identity.phone)
         return Response.json({ error: "Incoming call is not authorized." }, { status: 403, headers: corsHeaders });
+      if (data.status === "connected") return Response.json({ sent: 0, received: true }, { headers: corsHeaders });
+      if (data.status !== "ringing" || Date.parse(data.created_at) <= Date.now() - 60000)
+        return Response.json({ error: "This call has already ended." }, { status: 409, headers: corsHeaders });
       recipientPhone = data.host_phone;
       const { data: online, error: onlineError } = await admin.rpc("phone_host_is_online", { input_host_phone: recipientPhone });
       if (onlineError) throw onlineError;
@@ -485,6 +499,8 @@ Deno.serve(async (request) => {
       return Response.json({ sent: 0 }, { headers: corsHeaders });
     }
 
+    // Call retries reuse the notification topic; a reservation is not delivery proof.
+    if (event !== "incoming_call") {
     const { data: prior, error: priorError } = await admin.from("phone_push_deliveries")
       .select("event_key").eq("event_key", eventKey).eq("recipient_phone", recipientPhone).maybeSingle();
     if (priorError) throw priorError;
@@ -497,10 +513,12 @@ Deno.serve(async (request) => {
     if (reserveError?.code === "23505")
       return Response.json({ sent: 0, duplicate: true }, { headers: corsHeaders });
     if (reserveError) throw reserveError;
+    }
 
     const nativeResults = eligibleDevices.map(async ({ expo_push_token, platform }) => {
       const androidIncomingCall = event === "incoming_call" && platform === "android";
       const response = await fetch("https://exp.host/--/api/v2/push/send", {
+        signal: AbortSignal.timeout(8000),
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(androidIncomingCall ? {
@@ -520,7 +538,7 @@ Deno.serve(async (request) => {
         }),
       });
       const result = await response.json().catch(() => null);
-      if (!response.ok || result?.data?.status === "error") {
+      if (!response.ok || result?.data?.status !== "ok") {
         if (result?.data?.details?.error === "DeviceNotRegistered")
           await admin.from("phone_push_tokens").delete().eq("expo_push_token", expo_push_token);
         return false;
@@ -541,6 +559,7 @@ Deno.serve(async (request) => {
           route: incomingCallPayload?.route,
           expiresAt: incomingCallPayload?.expiresAt,
         }), {
+          timeout: 8000,
           TTL: 30,
           urgency: "high",
           topic: eventId.replace(/-/g, "").slice(0, 32),
@@ -573,7 +592,7 @@ Deno.serve(async (request) => {
       }
       await admin.from("phone_push_deliveries").delete()
         .eq("event_key", eventKey).eq("recipient_phone", recipientPhone);
-      throw new Error("Push provider did not accept the notification.");
+      return Response.json({ error: "We could not reach the host. Please try again shortly." }, { status: 503, headers: corsHeaders });
     }
     return Response.json({ sent }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
   } catch (error) {
