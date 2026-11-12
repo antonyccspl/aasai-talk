@@ -17,6 +17,7 @@ import { CoinPack, fetchCoinPacks } from "@/data/coin-packs";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import {
   sendPresenceHeartbeat,
+  acknowledgeHostCall,
 } from "@/data/host-presence";
 import { sendPushEvent } from "@/data/push-notifications";
 import { SampleWorkspaceProvider } from "@/data/sample-workspace";
@@ -515,7 +516,7 @@ function PresenceLifecycle() {
 }
 
 function AppNavigator() {
-  const { demoPhone, loading, authenticated } = useAuth();
+  const { demoPhone, loading, authenticated, getIdentityToken } = useAuth();
   const { identityLoading, hostStatus, profile } = useDemo();
   const pathname = usePathname();
   const incomingSessionRef = useRef("");
@@ -572,6 +573,15 @@ function AppNavigator() {
   ]);
   useEffect(() => {
     if (loading || !authenticated || !demoPhone) return;
+    const acknowledgeVisibleCall = () => {
+      const visible = Platform.OS === "web" ? document.visibilityState === "visible" : AppState.currentState === "active";
+      if (!visible || !incomingSessionRef.current) return;
+      const callId = incomingSessionRef.current;
+      void getIdentityToken().then((token) => acknowledgeHostCall(token, callId))
+        .catch((error) => console.warn("Unable to confirm incoming call receipt:", error));
+    };
+    const resume = AppState.addEventListener("change", acknowledgeVisibleCall);
+    if (Platform.OS === "web") document.addEventListener("visibilitychange", acknowledgeVisibleCall);
     const unsubscribe = subscribeToIncomingCalls(demoPhone, (call) => {
       if (incomingSessionRef.current === call.id) return;
       if (incomingSoundKeyRef.current) {
@@ -579,6 +589,7 @@ function AppNavigator() {
       }
       stopIncomingStatusRef.current?.();
       incomingSessionRef.current = call.id;
+      acknowledgeVisibleCall();
       const soundKey = `incoming-call-${call.id}`;
       incomingSoundKeyRef.current = soundKey;
       // Start alerting before navigation so the Host is notified immediately,
@@ -600,13 +611,15 @@ function AppNavigator() {
     });
     return () => {
       unsubscribe();
+      resume.remove();
+      if (Platform.OS === "web") document.removeEventListener("visibilitychange", acknowledgeVisibleCall);
       stopIncomingStatusRef.current?.();
       stopIncomingStatusRef.current = null;
       if (incomingSoundKeyRef.current)
         void stopCallSound(incomingSoundKeyRef.current);
       incomingSoundKeyRef.current = "";
     };
-  }, [demoPhone, loading, authenticated]);
+  }, [demoPhone, loading, authenticated, getIdentityToken]);
   if (authenticated && identityLoading) {
     return (
       <View

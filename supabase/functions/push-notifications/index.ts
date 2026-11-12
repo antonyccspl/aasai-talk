@@ -423,6 +423,19 @@ Deno.serve(async (request) => {
       message = "Coins were used for an Aasai Talk service.";
     }
 
+    // Provider failure is not call failure when an active host actually received it.
+    const waitForVisibleHost = async () => {
+      if (event !== "incoming_call") return false;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const { data, error } = await admin.from("call_sessions")
+          .select("status,host_received_at").eq("id", eventId).maybeSingle();
+        if (error) throw error;
+        if (data?.status === "connected" || (data?.status === "ringing" && data.host_received_at)) return true;
+        if (data?.status !== "ringing") return false;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      return false;
+    };
     const markUnreachable = async () => {
       if (event !== "incoming_call") return;
       const { error } = await admin.from("call_sessions")
@@ -439,6 +452,7 @@ Deno.serve(async (request) => {
         ? preferences.messages
         : preferences.wallet;
     if (!enabledForAccount) {
+      if (await waitForVisibleHost()) return Response.json({ sent: 0, received: true }, { headers: corsHeaders });
       await markUnreachable();
       return Response.json({ sent: 0 }, { headers: corsHeaders });
     }
@@ -466,6 +480,7 @@ Deno.serve(async (request) => {
       webSubscriptions = data ?? [];
     }
     if (!eligibleDevices.length && !webSubscriptions.length) {
+      if (await waitForVisibleHost()) return Response.json({ sent: 0, received: true }, { headers: corsHeaders });
       await markUnreachable();
       return Response.json({ sent: 0 }, { headers: corsHeaders });
     }
@@ -551,6 +566,7 @@ Deno.serve(async (request) => {
     const results = await Promise.allSettled([...nativeResults, ...webResults]);
     const sent = results.filter((result) => result.status === "fulfilled" && result.value).length;
     if (!sent) {
+      if (await waitForVisibleHost()) return Response.json({ sent: 0, received: true }, { headers: corsHeaders });
       if (event === "incoming_call") {
         const { error } = await admin.from("call_sessions").update({ status: "missed", ended_at: new Date().toISOString() }).eq("id", eventId).eq("status", "ringing");
         if (error) throw error;

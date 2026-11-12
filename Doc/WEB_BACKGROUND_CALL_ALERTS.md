@@ -107,3 +107,13 @@ Current unrelated regression: scripts/check-call-fixes.mjs expects a 64-characte
 - Verified expire-host-presence is active every minute. Its first observed run succeeded at 10:31 IST on 12 November 2026.
 - Both deployed endpoints returned the expected 401 response for an unauthenticated request.
 - This verification covers the Supabase backend. The updated frontend/service worker still needs a website deployment; actual signed-in, two-device push/call testing remains pending.
+
+## Go Online compatibility fix — 12 November 2026
+
+This update supersedes the earlier requirement that Go Online must register browser push first. Approved hosts can now enable availability without notification permission or a push subscription. Background alerts remain an optional setup in Settings → Notifications. A browser lacking Web Push must keep the page visible to receive invitations reliably.
+
+Added migration 20261112000100_foreground_call_receipt.sql. The visible host page sends a Firebase-authenticated receipt through host-presence; only the service role can call the receipt database function, and it checks the host, invitation age, availability, and ringing status. If push is unavailable or fails, push-notifications waits up to four seconds for this receipt before declaring the call unreachable. A saved subscription or a recent heartbeat alone is never treated as confirmed receipt.
+
+The Go Online button now saves availability directly. Errors retain their specific message instead of being replaced with the generic availability error. Presence and push requests use AbortController timeouts without requiring the newer AbortSignal.timeout API.
+
+The migration and both Edge Functions have been deployed. Local typecheck, web export, PostgreSQL regression tests and mocked browser/Edge Function tests passed. Deploy the updated frontend to Vercel and refresh both caller and host pages to activate this flow. End-to-end testing on the user's browser remains pending.

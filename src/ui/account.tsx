@@ -1464,13 +1464,10 @@ export function Settings({
               value={callAvailability}
               onToggle={(next) => {
                 if (availabilityBusy || availabilityLoading) return;
-                const browserPermission = next && Platform.OS === "web" ? requestBrowserCallPushPermission() : Promise.resolve();
                 setAvailabilityBusy(true);
                 setAvailabilityError("");
                 void (async () => {
-                  await browserPermission;
                   const idToken = await auth.getIdentityToken();
-                  if (next && Platform.OS === "web") await registerBrowserCallPush(idToken);
                   if (next && Platform.OS === "android") {
                     const token = await registerPushDevice(idToken, {
                       calls: true,
@@ -1493,7 +1490,7 @@ export function Settings({
                         reason.includes("phone-account") ||
                         reason.includes("phone account")
                         ? "Turn on call notifications in your settings before enabling this."
-                        : "We could not update your call availability. Please try again.",
+                        : reason || "We could not update your call availability. Please try again.",
                     );
                   })
                   .finally(() => setAvailabilityBusy(false));
@@ -1511,6 +1508,9 @@ export function Settings({
           ) : null}
           {Platform.OS === "android" ? (
             <T color={c.secondary}>Turn this off whenever you do not want to receive calls while away.</T>
+          ) : null}
+          {Platform.OS === "web" && callAvailability ? (
+            <Notice>Keep Aasai Talk open to receive calls. For alerts while minimized, enable browser call alerts in Settings → Notifications where supported.</Notice>
           ) : null}
           {availabilityBusy ? <ActivityIndicator color={c.mint} /> : null}
           {availabilityError ? (

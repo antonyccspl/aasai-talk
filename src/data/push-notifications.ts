@@ -28,7 +28,11 @@ function notificationsModule() {
 }
 
 async function requestPushAction(idToken: string, action: string, payload: Record<string, unknown> = {}) {
-  const response = await fetch(`${supabaseUrl}/functions/v1/push-notifications`, {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  let response: Response;
+  try {
+    response = await fetch(`${supabaseUrl}/functions/v1/push-notifications`, {
     method: "POST",
     headers: {
       apikey: supabasePublishableKey,
@@ -36,8 +40,11 @@ async function requestPushAction(idToken: string, action: string, payload: Recor
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ action, ...payload }),
-    signal: AbortSignal.timeout(20000),
-  });
+    signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const message = body && typeof body === "object" && "error" in body && typeof body.error === "string"
@@ -195,7 +202,7 @@ export async function sendPushEvent(
   source?: "call" | "message",
 ) {
   const result = await requestPushAction(idToken, "send", { event, event_id: eventId, ...(source ? { source } : {}) });
-  if (event === "incoming_call" && (!result || typeof result !== "object" || !("sent" in result) || typeof result.sent !== "number" || result.sent < 1))
+  if (event === "incoming_call" && (!result || typeof result !== "object" || (!("received" in result) || result.received !== true) && (!("sent" in result) || typeof result.sent !== "number" || result.sent < 1)))
     throw new Error("This Host is unreachable. The call alert could not be delivered.");
 }
 

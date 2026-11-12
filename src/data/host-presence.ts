@@ -13,7 +13,11 @@ async function requestHostPresence(
   idToken: string,
   body: Record<string, unknown>,
 ): Promise<unknown> {
-  const response = await fetch(`${supabaseUrl}/functions/v1/host-presence`, {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  let response: Response;
+  try {
+    response = await fetch(`${supabaseUrl}/functions/v1/host-presence`, {
     method: "POST",
     headers: {
       apikey: supabasePublishableKey,
@@ -21,8 +25,11 @@ async function requestHostPresence(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15000),
-  });
+    signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
   const result: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const message =
@@ -147,4 +154,8 @@ export async function setHostLastSeenVisibility(
 
 export async function endHostAvailability(idToken: string) {
   await requestHostPresence(idToken, { action: "logout" });
+}
+
+export async function acknowledgeHostCall(idToken: string, callId: string) {
+  await requestHostPresence(idToken, { action: "call-received", call_id: callId });
 }
