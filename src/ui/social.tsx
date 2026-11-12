@@ -141,6 +141,10 @@ function HostDashboardHome() {
         </T>
       </Card>
       {error ? <Notice error>{error}</Notice> : null}
+      <Row style={{ flexWrap: "wrap" }}>
+        <Button title="Call availability" icon="phone" variant="secondary" style={{ flex: 1, minWidth: 145 }} onPress={() => go("/profile/availability")} />
+        <Button title="Your earnings" icon="credit-card" variant="secondary" style={{ flex: 1, minWidth: 145 }} onPress={() => go("/host/withdraw")} />
+      </Row>
       <Section title="Today" />
       <Row>
         <Card style={todayMetricCardStyle}>
@@ -200,7 +204,7 @@ function HostDashboardHome() {
         const contactName = call.caller_username ? `@${call.caller_username}` : "Caller";
         const label = call.status === "ended" ? `${call.call_type === "video" ? "Video" : "Audio"} call completed` : call.status === "missed" ? `Missed ${call.call_type} call` : "Call declined";
         return (
-          <Pressable key={call.id} onPress={() => go(`/calls/detail/${call.id}`)} style={{ backgroundColor: c.low, padding: 16, borderRadius: 18 }}>
+          <Pressable key={call.id} accessibilityRole="button" accessibilityLabel={`View ${label} with ${contactName}`} onPress={() => go(`/calls/detail/${call.id}`)} style={{ backgroundColor: c.low, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: c.line }}>
             <Row>
               <Icon name={call.call_type === "video" ? "video" : "phone"} color={c.mint} />
               <View style={{ flex: 1, gap: 2 }}>
@@ -524,7 +528,7 @@ export function Discovery({ mode = "explore" }: { mode?: string }) {
       {directoryLoading ? <LoadingCards count={mode === "explore" ? 4 : 3} /> : mode === "explore" ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: result.length === 1 ? "center" : "flex-start", gap: 14 }}>
           {result.map((p, index) => (
-            <View key={p.id} style={{ width: wideLayout ? "48%" : "100%", maxWidth: wideLayout ? 520 : undefined }}>
+            <View key={p.id} style={{ width: wideLayout ? "48%" : "100%", maxWidth: wideLayout ? 460 : 480 }}>
               <UserCard person={p} grid index={index} />
             </View>
           ))}
@@ -827,6 +831,7 @@ export function Conversations() {
   const d = useDemo();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [conversations, setConversations] = useState<{ otherPhone: string; text: string; time: string; username?: string | null; displayName?: string | null; avatarUrl?: string | null; isHost?: boolean }[]>([]);
   const loadConversations = async () => {
     if (!auth.demoPhone) {
@@ -835,6 +840,7 @@ export function Conversations() {
     }
     try {
       const rows = await fetchPhoneConversations(auth.demoPhone);
+      setLoadError("");
       setConversations(rows.map((row) => ({
         otherPhone: row.other_phone,
         text: row.last_text,
@@ -844,6 +850,9 @@ export function Conversations() {
         avatarUrl: row.other_avatar_url,
         isHost: row.other_is_host,
       })));
+    } catch (error) {
+      console.error("Failed to load conversations:", error);
+      setLoadError("We couldn't load your conversations. Please check your connection.");
     } finally {
       setLoading(false);
     }
@@ -886,11 +895,14 @@ export function Conversations() {
         value={query}
         onChange={setQuery}
       />
+      {loadError ? <Notice tone="error">{loadError}</Notice> : null}
       {loading ? <LoadingCards count={3} /> : list.map(({ person, conversation }) => {
         if (!person) return null;
         return (
           <Pressable
             key={conversation.otherPhone}
+            accessibilityRole="button"
+            accessibilityLabel={`Open conversation with ${person.name}`}
             onPress={() => {
               go(`/chat/phone_${conversation.otherPhone.replace("+", "")}`);
             }}
@@ -913,7 +925,7 @@ export function Conversations() {
               <View style={{ flex: 1, gap: 5 }}>
                 <Row style={{ justifyContent: "space-between" }}>
                   <T bold>{person.name}</T>
-                  <T mono size={9} color={c.muted}>
+                  <T mono size={11} color={c.muted}>
                     {conversation.time}
                   </T>
                 </Row>
@@ -925,12 +937,12 @@ export function Conversations() {
           </Pressable>
         );
       })}
-      {!loading && !list.length && (
+      {!loading && !loadError && !list.length && (
         <Empty
-          title="Start with a hello"
-          message="Your conversations will appear here."
-          action="Explore people"
-          onPress={() => go("/explore")}
+          title={query.trim() ? "No conversations found" : "Start with a hello"}
+          message={query.trim() ? "Try another name to find your conversation." : "Your conversations will appear here."}
+          action={query.trim() ? "Clear search" : "Explore people"}
+          onPress={() => query.trim() ? setQuery("") : go("/explore")}
         />
       )}
     </Shell>

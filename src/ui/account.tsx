@@ -1828,7 +1828,7 @@ export function Settings({
             ? "credit-card"
             : "shield";
     return (
-      <Shell title={policyTitle} publicPage>
+      <Shell title={policyTitle} publicPage={!auth.authenticated}>
         <Card style={{ gap: 12, padding: 20, backgroundColor: c.surface }}>
           <View style={{ width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: c.high }}>
             <Icon name={policyIcon} size={23} color={c.mint} />
@@ -2312,17 +2312,22 @@ export function Notifications() {
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
   const [clearMessage, setClearMessage] = useState("");
+  const clearGeneration = useRef(0);
+  const clearingRef = useRef(false);
   useEffect(() => {
     if (!auth.demoPhone) return;
     let active = true;
-    const load = () => Promise.all([
+    const load = () => {
+      if (clearingRef.current) return Promise.resolve();
+      const generation = clearGeneration.current;
+      return Promise.all([
       fetchPhoneMessageNotifications(auth.demoPhone!),
       fetchPhoneCallNotifications(auth.demoPhone!),
       fetchHostPayoutNotifications(auth.demoPhone!),
       fetchDismissedPhoneAnnouncementIds(auth.demoPhone!),
     ])
       .then(([messageRows, callRows, payoutRows, dismissedIds]) => {
-        if (!active) return;
+        if (!active || generation !== clearGeneration.current) return;
         setMessages(messageRows);
         setCalls(callRows);
         setPayouts(payoutRows);
@@ -2332,6 +2337,7 @@ export function Notifications() {
         if (active) setError(cause instanceof Error ? cause.message : "Unable to load notifications.");
       })
       .finally(() => { if (active) setLoading(false); });
+    };
     void load();
     const unsubscribe = subscribeToAllPhoneMessages(auth.demoPhone, () => { void load(); });
     const refreshTimer = setInterval(() => { void load(); }, 10000);
@@ -2364,6 +2370,8 @@ export function Notifications() {
   const hasNotifications = groupedMessages.length > 0 || calls.length > 0 || payouts.length > 0 || announcements.length > 0;
   const clearNotifications = () => {
     if (!auth.demoPhone || clearing) return;
+    clearingRef.current = true;
+    clearGeneration.current += 1;
     setClearing(true);
     setError("");
     setClearMessage("");
@@ -2380,7 +2388,7 @@ export function Notifications() {
         console.error("Unable to clear notifications:", cause);
         setError(cause instanceof Error ? cause.message : "Unable to clear notifications. Please try again.");
       })
-      .finally(() => setClearing(false));
+      .finally(() => { clearingRef.current = false; setClearing(false); });
   };
   const formatTime = (value: string) => new Date(value).toLocaleDateString([], {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
@@ -2409,14 +2417,20 @@ export function Notifications() {
               title={clearing ? "Clearing…" : "Clear all"}
               variant="secondary"
               disabled={loading || clearing || !hasNotifications}
-              onPress={() => Alert.alert(
+              onPress={() => {
+                if (Platform.OS === "web") {
+                  if (window.confirm("Clear all notifications? Your chats will not be deleted.")) clearNotifications();
+                  return;
+                }
+                Alert.alert(
                 "Clear all notifications?",
                 "This clears your current inbox notifications. It won’t delete chats or affect other users.",
                 [
                   { text: "Cancel", style: "cancel" },
                   { text: "Clear all", style: "destructive", onPress: clearNotifications },
                 ],
-              )}
+              );
+              }}
             />
           </Row>
         </View>

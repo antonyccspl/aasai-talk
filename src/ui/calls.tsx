@@ -1684,6 +1684,7 @@ export function CallsList() {
   const [menuCall, setMenuCall] = useState<string | null>(null);
   const [history, setHistory] = useState<Awaited<ReturnType<typeof fetchPhoneCallHistory>>>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const loadHistory = useCallback(async () => {
     if (!auth.demoPhone) {
@@ -1692,6 +1693,7 @@ export function CallsList() {
     }
     const rows = await fetchPhoneCallHistory(auth.demoPhone);
     setHistory(rows);
+    setHistoryError("");
   }, [auth.demoPhone]);
   useEffect(() => {
     let active = true;
@@ -1699,7 +1701,7 @@ export function CallsList() {
       void loadHistory()
         .catch((error) => {
           console.warn("Unable to load call history:", error);
-          if (active) setHistory([]);
+          if (active) setHistoryError("We couldn't load your calls. Please check your connection and try again.");
         })
         .finally(() => { if (active) setHistoryLoading(false); });
     };
@@ -1712,7 +1714,7 @@ export function CallsList() {
     try { await loadHistory(); }
     catch (error) {
       console.warn("Unable to refresh call history:", error);
-      setHistory([]);
+      setHistoryError("We couldn't refresh your calls. Please check your connection and try again.");
     }
     finally { setRefreshing(false); }
   }, [loadHistory]);
@@ -1736,6 +1738,7 @@ export function CallsList() {
         onChange={setFilter}
       />
       <Section title="Recent calls" />
+      {historyError ? <Notice tone="error">{historyError}</Notice> : null}
       {historyLoading ? <LoadingCards count={3} /> : list.map((call) => {
         const personId = `phone_${call.other_phone.replace("+", "")}`;
         const directoryPerson = people.find((item) => item.id === personId);
@@ -1773,16 +1776,22 @@ export function CallsList() {
                 <T bold size={14}>
                   {person.name}
                 </T>
-                <T size={11} color={c.muted}>
+                <T size={12} color={c.secondary}>
                   {`${translate(call.incoming ? "Incoming" : "Outgoing")} · ${translate(call.status[0].toUpperCase() + call.status.slice(1))} · ${duration(call.duration_seconds)}`}
                 </T>
+                <T size={12} color={c.secondary}>
+                  {new Date(call.created_at).toLocaleString(undefined, {
+                    day: "numeric", month: "short", year: "numeric",
+                    hour: "numeric", minute: "2-digit",
+                  })}
+                </T>
                 {!isHost && call.counterpart_is_host && call.counterpart_last_seen_at ? (
-                  <T size={10} color={c.secondary}>
+                  <T size={11} color={c.secondary}>
                     Last seen {formatLastSeen(call.counterpart_last_seen_at)}
                   </T>
                 ) : null}
                 {!call.incoming && (
-                  <T mono size={10} color={c.warning}>
+                  <T mono size={11} color={c.warning}>
                     View receipt for coin details
                   </T>
                 )}
@@ -1824,13 +1833,13 @@ export function CallsList() {
           </Card>
         );
       })}
-      {!historyLoading && !list.length && (
+      {!historyLoading && !historyError && !list.length && (
         <Empty
           icon="phone"
-          title="No calls here yet"
-          message="A hello could be the start of something good."
-          action="Explore people"
-          onPress={() => go("/explore")}
+          title={filter === "All" ? "No calls here yet" : "No matching calls"}
+          message={filter === "All" ? "A hello could be the start of something good." : "Try another filter to see more calls."}
+          action={filter === "All" ? "Explore people" : "Show all calls"}
+          onPress={() => filter === "All" ? go("/explore") : setFilter("All")}
         />
       )}
     </Shell>

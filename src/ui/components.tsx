@@ -1339,7 +1339,7 @@ export function Shell({
               }
               contentContainerStyle={[
                 s.content,
-                { flexGrow: 1, paddingBottom: tab ? 112 : 28 },
+                { flexGrow: 1, paddingBottom: tab ? 100 : 28 },
               ]}
             >
               {loading && !skipSkeleton ? <PageSkeleton /> : safeChildren}
@@ -1382,27 +1382,30 @@ export function Shell({
             <View
               style={[
                 s.dock,
-                { backgroundColor: c.low },
+                { backgroundColor: c.low, bottom: 10, left: 12, right: 12 },
                 wideWebLayout && {
                   left: "50%",
                   right: undefined,
-                  width: 560,
-                  transform: [{ translateX: -280 }],
+                  width: 480,
+                  transform: [{ translateX: -240 }],
                 },
               ]}
             >
-              {tabs.map(([name, icon, path]) => (
+              {tabs.map(([name, icon, path]) => {
+                const selected = tab === name || (isHostAccount && name === "Dashboard" && tab === "Explore");
+                return (
                 <Pressable
                   key={name}
                   accessibilityRole="tab"
-                  accessibilityState={{ selected: tab === name }}
+                  accessibilityLabel={name}
+                  accessibilityState={{ selected }}
                   onPress={() => router.replace(path as never)}
-                  style={[s.tab, tab === name && { backgroundColor: c.high }]}
+                  style={[s.tab, selected && { backgroundColor: c.high }]}
                 >
                   <View>
                     <Icon
                       name={icon}
-                      color={tab === name ? c.mint : c.secondary}
+                      color={selected ? c.mint : c.secondary}
                       size={21}
                     />
                     {name === "Messages" && d.unreadMessageCount > 0 && (
@@ -1419,11 +1422,11 @@ export function Shell({
                       </View>
                     )}
                   </View>
-                  <T mono size={11.5} color={tab === name ? c.mint : c.secondary}>
+                  <T mono size={11.5} color={selected ? c.mint : c.secondary}>
                     {name}
                   </T>
                 </Pressable>
-              ))}
+              ); })}
             </View>
           )}
         </View>
@@ -1554,7 +1557,7 @@ export const s = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 10,
+    padding: 6,
     borderRadius: 24,
     borderWidth: 1,
     borderColor: c.line,
@@ -1569,7 +1572,7 @@ export const s = StyleSheet.create({
   tab: {
     overflow: "hidden",
     flex: 1,
-    minHeight: 56,
+    minHeight: 52,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
