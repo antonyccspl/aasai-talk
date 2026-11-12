@@ -18,5 +18,5 @@ export async function reconcileCashfreeOrder(admin: SupabaseClient, providerOrde
   if (updateError) throw updateError;
   const { data: credit, error: creditError } = await admin.rpc("credit_phone_wallet_payment", { input_payment_order_id: order.id });
   if (creditError) throw creditError;
-  return { status: "paid", credited: Boolean(credit && typeof credit === "object" && "credited" in credit && credit.credited), coins: credit && typeof credit === "object" && "coins_credited" in credit ? Number(credit.coins_credited) : undefined };
+  return { status: "paid", credited: Boolean(credit && typeof credit === "object" && (("credited" in credit && credit.credited) || ("already_credited" in credit && credit.already_credited))), coins: credit && typeof credit === "object" && "coins_credited" in credit ? Number(credit.coins_credited) : undefined };
 }

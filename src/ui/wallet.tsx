@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Linking, Platform, Pressable, useWindowDimensions, View } from "react-native";
+import { Linking, Modal, Platform, Pressable, useWindowDimensions, View } from "react-native";
 import {
   Badge,
   Button,
@@ -131,6 +131,7 @@ export function Wallet({
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
+  const [paymentSuccess, setPaymentSuccess] = useState<{ coins?: number } | null>(null);
   const [pendingCashfreeOrder, setPendingCashfreeOrder] = useState("");
   useEffect(() => {
     const controller = new AbortController();
@@ -241,10 +242,11 @@ export function Wallet({
   const checkCashfreePayment = useCallback(async (orderId: string) => {
     const token = await getIdentityToken();
     const result = await getCashfreePaymentStatus(token, orderId);
-    if (result.status === "paid") {
+    if (result.status === "paid" && result.credited) {
       setPendingCashfreeOrder("");
       setPaymentError("");
       setPaymentMessage("Payment confirmed. Your wallet has been updated.");
+      setPaymentSuccess({ coins: result.coins });
       setReload(value => value + 1);
       return true;
     }
@@ -463,6 +465,16 @@ export function Wallet({
   if (mode === "recharge")
     return (
       <Shell title="Review recharge">
+        <Modal visible={paymentSuccess !== null} transparent animationType="fade" onRequestClose={() => { setPaymentSuccess(null); go("/wallet"); }}>
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "rgba(30,18,26,0.65)" }}>
+            <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ width: "100%", maxWidth: 400, backgroundColor: c.low, borderRadius: 28, padding: 26, alignItems: "center", gap: 16 }}>
+              <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: c.successSurface, alignItems: "center", justifyContent: "center" }}><Icon name="check-circle" size={38} color={c.success} /></View>
+              <T bold size={24} style={{ textAlign: "center" }}>Payment successful</T>
+              <T color={c.secondary} style={{ textAlign: "center" }}>{paymentSuccess?.coins ? `${coins(paymentSuccess.coins)} have been added to your wallet.` : "Your payment is confirmed and your coins are in your wallet."}</T>
+              <Button title="Go to wallet" onPress={() => { setPaymentSuccess(null); go("/wallet"); }} style={{ alignSelf: "stretch" }} />
+            </View>
+          </View>
+        </Modal>
         <T size={24} bold>
           More time to connect.
         </T>

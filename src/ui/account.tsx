@@ -6,7 +6,6 @@ import {
     setHostCallPreference,
     setHostLastSeenVisibility,
 } from "@/data/host-presence";
-import { setupAndroidCallUi } from "@/data/android-incoming-calls";
 import { fetchPhoneCallNotifications, markPhoneCallNotificationRead, type PhoneCallNotification } from "@/data/call-sessions";
 import { fetchPhoneMessageNotifications, subscribeToAllPhoneMessages, type PhoneMessageNotification } from "@/data/chat";
 import { clearAllPhoneNotifications, fetchDismissedPhoneAnnouncementIds } from "@/data/phone-notifications";
@@ -1443,7 +1442,7 @@ export function Settings({
           )}
           <Section title="Availability" />
           <T bold size={17}>
-            {Platform.OS === "web" ? "Browser availability" : "Accept calls while away"}
+            Call availability
           </T>
           <Badge
             text={
@@ -1451,16 +1450,14 @@ export function Settings({
                   ? "On a call"
                 : callAvailability
                   ? "Available for calls"
-                  : Platform.OS === "web"
-                    ? "Offline"
-                    : "Available while using the app"
+                  : "Offline"
             }
             warning={d.active?.status === "Connected" || d.active?.status === "Ringing"}
           />
           {Platform.OS === "android" || Platform.OS === "web" ? (
             <Setting
-              title={availabilityLoading ? "Checking setting…" : Platform.OS === "web" ? (callAvailability ? "Go Offline" : "Go Online") : "Accept calls while away"}
-              detail={Platform.OS === "web" ? "Stay available while this browser is minimized. Go Offline stops new calls on all devices." : "Let Android show Aasai Talk internet calls while the app is away. This will not replace your Phone app or affect regular SIM calls."}
+              title={availabilityLoading ? "Checking setting…" : callAvailability ? "Go Offline" : "Go Online"}
+              detail={Platform.OS === "web" ? "Stay available while this browser is minimized. Go Offline stops new calls on all devices." : "Keep the app open to receive calls. Go Offline stops new calls on all devices."}
               icon="phone"
               value={callAvailability}
               onToggle={(next) => {
@@ -1470,17 +1467,6 @@ export function Settings({
                 setAvailabilityError("");
                 void (async () => {
                   const idToken = await auth.getIdentityToken();
-                  if (next && Platform.OS === "android") {
-                    const token = await registerPushDevice(idToken, {
-                      calls: true,
-                      messages: d.prefs["Message alerts"] !== false,
-                      wallet: d.prefs["Payment updates"] !== false,
-                      announcements: d.prefs.Announcements !== false,
-                    });
-                    if (!token)
-                      throw new Error("Turn on call notifications before accepting calls while away.");
-                    await setupAndroidCallUi();
-                  }
                   await setHostCallAvailability(idToken, next);
                   setCallAvailability(next);
                 })()

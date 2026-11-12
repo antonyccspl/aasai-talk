@@ -49,6 +49,7 @@ export function CashfreeCheckoutHandoff({
       try {
         const result = await getCashfreeCheckoutStatus(checkoutToken);
         if (!active) return;
+        setError("");
         if (result.status === "paid" || result.status === "failed") {
           setState(result.status);
           if (returnToApp) {
@@ -64,7 +65,7 @@ export function CashfreeCheckoutHandoff({
       } catch (cause) {
         if (!active) return;
         setError(cause instanceof Error ? cause.message : "Payment status could not be checked.");
-        setState("error");
+        timeout = setTimeout(poll, 5000);
       }
     };
     void poll();

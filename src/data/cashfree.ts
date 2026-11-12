@@ -22,7 +22,11 @@ export type CashfreePaymentStatus = {
 };
 
 async function request<T>(idToken: string, endpoint: string, body: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${supabaseUrl}/functions/v1/${endpoint}`, {
+  let response: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    response = await fetch(`${supabaseUrl}/functions/v1/${endpoint}`, {
     method: "POST",
     headers: {
       apikey: supabasePublishableKey,
@@ -30,7 +34,15 @@ async function request<T>(idToken: string, endpoint: string, body: Record<string
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-  });
+    signal: controller.signal,
+    });
+  } catch {
+    throw new Error(endpoint === "cashfree-create-order"
+      ? "We couldn't start checkout. Check your internet and try again."
+      : "We couldn't connect to check your payment. Check your internet and try again. Your payment will be verified before coins are added.");
+  } finally {
+    clearTimeout(timeout);
+  }
   const value: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const message = value && typeof value === "object" && "error" in value && typeof value.error === "string"
