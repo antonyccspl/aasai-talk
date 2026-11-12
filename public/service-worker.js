@@ -9,8 +9,9 @@ self.addEventListener("push", (event) => {
     return;
   }
 
-  if (payload.type !== "incoming_call") return;
+  if (payload.type !== "incoming_call" && payload.type !== "test_call") return;
   if (typeof payload.expiresAt === "string" && Date.parse(payload.expiresAt) <= Date.now()) return;
+  if (payload.type === "incoming_call" && typeof payload.callId !== "string") return;
   const route =
     typeof payload.route === "string" && /^\/calls(?:\/|$)/.test(payload.route)
       ? payload.route
@@ -18,18 +19,23 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      if (clients.some((client) => client.visibilityState === "visible")) return;
       return self.registration.showNotification(payload.title, {
         body: payload.body,
         icon: "/aasai-talk-icon.png",
         badge: "/favicon.ico",
-        tag: `incoming-call-${payload.callId}`,
+        tag: payload.type === "incoming_call"
+          ? `incoming-call-${payload.callId}`
+          : `test-call-${Date.now()}`,
         renotify: true,
         requireInteraction: true,
         silent: false,
         vibrate: [500, 250, 500, 250, 500],
         timestamp: Date.now(),
-        data: { route },
+        actions: payload.type === "incoming_call" ? [
+          { action: "accept", title: "Accept" },
+          { action: "reject", title: "Reject" },
+        ] : [],
+        data: { route, expiresAt: payload.expiresAt },
       });
     }),
   );
@@ -42,7 +48,16 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
-      const target = new URL(route, self.location.origin).href;
+      const url = new URL(route, self.location.origin);
+      if (Date.parse(event.notification.data?.expiresAt) <= Date.now()) {
+        url.pathname = "/calls";
+        url.search = "";
+      } else if (event.action === "accept") {
+        url.searchParams.set("autoAnswer", "true");
+      } else if (event.action === "reject") {
+        url.searchParams.set("autoReject", "true");
+      }
+      const target = url.href;
       const existing = clients.find((client) => new URL(client.url).origin === self.location.origin);
       if (existing) {
         await existing.navigate(target);

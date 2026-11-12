@@ -94,6 +94,8 @@ Deno.serve(async (request) => {
       .eq("status", "approved")
       .maybeSingle();
     if (hostError) throw hostError;
+    if (!host && action === "logout")
+      return Response.json({ ok: true }, { headers: corsHeaders });
     if (!host)
       return Response.json({ error: "An approved Host account is required." }, { status: 403, headers: corsHeaders });
 
@@ -137,6 +139,14 @@ Deno.serve(async (request) => {
       return Response.json({ ok: true }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
     }
 
+    if (action === "logout") {
+      const { error } = await admin.rpc("set_phone_host_call_availability", {
+        input_host_phone: identity.phone, input_accepting_calls: false,
+      });
+      if (error) throw error;
+      return Response.json({ ok: true }, { headers: corsHeaders });
+    }
+
     if (action === "availability") {
       if (typeof body.accepting_calls !== "boolean")
         return Response.json({ error: "Invalid call availability setting." }, { status: 400, headers: corsHeaders });
@@ -147,8 +157,12 @@ Deno.serve(async (request) => {
           .eq("phone", identity.phone)
           .eq("platform", "android");
         if (error) throw error;
-        if (!androidDevices?.length)
-          return Response.json({ error: "Enable Android call notifications on this device before accepting calls while away." }, { status: 409, headers: corsHeaders });
+        const { data: webDevices, error: webError } = await admin
+          .from("phone_web_push_subscriptions").select("endpoint")
+          .eq("phone", identity.phone).limit(1);
+        if (webError) throw webError;
+        if (!androidDevices?.length && !webDevices?.length)
+          return Response.json({ error: "Enable browser or Android call notifications before going Online." }, { status: 409, headers: corsHeaders });
       }
       const { error } = await admin.rpc("set_phone_host_call_availability", {
         input_host_phone: identity.phone,

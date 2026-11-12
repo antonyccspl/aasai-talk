@@ -24,6 +24,7 @@ import {
   registerBrowserCallPush,
   registerPushDevice,
   requestBrowserCallPushPermission,
+  sendBrowserCallPushTest,
   showPushTestNotification,
   updatePushPreferences,
 } from "@/data/push-notifications";
@@ -1450,23 +1451,26 @@ export function Settings({
                 : callAvailability
                   ? "Available for calls"
                   : Platform.OS === "web"
-                    ? "Online while browser is open"
+                    ? "Offline"
                     : "Available while using the app"
             }
             warning={d.active?.status === "Connected" || d.active?.status === "Ringing"}
           />
-          {Platform.OS === "android" ? (
+          {Platform.OS === "android" || Platform.OS === "web" ? (
             <Setting
-              title={availabilityLoading ? "Checking setting…" : "Accept calls while away"}
-              detail="Let Android show Aasai Talk internet calls while the app is away. This will not replace your Phone app or affect regular SIM calls."
+              title={availabilityLoading ? "Checking setting…" : Platform.OS === "web" ? (callAvailability ? "Go Offline" : "Go Online") : "Accept calls while away"}
+              detail={Platform.OS === "web" ? "Stay available while this browser is minimized. Go Offline stops new calls on all devices." : "Let Android show Aasai Talk internet calls while the app is away. This will not replace your Phone app or affect regular SIM calls."}
               icon="phone"
               value={callAvailability}
               onToggle={(next) => {
                 if (availabilityBusy || availabilityLoading) return;
+                const browserPermission = next && Platform.OS === "web" ? requestBrowserCallPushPermission() : Promise.resolve();
                 setAvailabilityBusy(true);
                 setAvailabilityError("");
                 void (async () => {
+                  await browserPermission;
                   const idToken = await auth.getIdentityToken();
+                  if (next && Platform.OS === "web") await registerBrowserCallPush(idToken);
                   if (next && Platform.OS === "android") {
                     const token = await registerPushDevice(idToken, {
                       calls: true,
@@ -1495,10 +1499,6 @@ export function Settings({
                   .finally(() => setAvailabilityBusy(false));
               }}
             />
-          ) : Platform.OS === "web" ? (
-            <Notice>
-              You are available for calls while Aasai Talk is open in this browser. Closing the browser pauses your availability.
-            </Notice>
           ) : (
             <Notice>
               Accepting calls while away requires the Android app.
@@ -1687,8 +1687,22 @@ export function Settings({
                   .finally(() => setPushBusy(false));
               }}
             />
+            <Button
+              title={pushBusy ? "Sending…" : "Send browser test alert"}
+              variant="secondary"
+              disabled={pushBusy || !auth.demoPhone}
+              onPress={() => {
+                setPushBusy(true);
+                setPushMessage("");
+                void auth.getIdentityToken()
+                  .then(sendBrowserCallPushTest)
+                  .then(() => setPushMessage("A test alert was sent. Check this device's browser or system notifications."))
+                  .catch((error: unknown) => setPushMessage(error instanceof Error ? error.message : "Unable to send the browser test alert."))
+                  .finally(() => setPushBusy(false));
+              }}
+            />
             {pushMessage ? (
-              <Notice error={/unable|blocked|allow|does not support/i.test(pushMessage)}>
+              <Notice error={/unable|blocked|allow|does not support|not registered|expired|could not be delivered/i.test(pushMessage)}>
                 {pushMessage}
               </Notice>
             ) : null}

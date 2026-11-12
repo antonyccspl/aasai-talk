@@ -36,6 +36,7 @@ async function requestPushAction(idToken: string, action: string, payload: Recor
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ action, ...payload }),
+    signal: AbortSignal.timeout(20000),
   });
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
@@ -130,6 +131,12 @@ export async function registerBrowserCallPush(idToken: string) {
   });
 }
 
+export async function sendBrowserCallPushTest(idToken: string) {
+  const result = await requestPushAction(idToken, "test_web");
+  if (!result || typeof result !== "object" || !("sent" in result) || result.sent !== true)
+    throw new Error("The browser test alert was not accepted.");
+}
+
 export async function unregisterBrowserCallPush(idToken: string) {
   if (
     Platform.OS !== "web"
@@ -187,7 +194,9 @@ export async function sendPushEvent(
   eventId: string,
   source?: "call" | "message",
 ) {
-  await requestPushAction(idToken, "send", { event, event_id: eventId, ...(source ? { source } : {}) });
+  const result = await requestPushAction(idToken, "send", { event, event_id: eventId, ...(source ? { source } : {}) });
+  if (event === "incoming_call" && (!result || typeof result !== "object" || !("sent" in result) || typeof result.sent !== "number" || result.sent < 1))
+    throw new Error("This Host is unreachable. The call alert could not be delivered.");
 }
 
 /** A local device check confirms permission, channel setup, presentation, and routing. */

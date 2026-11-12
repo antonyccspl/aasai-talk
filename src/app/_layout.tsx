@@ -466,8 +466,8 @@ function PresenceLifecycle() {
       if (
         !mounted ||
         heartbeatPending ||
-        AppState.currentState === "background" ||
-        AppState.currentState === "inactive"
+        (Platform.OS !== "web" && (AppState.currentState === "background" ||
+        AppState.currentState === "inactive"))
       )
         return;
       heartbeatPending = true;
@@ -480,7 +480,7 @@ function PresenceLifecycle() {
       }
     };
     void heartbeat();
-    const interval = setInterval(() => void heartbeat(), 20000);
+    const interval = setInterval(() => void heartbeat(), 30000);
     const listener = AppState.addEventListener("change", (state) => {
       if (state === "active") void heartbeat();
     });
@@ -490,6 +490,7 @@ function PresenceLifecycle() {
     if (Platform.OS === "web") {
       window.addEventListener("focus", resumeHeartbeat);
       window.addEventListener("pageshow", resumeHeartbeat);
+      window.addEventListener("online", resumeHeartbeat);
       document.addEventListener("visibilitychange", resumeHeartbeat);
     }
     return () => {
@@ -499,6 +500,7 @@ function PresenceLifecycle() {
       if (Platform.OS === "web") {
         window.removeEventListener("focus", resumeHeartbeat);
         window.removeEventListener("pageshow", resumeHeartbeat);
+        window.removeEventListener("online", resumeHeartbeat);
         document.removeEventListener("visibilitychange", resumeHeartbeat);
       }
     };

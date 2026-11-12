@@ -85,6 +85,7 @@ type CallScreenProps = {
   /** Comma-separated directory IDs already invited in this automatic request. */
   attemptedIds?: string;
   autoAnswer?: boolean;
+  autoReject?: boolean;
 };
 
 /** The call route must never fail to a browser-white page. */
@@ -143,6 +144,7 @@ function CallScreenContent({
   participantName,
   attemptedIds = "",
   autoAnswer = false,
+  autoReject = false,
 }: CallScreenProps) {
   const d = useDemo();
   const auth = useAuth();
@@ -474,6 +476,11 @@ function CallScreenContent({
     if (d.active?.person === id && !incoming)
       d.setActive((x) => (x ? { ...x, status: state } : x));
   }, [state, incoming, d.active?.person, id]);
+  useEffect(() => {
+    if (!incoming || !autoReject || !sessionId || !auth.demoPhone) return;
+    void end("Rejected");
+  }, [incoming, autoReject, sessionId, auth.demoPhone]);
+
   async function end(status = "Ended") {
     if (closedRef.current) return;
     closedRef.current = true;
@@ -673,6 +680,16 @@ function CallScreenContent({
           hostPhone,
           video ? "video" : "audio",
         );
+        try {
+          await sendPushEvent(await auth.getIdentityToken(), "incoming_call", session.id);
+          const current = await fetchPhoneCallState(session.id, auth.demoPhone);
+          if (current.status !== "ringing" && current.status !== "connected")
+            throw new Error("This call has already ended.");
+          session.status = current.status;
+        } catch (error) {
+          await updatePhoneCall(session.id, auth.demoPhone, "cancelled").catch(console.warn);
+          throw error;
+        }
       }
     } catch (error) {
       console.error("Failed to start call session:", error);
@@ -708,7 +725,7 @@ function CallScreenContent({
       id: session.id,
       person: id,
       type: video ? "video" : "audio",
-      status: incoming ? "Connected" : "Ringing",
+      status: incoming || session.status === "connected" ? "Connected" : "Ringing",
       seconds: 0,
       incoming,
       speaker: route === "Speaker",
@@ -718,11 +735,6 @@ function CallScreenContent({
           : undefined,
     });
     if (incoming && autoAnswer) setAndroidCallActive(session.id);
-    if (!incoming) {
-      void auth.getIdentityToken()
-        .then((idToken) => sendPushEvent(idToken, "incoming_call", session.id))
-        .catch((error) => console.warn("Unable to send incoming-call push:", error));
-    }
     if (incoming || session.status === "connected")
       router.replace(
         `/calls/${video ? "video" : "audio"}/${id}?session=${session.id}&type=${video ? "video" : "audio"}&name=${encodeURIComponent(p.name)}` as never,
@@ -732,6 +744,7 @@ function CallScreenContent({
     if (
       !incoming ||
       !autoAnswer ||
+      autoReject ||
       !sessionId ||
       autoAnswerSessionRef.current === sessionId
     )
@@ -1062,7 +1075,7 @@ function CallScreenContent({
         <Badge
           text={
             ringing
-              ? state
+              ? (outgoing && !activeForThisCall ? "Contacting Host…" : state)
               : d.active?.incoming
                 ? duration(d.active?.seconds ?? 0)
                 : talkTime(remainingTalkSeconds)
@@ -1536,7 +1549,7 @@ function CallScreenContent({
             {hostUnavailable
               ? hostUnavailable === "Busy" ? "Busy on another call" : "Offline"
               : ringing
-              ? `${video ? "Video" : "Audio"} call · ${state.toLowerCase()}`
+              ? `${video ? "Video" : "Audio"} call · ${outgoing && !activeForThisCall ? "contacting host" : state.toLowerCase()}`
               : muted
                 ? "Your microphone is muted"
                 : state === "Connected"

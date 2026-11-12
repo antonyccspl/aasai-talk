@@ -37,6 +37,7 @@ export default function Route() {
     name?: string;
     tried?: string;
     autoAnswer?: string;
+    autoReject?: string;
     order_id?: string;
   }>();
   const parts = Array.isArray(params.route)
@@ -88,7 +89,7 @@ export default function Route() {
     ) : action === "detail" || action === "result" ? (
       <CallDetail id={id} result={action === "result"} status={params.status} />
     ) : (
-      <CallScreen mode={action} id={id} type={params.type} sessionId={params.session} participantName={params.name} attemptedIds={params.tried} autoAnswer={params.autoAnswer === "true"} />
+      <CallScreen mode={action} id={id} type={params.type} sessionId={params.session} participantName={params.name} attemptedIds={params.tried} autoAnswer={params.autoAnswer === "true"} autoReject={params.autoReject === "true"} />
     );
   else if (isCashfreeCheckout)
     screen = <CashfreeCheckoutHandoff checkoutToken={checkoutToken} returnToApp={returnToApp} />;

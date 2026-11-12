@@ -188,6 +188,68 @@ Deno.serve(async (request) => {
       return Response.json({ unregistered: true }, { headers: corsHeaders });
     }
 
+    if (action === "test_web") {
+      const { data: subscriptions, error } = await admin.from("phone_web_push_subscriptions")
+        .select("endpoint,p256dh,auth").eq("phone", identity.phone);
+      if (error) throw error;
+      if (!subscriptions?.length)
+        return Response.json({
+          error: "This browser is not registered for call alerts. Enable browser call alerts on this device first.",
+        }, { status: 409, headers: corsHeaders });
+
+      const { publicKey, privateKey, subject } = getWebPushConfig();
+      const payload = JSON.stringify({
+        type: "test_call",
+        title: "Aasai Talk test alert",
+        body: "Browser call alerts are working on this device.",
+        route: "/calls",
+        expiresAt: new Date(Date.now() + 120_000).toISOString(),
+      });
+      const results = await Promise.allSettled(subscriptions.map(async (subscription) => {
+        try {
+          await webpush.sendNotification({
+            endpoint: subscription.endpoint,
+            keys: { auth: subscription.auth, p256dh: subscription.p256dh },
+          }, payload, {
+            TTL: 120,
+            urgency: "high",
+            vapidDetails: { subject, publicKey, privateKey },
+          });
+          return true;
+        } catch (pushError) {
+          if (
+            pushError
+            && typeof pushError === "object"
+            && "statusCode" in pushError
+            && (pushError.statusCode === 410 || pushError.statusCode === 404)
+          ) {
+            const { error: deleteError } = await admin.from("phone_web_push_subscriptions")
+              .delete().eq("endpoint", subscription.endpoint);
+            if (deleteError) throw deleteError;
+            return false;
+          }
+          throw pushError;
+        }
+      }));
+      const accepted = results.some((result) =>
+        result.status === "fulfilled" && result.value
+      );
+      if (!accepted) {
+        for (const result of results) {
+          if (result.status === "rejected")
+            console.error("Browser test alert delivery failed:", result.reason);
+        }
+        return Response.json({
+          error: results.some((result) =>
+            result.status === "fulfilled" && !result.value
+          )
+            ? "The browser push subscription has expired. Enable browser call alerts again on this device."
+            : "The browser test alert could not be delivered. Check the browser notification settings and try again.",
+        }, { status: 502, headers: corsHeaders });
+      }
+      return Response.json({ sent: true }, { headers: corsHeaders });
+    }
+
     if (action === "register") {
       const pushToken = typeof body.expo_push_token === "string" ? body.expo_push_token : "";
       const platform = body.platform;
@@ -280,12 +342,18 @@ Deno.serve(async (request) => {
 
     if (event === "incoming_call") {
       const { data, error } = await admin.from("call_sessions")
-        .select("id,caller_phone,host_phone,call_type,status")
+        .select("id,caller_phone,host_phone,call_type,status,created_at")
         .eq("id", eventId).maybeSingle();
       if (error) throw error;
-      if (!data || data.caller_phone !== identity.phone || data.status !== "ringing")
+      if (!data || data.caller_phone !== identity.phone || data.status !== "ringing" || Date.parse(data.created_at) <= Date.now() - 60000)
         return Response.json({ error: "Incoming call is not authorized." }, { status: 403, headers: corsHeaders });
       recipientPhone = data.host_phone;
+      const { data: online, error: onlineError } = await admin.rpc("phone_host_is_online", { input_host_phone: recipientPhone });
+      if (onlineError) throw onlineError;
+      if (!online) {
+        await admin.from("call_sessions").update({ status: "missed", ended_at: new Date().toISOString() }).eq("id", eventId).eq("status", "ringing");
+        return Response.json({ error: "Host is offline." }, { status: 409, headers: corsHeaders });
+      }
       const { data: presence, error: presenceError } = await admin
         .from("phone_host_presence")
         .select("accepting_calls")
@@ -315,7 +383,7 @@ Deno.serve(async (request) => {
         callerPhone: identity.phone,
         callerName,
         hostPhone: data.host_phone,
-        expiresAt: new Date(Date.now() + 30_000).toISOString(),
+        expiresAt: new Date(Date.parse(data.created_at) + 60_000).toISOString(),
       };
     } else if (event === "message") {
       const { data, error } = await admin.from("phone_messages")
@@ -355,6 +423,13 @@ Deno.serve(async (request) => {
       message = "Coins were used for an Aasai Talk service.";
     }
 
+    const markUnreachable = async () => {
+      if (event !== "incoming_call") return;
+      const { error } = await admin.from("call_sessions")
+        .update({ status: "missed", ended_at: new Date().toISOString() })
+        .eq("id", eventId).eq("status", "ringing");
+      if (error) throw error;
+    };
     const preferences = await readPreferences(() => admin.from("phone_notification_preferences")
       .select("calls_enabled,messages_enabled,wallet_enabled,announcements_enabled")
       .eq("phone", recipientPhone).maybeSingle());
@@ -363,8 +438,10 @@ Deno.serve(async (request) => {
       : event === "message"
         ? preferences.messages
         : preferences.wallet;
-    if (!enabledForAccount)
+    if (!enabledForAccount) {
+      await markUnreachable();
       return Response.json({ sent: 0 }, { headers: corsHeaders });
+    }
 
     const { data: devices, error: deviceError } = await admin.from("phone_push_tokens")
       .select("expo_push_token,platform")
@@ -388,8 +465,10 @@ Deno.serve(async (request) => {
       if (error) throw error;
       webSubscriptions = data ?? [];
     }
-    if (!eligibleDevices.length && !webSubscriptions.length)
+    if (!eligibleDevices.length && !webSubscriptions.length) {
+      await markUnreachable();
       return Response.json({ sent: 0 }, { headers: corsHeaders });
+    }
 
     const { data: prior, error: priorError } = await admin.from("phone_push_deliveries")
       .select("event_key").eq("event_key", eventKey).eq("recipient_phone", recipientPhone).maybeSingle();
@@ -458,7 +537,7 @@ Deno.serve(async (request) => {
           error
           && typeof error === "object"
           && "statusCode" in error
-          && error.statusCode === 410
+          && (error.statusCode === 410 || error.statusCode === 404)
         ) {
           const { error: deleteError } = await admin.from("phone_web_push_subscriptions")
             .delete().eq("endpoint", subscription.endpoint);
@@ -469,9 +548,13 @@ Deno.serve(async (request) => {
         return false;
       }
     });
-    const results = await Promise.all([...nativeResults, ...webResults]);
-    const sent = results.filter(Boolean).length;
+    const results = await Promise.allSettled([...nativeResults, ...webResults]);
+    const sent = results.filter((result) => result.status === "fulfilled" && result.value).length;
     if (!sent) {
+      if (event === "incoming_call") {
+        const { error } = await admin.from("call_sessions").update({ status: "missed", ended_at: new Date().toISOString() }).eq("id", eventId).eq("status", "ringing");
+        if (error) throw error;
+      }
       await admin.from("phone_push_deliveries").delete()
         .eq("event_key", eventKey).eq("recipient_phone", recipientPhone);
       throw new Error("Push provider did not accept the notification.");

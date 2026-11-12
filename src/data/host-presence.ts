@@ -21,6 +21,7 @@ async function requestHostPresence(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
   });
   const result: unknown = await response.json().catch(() => null);
   if (!response.ok) {
@@ -142,4 +143,8 @@ export async function setHostLastSeenVisibility(
     action: "privacy",
     show_last_seen: showLastSeen,
   });
+}
+
+export async function endHostAvailability(idToken: string) {
+  await requestHostPresence(idToken, { action: "logout" });
 }
