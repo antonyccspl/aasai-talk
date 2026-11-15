@@ -22,6 +22,7 @@ type AuthContextValue = {
   authenticated: boolean;
   demoPhone: string | null;
   demoProfileComplete: boolean;
+  markPhoneProfileComplete: () => void;
   loading: boolean;
   getIdentityToken: () => Promise<string>;
   sendOtp: (phone: string) => Promise<void>;
@@ -212,6 +213,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (signOutError) throw signOutError;
   };
 
+  const markPhoneProfileComplete = () => {
+    if (demoPhone) setDemoProfileComplete(true);
+  };
+
   const getIdentityToken = useCallback(async () => {
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
@@ -229,6 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authenticated,
         demoPhone,
         demoProfileComplete,
+        markPhoneProfileComplete,
         loading,
         getIdentityToken,
         sendOtp,

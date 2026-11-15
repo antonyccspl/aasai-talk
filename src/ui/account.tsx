@@ -437,6 +437,7 @@ export function Auth({ mode }: { mode: string }) {
                 ? saveOwnProfile(completedProfile)
                 : Promise.reject(new Error("Phone session is missing.")))
               .then((approvedPhoto) => {
+                if (auth.demoPhone) auth.markPhoneProfileComplete();
                 if (approvedPhoto) d.setPhoto(approvedPhoto);
                 router.replace("/explore");
               })

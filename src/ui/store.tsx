@@ -55,7 +55,7 @@ const EMPTY_PROFILE = {
   languages: ["Hindi", "English"],
   interests: ["Music", "Travel", "Late night talks"],
   dob: "2000-06-15",
-  gender: "Female",
+  gender: "",
   city: "Delhi",
 };
 export const COINS_PER_DIAMOND = 10;

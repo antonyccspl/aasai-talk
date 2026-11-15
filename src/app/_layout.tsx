@@ -516,12 +516,41 @@ function PresenceLifecycle() {
 }
 
 function AppNavigator() {
-  const { demoPhone, loading, authenticated, getIdentityToken } = useAuth();
+  const {
+    demoPhone,
+    demoProfileComplete,
+    loading,
+    authenticated,
+    getIdentityToken,
+  } = useAuth();
   const { identityLoading, hostStatus, profile } = useDemo();
   const pathname = usePathname();
   const incomingSessionRef = useRef("");
   const incomingSoundKeyRef = useRef("");
   const stopIncomingStatusRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const onboardingRoute = pathname === "/auth" || pathname.startsWith("/auth/");
+    const publicRoute =
+      pathname === "/settings/delete-account" ||
+      pathname === "/settings/policies" ||
+      pathname.startsWith("/settings/policies/");
+    if (
+      loading ||
+      !authenticated ||
+      !demoPhone ||
+      demoProfileComplete ||
+      onboardingRoute ||
+      publicRoute
+    )
+      return;
+    router.replace("/auth/create-profile");
+  }, [
+    authenticated,
+    demoPhone,
+    demoProfileComplete,
+    loading,
+    pathname,
+  ]);
   useEffect(() => {
     if (Platform.OS === "web" || loading || !authenticated) return;
     const Notifications = require("expo-notifications") as typeof import("expo-notifications");
