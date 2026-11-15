@@ -1289,13 +1289,17 @@ export function Settings({
     if (
       !auth.demoPhone ||
       !approvedHost ||
-      (mode !== "availability" && mode !== "privacy")
+      (mode !== "availability" && mode !== "privacy") ||
+      availabilityBusy
     )
       return;
     let active = true;
-    void auth
-      .getIdentityToken()
-      .then(async (idToken) => {
+    let refreshInFlight = false;
+    const refreshPresenceSettings = async () => {
+      if (!active || refreshInFlight) return;
+      refreshInFlight = true;
+      try {
+        const idToken = await auth.getIdentityToken();
         const settings = await fetchHostPresenceSettings(idToken);
         if (!active) return;
         setCallAvailability(settings.acceptingCalls);
@@ -1305,8 +1309,9 @@ export function Settings({
         setCanAcceptVideoCalls(settings.canAcceptVideoCalls);
         setHostShowLastSeen(settings.showLastSeen);
         setHostPrivacyLoaded(true);
-      })
-      .catch((error: unknown) => {
+        if (mode === "availability") setAvailabilityError("");
+        else setPrivacyError("");
+      } catch (error: unknown) {
         if (mode === "availability")
           console.error("Unable to load call availability:", error);
         if (active) {
@@ -1314,19 +1319,33 @@ export function Settings({
             mode === "availability"
               ? "We could not load your call availability. Please try again."
               : error instanceof Error
-              ? error.message
-              : "Unable to load Host presence settings.";
+                ? error.message
+                : "Unable to load Host presence settings.";
           if (mode === "availability") setAvailabilityError(detail);
           else setPrivacyError(detail);
         }
-      })
-      .finally(() => {
+      } finally {
+        refreshInFlight = false;
         if (active) setAvailabilityLoading(false);
-      });
+      }
+    };
+    void refreshPresenceSettings();
+    const refreshInterval =
+      mode === "availability"
+        ? setInterval(() => void refreshPresenceSettings(), 10000)
+        : null;
     return () => {
       active = false;
+      if (refreshInterval !== null) clearInterval(refreshInterval);
     };
-  }, [approvedHost, auth.demoPhone, auth.getIdentityToken, mode, availabilityRetry]);
+  }, [
+    approvedHost,
+    auth.demoPhone,
+    auth.getIdentityToken,
+    availabilityBusy,
+    mode,
+    availabilityRetry,
+  ]);
   const saveHostCallPreference = (
     callType: "audio" | "video",
     accepting: boolean,

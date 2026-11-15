@@ -430,9 +430,130 @@ Deno.serve(async (request) => {
         phones.length?admin.from("phone_host_payout_accounts").select("host_phone,account_holder_name,payout_method,account_number,ifsc_code,upi_id,status,verification_note,verified_at,updated_at").in("host_phone",phones):Promise.resolve({data:[],error:null}),
         phones.length?admin.from("phone_host_compliance").select("host_phone,pan_last4,aadhaar_last4,pan_verified,aadhaar_verified,verified_at,updated_at").in("host_phone",phones):Promise.resolve({data:[],error:null}),
       ]); if(accountError||complianceError) throw accountError||complianceError;
-      const {data:presence,error:presenceError}=phones.length?await admin.from("phone_host_presence").select("host_phone,last_seen_at").in("host_phone",phones):{data:[],error:null};if(presenceError)throw presenceError;
-      const applicationsByPhone=new Map((applications||[]).map((application)=>[application.phone,application])); const accountsByPhone=new Map((accounts||[]).map((account)=>[account.host_phone,account])); const complianceByPhone=new Map((compliance||[]).map((record)=>[record.host_phone,record])); const presenceByPhone=new Map((presence||[]).map((record)=>[record.host_phone,record.last_seen_at])); const today=Date.now()-86400000; const onlineThreshold=Date.now()-60000;
-      return reply({items:(profiles||[]).map((profile)=>{const application=applicationsByPhone.get(profile.phone);const lastSeenAt=presenceByPhone.get(profile.phone)||null;const profileData=applicationProfile(application?.application_profile);const photoReviewId=profileData.photo_review_id;const photoPreviewUrl=typeof photoReviewId==="string"?photoPreviews.get(photoReviewId):null;return {...(application||{id:`lead:${profile.phone}`,phone:profile.phone,status:"new",submitted_at:profile.created_at,application_profile:{}}),application_profile:photoPreviewUrl?{...profileData,photo_preview_url:photoPreviewUrl}:profileData,profile,bank_account:accountsByPhone.get(profile.phone)||null,compliance:complianceByPhone.get(profile.phone)||null,is_new:Date.parse(profile.created_at)>=today,last_seen_at:lastSeenAt,is_online:application?.status==="approved"&&!!lastSeenAt&&Date.parse(lastSeenAt)>=onlineThreshold};})});
+      const [
+        { data: presence, error: presenceError },
+        { data: presenceConfig, error: presenceConfigError },
+      ] = await Promise.all([
+        phones.length
+          ? admin
+            .from("phone_host_presence")
+            .select("host_phone,last_seen_at,accepting_calls")
+            .in("host_phone", phones)
+          : Promise.resolve({ data: [], error: null }),
+        admin
+          .from("host_presence_config")
+          .select("timeout_seconds")
+          .eq("singleton", true)
+          .maybeSingle(),
+      ]);
+      if (presenceError || presenceConfigError)
+        throw presenceError || presenceConfigError;
+      if (
+        !presenceConfig ||
+        typeof presenceConfig.timeout_seconds !== "number" ||
+        !Number.isFinite(presenceConfig.timeout_seconds)
+      )
+        throw new Error("Host presence configuration is missing or invalid.");
+
+      const applicationsByPhone = new Map(
+        (applications || []).map((application) => [application.phone, application]),
+      );
+      const accountsByPhone = new Map(
+        (accounts || []).map((account) => [account.host_phone, account]),
+      );
+      const complianceByPhone = new Map(
+        (compliance || []).map((record) => [record.host_phone, record]),
+      );
+      const presenceByPhone = new Map(
+        (presence || []).map((record) => [record.host_phone, record]),
+      );
+      const today = Date.now() - 86400000;
+      const onlineThreshold =
+        Date.now() - presenceConfig.timeout_seconds * 1000;
+      return reply({
+        items: (profiles || []).map((profile) => {
+          const application = applicationsByPhone.get(profile.phone);
+          const hostPresence = presenceByPhone.get(profile.phone);
+          const lastSeenAt = hostPresence?.last_seen_at || null;
+          const profileData = applicationProfile(application?.application_profile);
+          const photoReviewId = profileData.photo_review_id;
+          const photoPreviewUrl =
+            typeof photoReviewId === "string"
+              ? photoPreviews.get(photoReviewId)
+              : null;
+          return {
+            ...(application || {
+              id: `lead:${profile.phone}`,
+              phone: profile.phone,
+              status: "new",
+              submitted_at: profile.created_at,
+              application_profile: {},
+            }),
+            application_profile: photoPreviewUrl
+              ? { ...profileData, photo_preview_url: photoPreviewUrl }
+              : profileData,
+            profile,
+            bank_account: accountsByPhone.get(profile.phone) || null,
+            compliance: complianceByPhone.get(profile.phone) || null,
+            is_new: Date.parse(profile.created_at) >= today,
+            last_seen_at: lastSeenAt,
+            accepting_calls: hostPresence?.accepting_calls === true,
+            is_online:
+              application?.status === "approved" &&
+              hostPresence?.accepting_calls === true &&
+              !!lastSeenAt &&
+              Date.parse(lastSeenAt) > onlineThreshold,
+          };
+        }),
+      });
+    }
+    if (action === "set_host_availability") {
+      requireRole(role, ["super_admin", "moderator"]);
+      requirePage(pages, "Hosts");
+      const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+      const acceptingCalls =
+        typeof body.accepting_calls === "boolean" ? body.accepting_calls : null;
+      if (!/^\+91\d{10}$/.test(phone) || acceptingCalls === null)
+        throw new Error("Choose an approved Host and a valid availability state.");
+
+      const { data: host, error: hostError } = await admin
+        .from("host_applications")
+        .select("id,status")
+        .eq("phone", phone)
+        .maybeSingle();
+      if (hostError || !host)
+        throw hostError || new Error("Host application was not found.");
+      if (host.status !== "approved")
+        throw new Error("Only approved Hosts can be set online or offline.");
+
+      const { data: previousPresence, error: presenceError } = await admin
+        .from("phone_host_presence")
+        .select("accepting_calls")
+        .eq("host_phone", phone)
+        .maybeSingle();
+      if (presenceError) throw presenceError;
+
+      const { error: availabilityError } = await admin.rpc(
+        "set_phone_host_call_availability",
+        {
+          input_host_phone: phone,
+          input_accepting_calls: acceptingCalls,
+        },
+      );
+      if (availabilityError) throw availabilityError;
+
+      const { error: auditError } = await admin.from("admin_audit_logs").insert({
+        admin_user_id: user.id,
+        action: "host_call_availability_changed",
+        entity_type: "host_application",
+        entity_id: phone,
+        before_state: {
+          accepting_calls: previousPresence?.accepting_calls === true,
+        },
+        after_state: { accepting_calls: acceptingCalls },
+      });
+      if (auditError) throw auditError;
+      return reply({ ok: true, accepting_calls: acceptingCalls });
     }
     if (action === "performance_reports") {
       requireSuperAdmin(role); requirePage(pages, "Performance");
