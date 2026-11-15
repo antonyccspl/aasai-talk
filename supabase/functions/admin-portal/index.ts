@@ -214,6 +214,10 @@ Deno.serve(async (request) => {
           upsert: false,
         });
         if (moderationUpload.error) throw moderationUpload.error;
+        const { error: identityError } = await admin.rpc("open_phone_identity", {
+          input_phone: phone,
+        });
+        if (identityError) throw identityError;
         const { data: moderationItem, error: moderationInsertError } = await admin.from("phone_content_moderation_items").insert({
           owner_phone: phone,
           content_type: "profile_photo",
