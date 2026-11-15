@@ -91,30 +91,16 @@ function otpErrorMessage(error: unknown) {
       ? error.code.toLowerCase()
       : "";
   const providerError = `${code} ${detail}`.toLowerCase();
-  if (
-    Platform.OS !== "web" &&
-    /app-not-authorized|invalid-app-credential|missing-app-credential|captcha/i.test(
-      providerError,
-    )
-  ) {
-    return `We couldn't verify this app for phone sign-in. Check your connection and try again. If the problem continues, contact support with code: ${code || "unknown"}.`;
-  }
-  if (/unauthorized-domain|auth\/invalid-tenant-id|firebase web app settings/i.test(providerError)) {
-    return "Phone sign-in is not available on this website yet. Please try again later.";
-  }
-  if (/captcha|invalid-app-credential|missing-app-credential/i.test(providerError)) {
-    return "We couldn't verify this request. Check your connection and refresh the page before trying again.";
-  }
-  if (/operation-not-allowed|provider.*disabled|phone.*disabled/i.test(providerError)) {
+  if (/phone_provider_disabled|provider.*disabled|phone.*disabled/i.test(providerError)) {
     return "Phone sign-in is not available right now. Please try again later.";
   }
-  if (/too-many-requests|quota-exceeded|throttl/i.test(providerError)) {
+  if (/too-many-requests|quota-exceeded|throttl|rate.?limit/i.test(providerError)) {
     return "Too many attempts were made. Please wait a little, then try again.";
   }
-  if (/invalid-phone-number/i.test(providerError)) {
+  if (/invalid-phone-number|invalid phone/i.test(providerError)) {
     return "Enter a valid mobile number with the +91 country code.";
   }
-  if (/network-request-failed|network error/i.test(providerError)) {
+  if (/network-request-failed|network error|fetch failed/i.test(providerError)) {
     return "We could not send the code. Check your connection and try again.";
   }
   return "We could not send a verification code. Please try again.";
@@ -128,7 +114,7 @@ function logPhoneVerificationFailure(stage: "send" | "resend", error: unknown) {
     typeof error.code === "string"
       ? error.code
       : "unknown";
-  console.error(`Firebase phone verification ${stage} failed`, { code });
+  console.error(`Phone verification ${stage} failed`, { code });
 }
 
 function OnboardingProgress({ step, label }: { step: number; label: string }) {
@@ -602,14 +588,6 @@ export function Auth({ mode }: { mode: string }) {
             placeholder="98765 43210"
             error={error}
           />
-          {Platform.OS === "web" && (
-            <View
-              nativeID="aasai-firebase-recaptcha"
-              // Firebase mounts its verification challenge here only after the user
-              // continues. Do not reserve a visible empty area before that happens.
-              style={{ alignItems: "center" }}
-            />
-          )}
           <AuthButton
             title={busy ? "Sending code…" : "Continue with phone"}
             disabled={busy}
@@ -649,7 +627,7 @@ export function Auth({ mode }: { mode: string }) {
 /**
  * This is intentionally separate from Settings: it is the only account route
  * that may be opened without an existing session. It never accepts an account
- * identifier as proof of ownership; Firebase must verify possession of the
+ * identifier as proof of ownership; phone OTP must verify possession of the
  * registered phone number before the existing deletion-request flow appears.
  */
 export function PublicAccountDeletion() {
@@ -687,7 +665,7 @@ export function PublicAccountDeletion() {
     void auth
       .verifyOtp(`+91${phone}`, code)
       .then(() => {
-        // Firebase signs the verified owner into the app. Keep that session on
+        // Keep the verified owner's session on
         // the deletion route instead of letting the normal post-login route
         // take them to Explore.
         router.replace("/settings/delete-account");
@@ -728,7 +706,6 @@ export function PublicAccountDeletion() {
               placeholder="98765 43210"
               numeric
             />
-            {Platform.OS === "web" && <View nativeID="aasai-firebase-recaptcha" style={{ alignItems: "center" }} />}
             <Button title={busy ? "Sending code…" : "Send verification code"} disabled={busy} onPress={requestOtp} />
           </>
         ) : (
@@ -1005,11 +982,11 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           }
           setBusy(true);
           void (
-            auth.user
-              ? saveOwnProfile({ ...form, name, city, bio: form.bio.trim() })
-              : auth.demoPhone
-                  ? auth.getIdentityToken().then((token) => saveDemoProfile(auth.demoPhone!, { ...form, name, city, bio: form.bio.trim(), photo }, token))
-                : Promise.reject(new Error("Demo phone is missing."))
+            auth.demoPhone
+              ? auth.getIdentityToken().then((token) => saveDemoProfile(auth.demoPhone!, { ...form, name, city, bio: form.bio.trim(), photo }, token))
+              : auth.user
+                ? saveOwnProfile({ ...form, name, city, bio: form.bio.trim() })
+                : Promise.reject(new Error("Phone session is missing."))
           )
             .then((approvedPhoto) => {
               const savedPhoto = approvedPhoto || d.profile.photo || "";
