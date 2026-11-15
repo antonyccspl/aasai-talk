@@ -22,7 +22,8 @@ Deno.serve(async (request) => {
     const url = Deno.env.get("SUPABASE_URL"); const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEYS"); if (!url || !key) throw new Error("Document storage is not configured.");
     const admin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
     const { data: profile, error: profileError } = await admin.from("phone_profiles").select("gender").eq("phone", identity.phone).maybeSingle();
-    if (profileError || profile?.gender !== "Female") return Response.json({ error: "Only completed female Host profiles can upload verification documents." }, { status: 403, headers: corsHeaders });
+    if (profileError) throw profileError;
+    if (profile?.gender !== "Female") return Response.json({ error: "Complete a Female Aasai Talk profile before uploading Host verification documents." }, { status: 403, headers: corsHeaders });
     const ext = file.type === "application/pdf" ? "pdf" : file.type.split("/")[1]; const path = `${identity.phone.replace(/\D/g, "")}/${kind}-${crypto.randomUUID()}.${ext}`;
     const { error: uploadError } = await admin.storage.from("host-verification").upload(path, new Uint8Array(await file.arrayBuffer()), { contentType: file.type, upsert: false }); if (uploadError) throw uploadError;
     return Response.json({ path, name: file.name }, { headers: corsHeaders });
