@@ -498,6 +498,10 @@ export function Auth({ mode }: { mode: string }) {
               .then((approvedPhoto) => {
                 if (auth.demoPhone) auth.markPhoneProfileComplete();
                 if (approvedPhoto) d.setPhoto(approvedPhoto);
+                d.setProfile({
+                  ...completedProfile,
+                  photo: approvedPhoto || completedProfile.photo,
+                });
                 router.replace("/explore");
               })
               .catch((saveError) => {
@@ -1030,7 +1034,7 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           if (form.interests.length > 6)
             return setError("Choose up to 6 interests.");
           if (onboarding) {
-            d.setProfile({ ...form, name, city, bio: form.bio.trim() });
+            d.setProfile({ ...form, name, city, bio: form.bio.trim(), photo });
             setError("");
             go("/auth/guidelines");
             return;
