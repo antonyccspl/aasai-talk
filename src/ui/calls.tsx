@@ -17,10 +17,7 @@ import { usePhoneHostCallCapabilities } from "@/hooks/use-phone-host-call-capabi
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { setPhoneBlock, submitPhoneSafetyReport } from "@/data/phone-safety";
 import { sendPushEvent } from "@/data/push-notifications";
-import {
-    endAndroidCallUi,
-    setAndroidCallActive,
-} from "@/data/android-incoming-calls";
+import { endAndroidCallUi } from "@/data/android-incoming-calls";
 import type { CallNetworkQuality } from "@/data/zego";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -735,7 +732,6 @@ function CallScreenContent({
           ? Math.floor(d.balance / callCoinsPerMinute) * 60
           : undefined,
     });
-    if (incoming && autoAnswer) setAndroidCallActive(session.id);
     if (incoming || session.status === "connected")
       router.replace(
         `/calls/${video ? "video" : "audio"}/${id}?session=${session.id}&type=${video ? "video" : "audio"}&name=${encodeURIComponent(p.name)}` as never,

@@ -1,6 +1,5 @@
 import { fetchZegoCallToken, normalizeCallNetworkQuality, type CallNetworkQuality } from "@/data/zego";
 import { useAuth } from "@/data/auth";
-import { scanVideoCallFrame } from "@/data/content-moderation";
 import React, { useEffect, useRef, useState } from "react";
 import {
     findNodeHandle,
@@ -90,10 +89,6 @@ export function ZegoMedia({
   useEffect(() => {
     let disposed = false;
     let engine: ZegoExpressEngine | null = null;
-    let moderationFirstTimer: ReturnType<typeof setTimeout> | null = null;
-    let moderationTimer: ReturnType<typeof setInterval> | null = null;
-    let moderationBusy = false;
-    let violationDetected = false;
     const onStatus = (value: string) => { if (!disposed) callbacks.current.onStatus?.(value); };
     const onError = (value: string) => {
       if (!disposed) {
@@ -258,50 +253,6 @@ export function ZegoMedia({
         await activeEngine.startPublishingStream(`aasai_${auth.userId}`, channel, undefined);
         publishedRef.current = true;
         reportConnection();
-        const scanCallFrames = async () => {
-          if (disposed || moderationBusy || violationDetected) return;
-          moderationBusy = true;
-          try {
-            const snapshots: string[] = [];
-            if (controls.current.camera) {
-              try {
-                const local = await activeEngine.takePublishStreamSnapshot(undefined);
-                if (!local.errorCode) snapshots.push(local.imageBase64);
-              } catch (error) {
-                console.warn("[RTC] local video safety snapshot failed", error);
-              }
-            }
-            if (remoteStreamRef.current) {
-              try {
-                const remote = await activeEngine.takePlayStreamSnapshot(remoteStreamRef.current);
-                if (!remote.errorCode) snapshots.push(remote.imageBase64);
-              } catch (error) {
-                console.warn("[RTC] remote video safety snapshot failed", error);
-              }
-            }
-            for (const imageBase64 of snapshots) {
-              if (!imageBase64) continue;
-              const frame = imageBase64.startsWith("data:")
-                ? imageBase64
-                : `data:image/jpeg;base64,${imageBase64}`;
-              if (await scanVideoCallFrame(identityToken, frame) === "rejected") {
-                violationDetected = true;
-                callbacks.current.onSafetyViolation?.(() => {
-                  violationDetected = false;
-                });
-                return;
-              }
-            }
-          } catch (error) {
-            console.warn("[RTC] video safety sample failed", error);
-          } finally {
-            moderationBusy = false;
-          }
-        };
-        if (video) {
-          moderationFirstTimer = setTimeout(() => void scanCallFrames(), 9000);
-          moderationTimer = setInterval(() => void scanCallFrames(), 20000);
-        }
       } catch (error) {
         if (!disposed)
           onError?.(error instanceof Error ? error.message : "Unable to start media.");
@@ -310,8 +261,6 @@ export function ZegoMedia({
     rtcLifecycle = rtcLifecycle.then(start).catch(error => onError(String(error)));
     return () => {
       disposed = true;
-      if (moderationFirstTimer) clearTimeout(moderationFirstTimer);
-      if (moderationTimer) clearInterval(moderationTimer);
       const cleanup = async () => {
         if (!engine) return;
         try {

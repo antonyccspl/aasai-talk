@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { phoneAuthStatus, verifyPhoneSession } from "../_shared/phone-auth.ts";
-import { scanImageWithGoogleVision } from "../_shared/image-moderation.ts";
+import { fileSuffix, hasValidFileSignature } from "../_shared/file-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,6 +20,32 @@ function adminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
+async function sha256(bytes: Uint8Array) {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function profilePhotoResult(item: {
+  id: string;
+  status: string;
+  public_url: string | null;
+  decision_note: string | null;
+}) {
+  if (item.status === "approved" && item.public_url)
+    return reply({ id: item.id, status: "approved", public_url: item.public_url });
+  if (item.status === "rejected" || item.status === "removed")
+    return reply({
+      id: item.id,
+      status: "rejected",
+      message: item.decision_note || "This photo was rejected. Choose a different photo.",
+    });
+  return reply({
+    id: item.id,
+    status: "needs_review",
+    message: "Your photo is waiting for a moderator safety review. Keep it selected and tap Submit again after approval.",
+  });
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return reply({ error: "POST required." }, 405);
@@ -29,60 +55,75 @@ Deno.serve(async (request) => {
     const identity = await verifyPhoneSession(token);
     const form = await request.formData();
     const action = form.get("action");
-    const isProfilePhoto = action === "submit-profile-photo";
-    const isCallFrame = action === "scan-call-frame";
-    if (!isProfilePhoto && !isCallFrame)
+    if (action === "scan-call-frame")
+      return reply({ status: "not_scanned" });
+    if (action !== "submit-profile-photo")
       return reply({ error: "Unsupported moderation action." }, 400);
-    const file = form.get(isProfilePhoto ? "photo" : "frame");
-    const maxSize = isCallFrame ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
-    if (!(file instanceof File) || !supportedTypes.has(file.type) || file.size < 1 || file.size > maxSize)
-      return reply({ error: `Use a JPG, PNG, or WEBP image smaller than ${isCallFrame ? "2" : "5"} MB.` }, 400);
 
-    const admin = adminClient();
+    const file = form.get("photo");
+    if (!(file instanceof File) || !supportedTypes.has(file.type) || file.size < 1 || file.size > 5 * 1024 * 1024)
+      return reply({ error: "Use a JPG, PNG, or WEBP image smaller than 5 MB." }, 400);
+
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const scan = await scanImageWithGoogleVision(bytes);
-    // Live-call samples are never stored. We retain an audit item only when a
-    // frame needs review or is rejected, which provides safety evidence while
-    // avoiding recording ordinary private calls.
-    if (isCallFrame) {
-      if (scan.status !== "approved") {
-        const { error: incidentError } = await admin.from("phone_content_moderation_items").insert({
-          owner_phone: identity.phone, content_type: "live_call_incident",
-          scan_provider: scan.provider, adult_likelihood: scan.adult, racy_likelihood: scan.racy,
-          provider_result: scan.result, status: scan.status,
-          decision_note: scan.status === "rejected"
-            ? "Explicit adult content detected during a video call."
-            : "Video-call frame queued for safety review.",
-          updated_at: new Date().toISOString(),
-        });
-        if (incidentError) throw incidentError;
-      }
-      return reply({ status: scan.status });
-    }
+    if (!hasValidFileSignature(bytes, file.type))
+      return reply({ error: "The selected photo does not match its image type." }, 400);
+    const contentSha256 = await sha256(bytes);
+    const admin = adminClient();
+    const { data: existing, error: existingError } = await admin
+      .from("phone_content_moderation_items")
+      .select("id,status,public_url,decision_note")
+      .eq("owner_phone", identity.phone)
+      .eq("content_type", "profile_photo")
+      .eq("content_sha256", contentSha256)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing) return profilePhotoResult(existing);
 
-    const suffix = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-    const path = `${identity.phone.replace(/\D/g, "")}/${crypto.randomUUID()}.${suffix}`;
-    const upload = await admin.storage.from("moderation-media").upload(path, bytes, { contentType: file.type, upsert: false });
+    const path = `${identity.phone.replace(/\D/g, "")}/${crypto.randomUUID()}.${fileSuffix(file.type)}`;
+    const upload = await admin.storage.from("moderation-media").upload(path, bytes, {
+      contentType: file.type,
+      upsert: false,
+    });
     if (upload.error) throw upload.error;
 
-    const record = {
-      owner_phone: identity.phone, content_type: "profile_photo", storage_bucket: "moderation-media", storage_path: path,
-      scan_provider: scan.provider, adult_likelihood: scan.adult, racy_likelihood: scan.racy,
-      provider_result: scan.result, status: scan.status, decision_note: scan.status === "rejected" ? "Explicit adult content detected." : scan.status === "needs_review" ? "Queued for safety review." : "Automatically approved.",
-      updated_at: new Date().toISOString(),
-    };
-    const { data: item, error: itemError } = await admin.from("phone_content_moderation_items").insert(record).select("id,status,decision_note").single();
-    if (itemError) throw itemError;
+    const { data: item, error: itemError } = await admin
+      .from("phone_content_moderation_items")
+      .insert({
+        owner_phone: identity.phone,
+        content_type: "profile_photo",
+        storage_bucket: "moderation-media",
+        storage_path: path,
+        media_type: file.type,
+        content_sha256: contentSha256,
+        scan_provider: "manual",
+        provider_result: { review_method: "super_admin_queue" },
+        status: "needs_review",
+        decision_note: "Waiting for a moderator photo-safety review.",
+        updated_at: new Date().toISOString(),
+      })
+      .select("id,status,public_url,decision_note")
+      .single();
+    if (itemError) {
+      const { error: cleanupError } = await admin.storage.from("moderation-media").remove([path]);
+      if (cleanupError) console.error("Duplicate photo cleanup failed:", cleanupError.message);
+      if (itemError.code !== "23505") throw itemError;
 
-    if (scan.status === "approved") {
-      const publicPath = `${identity.phone.replace(/\D/g, "")}/${crypto.randomUUID()}.${suffix}`;
-      const published = await admin.storage.from("host-photos").upload(publicPath, bytes, { contentType: file.type, upsert: false });
-      if (published.error) throw published.error;
-      const publicUrl = admin.storage.from("host-photos").getPublicUrl(publicPath).data.publicUrl;
-      await admin.from("phone_content_moderation_items").update({ public_url: publicUrl, updated_at: new Date().toISOString() }).eq("id", item.id);
-      return reply({ id: item.id, status: "approved", public_url: publicUrl });
+      const { data: duplicate, error: duplicateError } = await admin
+        .from("phone_content_moderation_items")
+        .select("id,status,public_url,decision_note")
+        .eq("owner_phone", identity.phone)
+        .eq("content_type", "profile_photo")
+        .eq("content_sha256", contentSha256)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (duplicateError || !duplicate) throw duplicateError || itemError;
+      return profilePhotoResult(duplicate);
     }
-    return reply({ id: item.id, status: item.status, message: item.decision_note });
+
+    return profilePhotoResult(item);
   } catch (error) {
     console.error("Content moderation failed:", error);
     return reply(

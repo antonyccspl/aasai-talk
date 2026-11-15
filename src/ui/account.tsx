@@ -1516,11 +1516,8 @@ export function Settings({
           )}
           {Platform.OS === "android" ? (
             <T size={12} color={c.secondary}>
-              This only enables Aasai Talk internet calls. Your regular phone calls and default Phone app stay unchanged.
+              Keep Aasai Talk open to receive incoming calls. Android background call alerts are disabled.
             </T>
-          ) : null}
-          {Platform.OS === "android" ? (
-            <T color={c.secondary}>Turn this off whenever you do not want to receive calls while away.</T>
           ) : null}
           {Platform.OS === "web" && callAvailability ? (
             <Notice>Keep Aasai Talk open to receive calls. For alerts while minimized, enable browser call alerts in Settings → Notifications where supported.</Notice>
@@ -1729,7 +1726,12 @@ export function Settings({
         {mode === "privacy" && privacyError ? (
           <Notice error>{privacyError}</Notice>
         ) : null}
-        {mode === "notifications" && Platform.OS !== "web" && (
+        {mode === "notifications" && Platform.OS === "android" && (
+          <Notice>
+            Android remote push notifications and background call alerts are disabled. Keep Aasai Talk open to receive calls and messages.
+          </Notice>
+        )}
+        {mode === "notifications" && Platform.OS === "ios" && (
           <>
             <Button
               title={pushBusy ? "Enabling…" : "Enable push notifications"}

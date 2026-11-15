@@ -265,7 +265,9 @@ Deno.serve(async (request) => {
       const pushToken = typeof body.expo_push_token === "string" ? body.expo_push_token : "";
       const platform = body.platform;
       const requestedPreferences = parsePreferences(body.preferences);
-      if (!/^Expo(nent)?PushToken\[[A-Za-z0-9_-]+\]$/.test(pushToken) || (platform !== "android" && platform !== "ios"))
+      if (platform === "android")
+        return Response.json({ error: "Android remote push notifications are disabled." }, { status: 410, headers: corsHeaders });
+      if (!/^Expo(nent)?PushToken\[[A-Za-z0-9_-]+\]$/.test(pushToken) || platform !== "ios")
         return Response.json({ error: "Invalid push device." }, { status: 400, headers: corsHeaders });
       const { error: identityError } = await admin.rpc("open_phone_identity", { input_phone: identity.phone });
       if (identityError) throw identityError;
@@ -475,13 +477,7 @@ Deno.serve(async (request) => {
       .select("expo_push_token,platform")
       .eq("phone", recipientPhone);
     if (deviceError) throw deviceError;
-    const eligibleDevices = (devices ?? []).filter((device) => {
-      if (event === "incoming_call")
-        return device.platform === "android"
-          ? presenceAcceptingCalls
-          : true;
-      return true;
-    });
+    const eligibleDevices = (devices ?? []).filter((device) => device.platform === "ios");
     let webSubscriptions: Array<{
       endpoint: string;
       p256dh: string;
@@ -515,18 +511,12 @@ Deno.serve(async (request) => {
     if (reserveError) throw reserveError;
     }
 
-    const nativeResults = eligibleDevices.map(async ({ expo_push_token, platform }) => {
-      const androidIncomingCall = event === "incoming_call" && platform === "android";
+    const nativeResults = eligibleDevices.map(async ({ expo_push_token }) => {
       const response = await fetch("https://exp.host/--/api/v2/push/send", {
         signal: AbortSignal.timeout(8000),
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(androidIncomingCall ? {
-          to: expo_push_token,
-          data: incomingCallPayload,
-          priority,
-          ttl: 30,
-        } : {
+        body: JSON.stringify({
           to: expo_push_token,
           title,
           body: message,

@@ -17,7 +17,7 @@ Core technology:
 - Supabase Storage for media
 - Supabase Edge Functions for secure backend logic
 - Dedicated WebRTC/RTC provider for actual audio/video media
-- FCM/APNs for push notifications
+- APNs and browser Web Push where supported; Android remote push is disabled
 - Payment gateway for wallet recharge if calls are paid
 - Separate web admin dashboard
 
@@ -622,7 +622,9 @@ Never expose sensitive bank/payment credentials to frontend.
 20. PUSH NOTIFICATIONS
 ============================================================
 
-Use FCM for Android and APNs where required for iOS.
+Use APNs for iOS and browser Web Push where supported. Android remote push and
+background-call alerts are intentionally disabled; Android Hosts must keep the
+app open to receive calls.
 
 Notification types:
 - New message
@@ -1758,8 +1760,8 @@ Before release:
 [ ] RTC production credentials
 [ ] Payment production credentials
 [ ] Webhooks configured
-[ ] FCM configured
-[ ] APNs configured
+[ ] APNs/browser Web Push configured where needed
+[ ] Android remote push remains disabled
 [ ] App signing
 [ ] Android release build
 [ ] iOS release build

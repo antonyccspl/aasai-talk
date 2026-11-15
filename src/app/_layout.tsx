@@ -1,9 +1,4 @@
-import {
-  endAndroidCallUi,
-  handleAndroidCallAnswer,
-  handleAndroidCallEnd,
-  listenForAndroidCallActions,
-} from "@/data/android-incoming-calls";
+import { endAndroidCallUi } from "@/data/android-incoming-calls";
 import { AuthProvider, useAuth } from "@/data/auth";
 import {
   chargePhoneCallMinute,
@@ -523,7 +518,7 @@ function AppNavigator() {
     authenticated,
     getIdentityToken,
   } = useAuth();
-  const { identityLoading, hostStatus, profile } = useDemo();
+  const { identityLoading } = useDemo();
   const pathname = usePathname();
   const incomingSessionRef = useRef("");
   const incomingSoundKeyRef = useRef("");
@@ -569,37 +564,6 @@ function AppNavigator() {
       subscription.remove();
     };
   }, [authenticated, loading]);
-  useEffect(() => {
-    if (
-      Platform.OS !== "android" ||
-      loading ||
-      identityLoading ||
-      !authenticated ||
-      !demoPhone ||
-      hostStatus !== "approved" ||
-      profile.gender !== "Female"
-    )
-      return;
-    return listenForAndroidCallActions({
-      onAnswer: (uuid) => {
-        void handleAndroidCallAnswer(uuid).catch((error) =>
-          console.error("Unable to open answered Android call:", error),
-        );
-      },
-      onEnd: (uuid) => {
-        void handleAndroidCallEnd(uuid, demoPhone).catch((error) =>
-          console.error("Unable to end Android incoming call:", error),
-        );
-      },
-    });
-  }, [
-    authenticated,
-    demoPhone,
-    hostStatus,
-    identityLoading,
-    loading,
-    profile.gender,
-  ]);
   useEffect(() => {
     if (loading || !authenticated || !demoPhone) return;
     const acknowledgeVisibleCall = () => {

@@ -57,22 +57,15 @@ async function requestPushAction(idToken: string, action: string, payload: Recor
 
 export async function registerPushDevice(idToken: string, preferences: PushPreferences) {
   if (Platform.OS === "web") return null;
-  const Notifications = notificationsModule();
   if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("calls", {
-      name: "Incoming calls",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#e23744",
-      sound: "default",
-    });
-    await Notifications.setNotificationChannelAsync("messages", {
-      name: "Messages and wallet",
-      importance: Notifications.AndroidImportance.HIGH,
-      sound: "default",
-    });
+    const storedToken = await SecureStore.getItemAsync(tokenStorageKey);
+    if (storedToken) {
+      await requestPushAction(idToken, "unregister", { expo_push_token: storedToken });
+      await SecureStore.deleteItemAsync(tokenStorageKey);
+    }
+    return null;
   }
-
+  const Notifications = notificationsModule();
   let permission = await Notifications.getPermissionsAsync();
   if (!permission.granted) permission = await Notifications.requestPermissionsAsync();
   if (!permission.granted) return null;

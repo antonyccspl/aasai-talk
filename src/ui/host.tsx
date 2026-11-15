@@ -306,7 +306,6 @@ export function HostApplication() {
                 })
                 .catch((submitError) => {
                   console.error("Failed to submit host application:", submitError);
-                  if (d.photo && !/^https:\/\//i.test(d.photo)) d.setPhoto("");
                   setError(
                     submitError instanceof Error
                       ? submitError.message

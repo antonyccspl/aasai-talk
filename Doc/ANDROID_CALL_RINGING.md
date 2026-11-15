@@ -6,26 +6,12 @@
 - A native Android rebuild is required, not just a JavaScript reload. `native/CallSoundsPackage.kt` and `plugins/with-call-sounds.js` preserve the module through Expo prebuild.
 - Microphone permission and MODIFY_AUDIO_SETTINGS are included in the native manifest and app configuration.
 
-## Background Host calls
+## Android Host calls
 
-1. Apply `20261012000100_host_call_availability_last_seen.sql` and deploy the
-   `host-presence` and `push-notifications` Edge Functions.
-2. Build and install a new EAS Android client. From an approved female Host
-   account, open Profile > Call availability, enable **Accept calls while
-   away**, allow notifications, and enable the Aasai Talk phone account when
-   Android asks.
-3. With a different male account on a second device, call the Host. Verify the
-   incoming Android call screen appears when the Host app is backgrounded and
-   when the screen is locked. Answer and decline; both paths should update the
-   existing call session.
-4. Turn the Host switch off and retry. The caller should see the Host as
-   unavailable and no incoming call should appear.
-5. Repeat with the app force-stopped to confirm the documented limitation:
-   Android does not deliver background pushes after a force-stop until the app
-   is opened again. Battery-saving modes may also defer data-only delivery.
-
-These background-call checks require a physical Android device and working EAS
-FCM credentials; they are not verified by the foreground or web checks below.
+Android remote notifications and background-call alerts are disabled. Hosts
+must keep Aasai Talk open and call availability enabled to receive calls. Test
+the foreground call behavior below; background or force-stopped delivery is not
+supported.
 
 ## Test on both devices
 

@@ -1,11 +1,12 @@
 # Aasai Talk
 
 Aasai Talk is an Expo/React Native social discovery app backed by Supabase Auth
-for phone login, designed to use Twilio Verify for SMS delivery. Firebase is
-used for Android push notification delivery only. The implementation includes
-profile and public directory data, messaging, call lifecycle and minute billing,
-Host presence and dashboards, safety reports/blocks, push notification plumbing,
-and a moderator operations view. Live two-party RTC, payment checkout/webhooks,
+for phone login, designed to use Twilio Verify for SMS delivery. Phone
+verification uses Supabase Auth and Twilio Verify, not Firebase Authentication.
+The implementation includes profile and public directory data, messaging, call
+lifecycle and minute billing, Host presence and dashboards, safety reports and
+blocks, manual Host photo review, push notification plumbing, and a moderator
+operations view. Live two-party RTC, payment checkout/webhooks,
 withdrawals, push delivery, and moderator operations require the provider
 credentials, database migrations, and Edge Functions described below.
 
@@ -45,26 +46,20 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 Enable phone sign-in in Supabase Auth and choose Twilio Verify as the SMS
 provider in the Supabase Dashboard. Enter the Twilio Account SID, Auth Token,
 and Verify Service SID in the provider settings; never put them in the app,
-`.env`, or source control. Configure Firebase Cloud Messaging separately for
-Android push notifications. The app must never contain a Supabase
+`.env`, or source control. The app must never contain a Supabase
 secret/service-role key.
 
 ## Push notifications
 
-Remote notifications use `expo-notifications` and Expo Push Service. Link the
-app to an EAS project, configure Android FCM v1 credentials (and APNs
-credentials if enabling iOS), then build and install a development or release
-client. Call, message, wallet, and announcement preferences are under Settings >
-Notification preferences and are saved per phone account. The
+Android Firebase Cloud Messaging has been removed. Android remote push alerts
+and background-call alerts are unavailable; Hosts must keep Aasai Talk open to
+receive calls. iOS notifications continue to use Expo Push Service and APNs.
+Supported browsers can receive call alerts through Web Push when VAPID is
+configured. Call, message, wallet, and announcement preferences are under
+Settings > Notification preferences and are saved per phone account. The
 `20261018000100_phone_notification_preferences.sql` migration creates their
 server-side storage. Announcement preferences control active announcements in
-the in-app inbox; announcement push delivery is not implemented. Browser push
-is not available on the website. Approved Android Hosts also have an
-**Accept calls while away**
-switch under Profile > Call availability. Enabling it registers Android push
-and the phone account used for the native incoming-call screen. The Host can
-turn it off at any time; new calls are then blocked and any ringing invitation
-is marked missed.
+the in-app inbox; announcement push delivery is not implemented.
 
 Apply the migrations and deploy `push-notifications`. The function verifies the
 Supabase access token and derives call/message/wallet recipients from the server
@@ -75,16 +70,10 @@ members update member presence. Apply
 `20261019000100_track_male_member_online_presence.sql` and
 `20261019000200_server_timestamp_member_presence.sql`, then deploy
 `host-presence` before expecting these online counts in the admin portal.
-For Android background calls, the `host-presence` and `push-notifications`
-functions and the `20261012000100_host_call_availability_last_seen.sql` and
-`20261018000200_allow_android_host_calls_while_away.sql` migrations must also
-be deployed. When a Host enables **Accept calls while away**, call availability
-stays on after their activity heartbeat expires, and incoming calls continue
-to be sent to their registered Android device. Android call pushes are data-only and are
-presented by Android Telecom after the Host enables the feature and accepts the
-phone-account prompt. The project must be rebuilt with EAS after native
-CallKeep configuration changes. iOS keeps the existing alert notification
-flow; native iOS call UI is not implemented.
+Call availability is tied to the Host's active presence lease; Android Hosts
+must keep Aasai Talk open to receive calls. iOS push alerts use APNs; browser
+call alerts use Web Push where configured. Native iOS call UI is not
+implemented.
 Hosts can independently accept audio and video calls under Profile > Call
 availability. Those preferences are combined with each Host's approved
 capabilities, reflected in male members' call options, and enforced when a
@@ -95,10 +84,10 @@ both call types, subject to the types enabled in their approved Host profile.
 When **Show last seen** is enabled, male users can see a Host's relative last
 active time in Favorites and call history; switching it off hides that time.
 
-Android may defer data-only pushes in battery-saving modes, and force-stopping
-the app prevents background delivery until it is opened again. Validate calls
-on a real Android device while the app is backgrounded and while the screen is
-locked; an Expo web export does not exercise this flow.
+Automatic photo scanning and live-call frame scanning are not used. App-
+submitted Host photos remain private until a moderator approves them in the
+admin Reports queue; admin-created Host photos require the manual safety
+attestation. Live calls rely on existing reporting and moderation tools.
 
 ## Validation
 
@@ -118,23 +107,13 @@ node scripts/check-sample-backend.mjs
 
 Android production builds use EAS Build. The Play Store build is an Android App
 Bundle (`.aab`); the preview profile creates an installable APK. The Android
-application ID is `com.aasaitalk.app`. Choose this ID before registering the
-Android app for Firebase Cloud Messaging or creating the Play Console listing: it is a permanent
-identifier once the app is published.
+application ID is `com.aasaitalk.app`. Choose this ID before creating the Play
+Console listing; it is a permanent identifier once the app is published.
 
-### 1. Prepare Android push notifications
+Android push notifications and background call alerts are disabled. Do not add
+`google-services.json` or configure FCM credentials for this app.
 
-1. In Firebase Console, register an Android app using the exact package name
-   `com.aasaitalk.app`. Do not reuse the previous `com.anonymous.aasaitalk`
-   Android registration.
-2. Download `google-services.json` and put it in the repository root, beside
-   `app.json`. It is ignored by Git but included in EAS build uploads through
-   `.easignore`; do not commit it.
-3. Configure Firebase Cloud Messaging (FCM) v1 credentials in EAS for Android
-   push notifications. Phone verification uses Supabase Auth and Twilio Verify,
-   not Firebase Authentication.
-
-### 2. Configure EAS Build
+### Configure EAS Build
 
 1. Create an Expo account at [expo.dev](https://expo.dev/), then from this
    repository run `npx eas-cli login` and `npx eas-cli init` to link the
@@ -263,8 +242,8 @@ priority reports, and Hosts with a heartbeat in the last minute.
 
 The push and moderator migrations in this workspace are not applied merely by
 adding these files. Run `npx supabase db push` against the intended project and
-deploy the Edge Functions before enabling production use. Push delivery also
-depends on valid EAS/FCM/APNs provider credentials. Phone Auth also depends on
+deploy the Edge Functions before enabling production use. iOS push delivery
+depends on valid APNs provider credentials. Phone Auth also depends on
 configuring Twilio Verify in the Supabase Dashboard and testing real SMS
 delivery. The app's phone RPCs and financial flows still need production
 validation before the wallet or calling features should be treated as

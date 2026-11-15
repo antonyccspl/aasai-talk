@@ -28,32 +28,12 @@ export async function submitProfilePhotoForModeration(idToken: string, uri: stri
   if (!payload || typeof payload !== "object" || !("status" in payload) || typeof payload.status !== "string")
     throw new Error("Invalid photo safety result.");
   if (payload.status !== "approved" || !("public_url" in payload) || typeof payload.public_url !== "string") {
-    throw new Error(payload.status === "rejected" ? "This photo cannot be used because it breaks Aasai Talk’s nudity policy." : "Your photo is being reviewed for safety. Please try again after it is approved.");
-  }
-  return payload.public_url;
-}
-
-export async function scanVideoCallFrame(idToken: string, frame: string) {
-  const response = await fetch(frame);
-  if (!response.ok) throw new Error("Could not read the video safety sample.");
-  const blob = await response.blob();
-  if (!blob.size) throw new Error("The video safety sample was empty.");
-  const form = new FormData();
-  form.append("action", "scan-call-frame");
-  form.append("frame", blob, "call-frame.jpg");
-  const scanResponse = await fetch(`${supabaseUrl}/functions/v1/content-moderation`, {
-    method: "POST",
-    headers: { apikey: supabasePublishableKey, Authorization: `Bearer ${idToken}` },
-    body: form,
-  });
-  const payload: unknown = await scanResponse.json().catch(() => null);
-  if (!scanResponse.ok) {
-    const message = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
-      ? payload.error
-      : "The video safety check could not be completed.";
+    const message = "message" in payload && typeof payload.message === "string"
+      ? payload.message
+      : payload.status === "rejected"
+        ? "This photo was rejected. Choose a different photo."
+        : "Your photo is waiting for a moderator safety review. Keep it selected and tap Submit again after approval.";
     throw new Error(message);
   }
-  if (!payload || typeof payload !== "object" || !('status' in payload) || typeof payload.status !== "string")
-    throw new Error("Invalid video safety result.");
-  return payload.status as "approved" | "needs_review" | "rejected";
+  return payload.public_url;
 }

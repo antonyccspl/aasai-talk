@@ -39,7 +39,7 @@ Expo / React Native app                     Admin web app
                                       |       |       |
                                   Payments  Push    RTC tokens
                                       |       |       |
-                                  Payment gateway FCM/APNs  RTC provider
+                                  Payment gateway APNs/Web Push  RTC provider
 ```
 
 ### Non-negotiable boundaries
@@ -259,8 +259,8 @@ INITIATED → RINGING → ACCEPTED → CONNECTING → CONNECTED → ENDED
 - Never embed a permanent provider secret in the app.
 - Audio controls: mute, speaker, end, timer, connection state.
 - Video controls: local preview, remote stream, mic/camera toggle, front/back switch, speaker, timer, recovery UX.
-- Test foreground, background, killed app, locked screen, network switches, interruptions, Bluetooth, denied permissions, offline/busy/rejection, expired token, and RTC failures.
-- Production incoming calls require FCM/APNs and native Android/iOS calling integrations appropriate to the chosen provider and platform policy.
+- Test foreground calls, supported iOS/browser background alerts, network switches, interruptions, Bluetooth, denied permissions, offline/busy/rejection, expired token, and RTC failures. Android background alerts are intentionally unsupported.
+- Production incoming-call alerts use APNs or browser Web Push where configured; Android remote push is disabled.
 
 ## 7. Backend API / Edge Function plan
 
@@ -423,7 +423,7 @@ Client-safe values may include Supabase URL, Supabase publishable/anon key, and 
 - [ ] Edge Functions deployed with production-only secrets and monitoring
 - [ ] RTC production credentials, short-lived token behavior, and device call tests complete
 - [ ] Payment orders/webhooks, idempotency, refund path, and financial reconciliation verified
-- [ ] FCM and APNs configured; foreground/background/killed notification behavior tested
+- [ ] APNs/browser push configured where needed; Android remote push remains disabled
 - [ ] Crash reporting, error tracking, dashboards, alerts, and incident/runbook ownership active
 - [ ] Android signing and release build complete; iOS signing/build complete if iOS is in launch scope
 - [ ] Privacy policy, terms, community guidelines, refund policy, support process, and account deletion process published
