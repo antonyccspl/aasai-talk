@@ -5,39 +5,34 @@
 project_id = "Talkative"
 
 [functions.phone-safety]
-verify_jwt = false
+verify_jwt = true
 
 [functions.host-presence]
-verify_jwt = false
+verify_jwt = true
 
 [functions.push-notifications]
-verify_jwt = false
+verify_jwt = true
 
 [functions.moderator-ops]
-verify_jwt = false
+verify_jwt = true
 
 [functions.host-payouts]
-verify_jwt = false
+verify_jwt = true
 
 [functions.admin-portal]
 verify_jwt = false
 
 [functions.content-moderation]
-# This function verifies Firebase identity tokens in its handler. Supabase JWT
-# verification must stay off so the gateway does not reject that token first.
-verify_jwt = false
+verify_jwt = true
 
 [functions.zego-token]
-# This function also verifies Firebase identity tokens in its handler.
-verify_jwt = false
+verify_jwt = true
 
 [functions.cashfree-create-order]
-# The function verifies Firebase identity tokens in its handler.
-verify_jwt = false
+verify_jwt = true
 
 [functions.cashfree-payment-status]
-# The function verifies Firebase identity tokens in its handler.
-verify_jwt = false
+verify_jwt = true
 
 [functions.cashfree-checkout-session]
 # The handler verifies its short-lived, order-scoped checkout token.
@@ -384,11 +379,6 @@ email_optional = false
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
 [auth.web3.solana]
 enabled = false
-
-# Use Firebase Auth as a third-party provider alongside Supabase Auth.
-[auth.third_party.firebase]
-enabled = false
-# project_id = "my-firebase-project"
 
 # Use Auth0 as a third-party provider alongside Supabase Auth.
 [auth.third_party.auth0]

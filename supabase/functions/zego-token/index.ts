@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyFirebasePhoneToken } from "../_shared/firebase-auth.ts";
+import { phoneAuthStatus, verifyPhoneSession } from "../_shared/phone-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -114,7 +114,7 @@ Deno.serve(async (request) => {
     const bearerToken = (request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
     if (!bearerToken)
       return Response.json({ error: "Please sign in to join a call." }, { status: 401, headers: corsHeaders });
-    const identity = await verifyFirebasePhoneToken(bearerToken);
+    const identity = await verifyPhoneSession(bearerToken);
     const body = await request.json();
     const sessionId = typeof body.session_id === "string" ? body.session_id : "";
     const phone = typeof body.phone === "string" ? body.phone : "";
@@ -177,6 +177,15 @@ Deno.serve(async (request) => {
     );
   } catch (error) {
     console.error("ZEGOCLOUD token error:", error);
-    return Response.json({ error: "Unable to create a call token." }, { status: 500, headers: corsHeaders });
+    const status = phoneAuthStatus(error);
+    return Response.json(
+      {
+        error:
+          status && error instanceof Error
+            ? error.message
+            : "Unable to create a call token.",
+      },
+      { status: status ?? 500, headers: corsHeaders },
+    );
   }
 });

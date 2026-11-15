@@ -30,7 +30,10 @@ The emulator log reported `Only male users can start Host calls`. The account en
 
 ## Production limitations (not resolved by these fixes)
 
-- Existing phone-login RPCs and token authorization trust the supplied phone number, not verified Firebase/Supabase identity. This remains a test-only flow, not production authorization.
+- Existing phone-keyed RPCs must be reviewed against the authenticated Supabase
+  session and phone identity; the current Edge Functions validate Supabase Auth
+  access tokens. The historical RPC behavior documented here is not a
+  production authorization guarantee.
 - Background/killed-app incoming notifications require a push/call-invitation integration; foreground polling is not a replacement.
 - Existing billing is based on call acceptance, not confirmed two-way media. Pricing, settlement concurrency, disconnect recovery and billing need a separate production audit before real charging.
 - Old connected sessions do not yet have a heartbeat/lease expiry. Do not indiscriminately clear live sessions to bypass the active-call guard.

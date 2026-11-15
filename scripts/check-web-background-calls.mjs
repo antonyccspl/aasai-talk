@@ -88,7 +88,7 @@ const fakeAdmin = {
     return query;
   },
 };
-const edge = vm.createContext({Response,URL,Date,AbortSignal,setTimeout:fn=>{fn();return 1},console:{error(){}},createClient:()=>fakeAdmin,verifyFirebasePhoneToken:async()=>({phone:'+919000000002'}),webpush:{sendNotification:async()=>{if(pushFails)throw {statusCode:410}; sentWeb++}},fetch:async()=>{if(nativeFails)throw new Error('native unavailable');return {ok:true,json:async()=>({data:{status:'ok'}})}},Deno:{serve:fn=>{serve=fn},env:{get:key=>key==='WEB_PUSH_VAPID_PUBLIC_KEY'?'a'.repeat(87):key==='WEB_PUSH_VAPID_PRIVATE_KEY'?'b'.repeat(43):'test'}}});
+const edge = vm.createContext({Response,URL,Date,AbortSignal,setTimeout:fn=>{fn();return 1},console:{error(){}},createClient:()=>fakeAdmin,verifyPhoneSession:async()=>({phone:'+919000000002'}),webpush:{sendNotification:async()=>{if(pushFails)throw {statusCode:410}; sentWeb++}},fetch:async()=>{if(nativeFails)throw new Error('native unavailable');return {ok:true,json:async()=>({data:{status:'ok'}})}},Deno:{serve:fn=>{serve=fn},env:{get:key=>key==='WEB_PUSH_VAPID_PUBLIC_KEY'?'a'.repeat(87):key==='WEB_PUSH_VAPID_PRIVATE_KEY'?'b'.repeat(43):'test'}}});
 const edgeSource=readFileSync(new URL('../supabase/functions/push-notifications/index.ts',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,'');
 vm.runInContext(ts.transpile(edgeSource,{target:ts.ScriptTarget.ES2022}),edge);
 const dispatch=()=>serve(new Request('https://example.test',{method:'POST',headers:{authorization:'Bearer test','Content-Type':'application/json'},body:JSON.stringify({action:'send',event:'incoming_call',event_id:'call-1'})}));
@@ -121,7 +121,7 @@ const presenceDb={
     return {error:null};
   },
 };
-const presenceContext=vm.createContext({Response,console,createClient:()=>presenceDb,verifyFirebasePhoneToken:async()=>({phone:'+919000000001'}),Deno:{env:{get:()=> 'test'},serve:handler=>{presenceHandler=handler}}});
+const presenceContext=vm.createContext({Response,console,createClient:()=>presenceDb,verifyPhoneSession:async()=>({phone:'+919000000001'}),Deno:{env:{get:()=> 'test'},serve:handler=>{presenceHandler=handler}}});
 vm.runInContext(ts.transpile(readFileSync(new URL('../supabase/functions/host-presence/index.ts',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,''),{target:ts.ScriptTarget.ES2022}),presenceContext);
 for(const accepting_calls of [true,false]){
  const reply=await presenceHandler(new Request('https://example.test',{method:'POST',headers:{authorization:'Bearer test','Content-Type':'application/json'},body:JSON.stringify({action:'availability',accepting_calls})}));

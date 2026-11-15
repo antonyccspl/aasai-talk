@@ -11,21 +11,21 @@ Project: aasaitalk-dev (`vnpxbqcemqcsyxbunqvf`).
 - Active catalog rows are publicly readable; client writes and inactive rows are restricted.
 - Wallet supports retry and pull-to-refresh. Explore refresh reloads rate configuration.
 
-## Not yet connected
+## Historical implementation gaps (superseded)
 
-- The app currently uses a local demo phone/OTP adapter (`123456`) and captures
-  the phone number for returning-user onboarding decisions. Firebase Phone Auth
-  is intentionally deferred. Messaging, calls, and the remaining workspace
-  state are still sample/local behavior.
+- Phone login now uses Supabase Auth sessions and keeps the existing
+  phone-keyed profile flow. Configure Supabase Phone Auth with Twilio Verify
+  before expecting real OTP delivery. Messaging, calls, and the remaining
+  workspace state are still sample/local behavior.
 - Profiles, Host applications and documents are not persisted by the app yet.
 - Explore people, messages, call history, wallet balances and Host earnings remain sample/local state.
 - No real call transport, server billing, payment verification or payout processing exists.
 - Account-deletion table exists; deletion scheduling and execution are not implemented.
 - Sample financial actions must not be treated as real transactions.
 
-## External setup needed
+## Provider configuration still required
 
-- SMS provider and phone authentication configuration.
+- Supabase Phone Auth and Twilio Verify provider configuration.
 - Audio/video provider selection and credentials.
 - Payment-gateway server credentials, webhook configuration and payout setup.
 - Host revenue-share and billing rounding rules before implementing money movement.

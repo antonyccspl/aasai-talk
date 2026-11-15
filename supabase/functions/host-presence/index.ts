@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyFirebasePhoneToken } from "../_shared/firebase-auth.ts";
+import { phoneAuthStatus, verifyPhoneSession } from "../_shared/phone-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,8 +17,8 @@ Deno.serve(async (request) => {
     const authorization = request.headers.get("authorization") || "";
     const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1] || "";
     if (!token)
-      return Response.json({ error: "Firebase sign-in is required." }, { status: 401, headers: corsHeaders });
-    const identity = await verifyFirebasePhoneToken(token);
+      return Response.json({ error: "Phone sign-in is required." }, { status: 401, headers: corsHeaders });
+    const identity = await verifyPhoneSession(token);
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEYS");
     if (!supabaseUrl || !serviceKey)
@@ -198,6 +198,15 @@ Deno.serve(async (request) => {
     return Response.json({ error: "Unsupported presence action." }, { status: 400, headers: corsHeaders });
   } catch (error) {
     console.error("Host presence update failed:", error);
-    return Response.json({ error: "Unable to update Host presence." }, { status: 500, headers: corsHeaders });
+    const status = phoneAuthStatus(error);
+    return Response.json(
+      {
+        error:
+          status && error instanceof Error
+            ? error.message
+            : "Unable to update Host presence.",
+      },
+      { status: status ?? 500, headers: corsHeaders },
+    );
   }
 });

@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyFirebasePhoneToken } from "../_shared/firebase-auth.ts";
+import { phoneAuthStatus, verifyPhoneSession } from "../_shared/phone-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,7 +42,7 @@ Deno.serve(async (request) => {
   try {
     const token = (request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
     if (!token) return response({ error: "Please sign in to continue." }, 401);
-    const identity = await verifyFirebasePhoneToken(token);
+    const identity = await verifyPhoneSession(token);
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const action = typeof body.action === "string" ? body.action : "";
     const admin = adminClient();
@@ -109,6 +109,6 @@ Deno.serve(async (request) => {
     return response({ error: "Unsupported payout action." }, 400);
   } catch (error) {
     console.error("Host payout request failed:", error);
-    return response({ error: errorMessage(error) }, 500);
+    return response({ error: errorMessage(error) }, phoneAuthStatus(error) ?? 500);
   }
 });

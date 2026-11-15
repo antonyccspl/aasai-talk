@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyFirebasePhoneToken } from "../_shared/firebase-auth.ts";
+import { phoneAuthStatus, verifyPhoneSession } from "../_shared/phone-auth.ts";
 import { reconcileCashfreeOrder } from "../_shared/cashfree-reconcile.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
@@ -16,13 +16,13 @@ Deno.serve(async (request) => {
   try {
     const token = (request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
     if (!token) return reply({ error: "Please sign in to continue." }, 401);
-    const identity = await verifyFirebasePhoneToken(token);
+    const identity = await verifyPhoneSession(token);
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const orderId = typeof body.order_id === "string" ? body.order_id : "";
     if (!/^atcf_[a-f0-9]{32}$/i.test(orderId)) return reply({ error: "Invalid payment order." }, 400);
     return reply(await reconcileCashfreeOrder(adminClient(), orderId, identity.phone));
   } catch (error) {
     console.error("Cashfree payment status failed:", error);
-    return reply({ error: errorMessage(error) }, 500);
+    return reply({ error: errorMessage(error) }, phoneAuthStatus(error) ?? 500);
   }
 });

@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyFirebasePhoneToken } from "../_shared/firebase-auth.ts";
+import { phoneAuthStatus, verifyPhoneSession } from "../_shared/phone-auth.ts";
 import { createCashfreePaymentOrder } from "../_shared/cashfree.ts";
 import { hashCashfreeCheckoutToken } from "../_shared/cashfree-checkout-token.ts";
 
@@ -19,7 +19,7 @@ Deno.serve(async (request) => {
   try {
     const token = (request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
     if (!token) return reply({ error: "Please sign in to continue." }, 401);
-    const identity = await verifyFirebasePhoneToken(token);
+    const identity = await verifyPhoneSession(token);
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const coinPackId = typeof body.coin_pack_id === "string" ? body.coin_pack_id : "";
     const includeCheckoutToken = body.include_checkout_token === true;
@@ -68,6 +68,9 @@ Deno.serve(async (request) => {
     }
   } catch (error) {
     console.error("Cashfree order creation failed:", error);
-    return reply({ error: error instanceof Error ? error.message : "Cashfree payment could not start." }, 500);
+    return reply(
+      { error: error instanceof Error ? error.message : "Cashfree payment could not start." },
+      phoneAuthStatus(error) ?? 500,
+    );
   }
 });

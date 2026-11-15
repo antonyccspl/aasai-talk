@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyFirebasePhoneToken } from "../_shared/firebase-auth.ts";
+import { phoneAuthStatus, verifyPhoneSession } from "../_shared/phone-auth.ts";
 import { scanImageWithGoogleVision } from "../_shared/image-moderation.ts";
 
 const corsHeaders = {
@@ -26,7 +26,7 @@ Deno.serve(async (request) => {
   try {
     const token = (request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
     if (!token) return reply({ error: "Please sign in to continue." }, 401);
-    const identity = await verifyFirebasePhoneToken(token);
+    const identity = await verifyPhoneSession(token);
     const form = await request.formData();
     const action = form.get("action");
     const isProfilePhoto = action === "submit-profile-photo";
@@ -85,6 +85,9 @@ Deno.serve(async (request) => {
     return reply({ id: item.id, status: item.status, message: item.decision_note });
   } catch (error) {
     console.error("Content moderation failed:", error);
-    return reply({ error: error instanceof Error ? error.message : "Content moderation failed." }, 500);
+    return reply(
+      { error: error instanceof Error ? error.message : "Content moderation failed." },
+      phoneAuthStatus(error) ?? 500,
+    );
   }
 });

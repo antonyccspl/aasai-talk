@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyFirebasePhoneToken } from "../_shared/firebase-auth.ts";
+import { phoneAuthStatus, verifyPhoneSession } from "../_shared/phone-auth.ts";
 
 const headers = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const reply = (body: Record<string, unknown>, status = 200) => Response.json(body, { status, headers: { ...headers, "Cache-Control": "no-store" } });
@@ -12,7 +12,7 @@ Deno.serve(async (request) => {
   try {
     const token=(request.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i)?.[1]||"";
     if(!token) return reply({error:"Please sign in to continue."},401);
-    const identity=await verifyFirebasePhoneToken(token); const admin=client();
+    const identity=await verifyPhoneSession(token); const admin=client();
     const body=await request.json().catch(()=>({})) as Record<string,unknown>; const action=typeof body.action === "string" ? body.action : "";
     if(action === "list") {
       const {data:tickets,error}=await admin.from("phone_support_tickets").select("id,subject,category,status,created_at,updated_at,resolved_at").eq("phone",identity.phone).order("updated_at",{ascending:false}).limit(50); if(error) throw error;
@@ -36,5 +36,5 @@ Deno.serve(async (request) => {
       return reply({ok:true});
     }
     return reply({error:"Unsupported support action."},400);
-  } catch(error) { console.error("Support ticket failed:",error); return reply({error:message(error)},500); }
+  } catch(error) { console.error("Support ticket failed:",error); return reply({error:message(error)},phoneAuthStatus(error) ?? 500); }
 });

@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import webpush from "web-push";
-import { verifyFirebasePhoneToken } from "../_shared/firebase-auth.ts";
+import { phoneAuthStatus, verifyPhoneSession } from "../_shared/phone-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -137,8 +137,8 @@ Deno.serve(async (request) => {
   try {
     const token = (request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i)?.[1] || "";
     if (!token)
-      return Response.json({ error: "Firebase sign-in is required." }, { status: 401, headers: corsHeaders });
-    const identity = await verifyFirebasePhoneToken(token);
+      return Response.json({ error: "Phone sign-in is required." }, { status: 401, headers: corsHeaders });
+    const identity = await verifyPhoneSession(token);
     const body = await request.json();
     const action = typeof body.action === "string" ? body.action : "";
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -597,6 +597,15 @@ Deno.serve(async (request) => {
     return Response.json({ sent }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Push notification request failed:", error);
-    return Response.json({ error: "Unable to process the push notification." }, { status: 500, headers: corsHeaders });
+    const status = phoneAuthStatus(error);
+    return Response.json(
+      {
+        error:
+          status && error instanceof Error
+            ? error.message
+            : "Unable to process the push notification.",
+      },
+      { status: status ?? 500, headers: corsHeaders },
+    );
   }
 });

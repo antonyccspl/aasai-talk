@@ -23,12 +23,10 @@ This is not authenticated account storage or cross-device synchronization. Losin
 ## Remaining limitations
 
 - Calls, payments and payouts remain simulated; no money moves.
-- Dummy phone OTP `123456` is active until Firebase Phone Auth is integrated.
-  Dummy-auth registrations are stored in `phone_identities`, and onboarding
-  details including gender and date of birth are stored in the structured
+- This status snapshot predates the Supabase Auth phone-login integration.
+  Onboarding details including gender and date of birth are stored in the structured
   `phone_profiles` table as well as the legacy identity JSON snapshot. The
-  existing `profiles` table remains reserved for real Supabase-authenticated
-  users.
+  existing `profiles` table remains separate from the phone-keyed app profiles.
 - Gallery photo URIs and KYC filenames are metadata only, not uploaded files.
 - Deletion requests persist; automatic 15-day erasure is not enabled.
 - Some admin analytics, payment/reconciliation examples and help/policy content remain illustrative. Admin form saves do not modify production configuration or process refunds.

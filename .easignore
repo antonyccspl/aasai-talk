@@ -40,7 +40,7 @@ example
 /ios
 /android
 
-# Firebase app config stays out of Git.
+# Firebase Cloud Messaging Android app config stays out of Git.
 google-services.json
-# Keep Firebase's Android app configuration out of Git, but upload it to EAS Build.
+# Include the FCM config in EAS Build uploads for Android push notifications.
 !google-services.json

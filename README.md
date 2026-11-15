@@ -1,12 +1,13 @@
 # Aasai Talk
 
-Aasai Talk is an Expo/React Native social discovery app backed by Supabase and
-Firebase Phone Authentication. The implementation includes profile and public
-directory data, messaging, call lifecycle and minute billing, Host presence and
-dashboards, safety reports/blocks, push notification plumbing, and a moderator
-operations view. Live two-party RTC, payment checkout/webhooks, withdrawals,
-push delivery, and moderator operations require the provider credentials,
-database migrations, and Edge Functions described below.
+Aasai Talk is an Expo/React Native social discovery app backed by Supabase Auth
+for phone login, designed to use Twilio Verify for SMS delivery. Firebase is
+used for Android push notification delivery only. The implementation includes
+profile and public directory data, messaging, call lifecycle and minute billing,
+Host presence and dashboards, safety reports/blocks, push notification plumbing,
+and a moderator operations view. Live two-party RTC, payment checkout/webhooks,
+withdrawals, push delivery, and moderator operations require the provider
+credentials, database migrations, and Edge Functions described below.
 
 ## Get started
 
@@ -34,23 +35,19 @@ The source is under `src/` and uses [Expo Router](https://docs.expo.dev/router/i
 ## Environment
 
 Copy `.env.example` to `.env.local` and provide the Supabase project URL and
-publishable key. For browser phone login, also add the public configuration from
-your Firebase Console Web App:
+publishable key:
 
 ```text
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
-EXPO_PUBLIC_FIREBASE_API_KEY=...
-EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-EXPO_PUBLIC_FIREBASE_PROJECT_ID=your-project
-EXPO_PUBLIC_FIREBASE_APP_ID=...
 ```
 
-The mobile app must never contain a Supabase secret/service-role key.
-Enable Phone sign-in in Firebase Authentication and add each browser host to its
-Authorized domains. Use Firebase's fictional test numbers for development.
-Firebase Web App configuration is public client configuration; never add a
-Firebase service-account key or Supabase secret to the client.
+Enable phone sign-in in Supabase Auth and choose Twilio Verify as the SMS
+provider in the Supabase Dashboard. Enter the Twilio Account SID, Auth Token,
+and Verify Service SID in the provider settings; never put them in the app,
+`.env`, or source control. Configure Firebase Cloud Messaging separately for
+Android push notifications. The app must never contain a Supabase
+secret/service-role key.
 
 ## Push notifications
 
@@ -70,7 +67,7 @@ turn it off at any time; new calls are then blocked and any ringing invitation
 is marked missed.
 
 Apply the migrations and deploy `push-notifications`. The function verifies the
-Firebase ID token and derives call/message/wallet recipients from the server
+Supabase access token and derives call/message/wallet recipients from the server
 records. It uses Supabase-managed service-role credentials only on the server.
 The `host-presence` function also records online heartbeats for signed-in
 members on web and mobile: approved Hosts update Host presence, while male
@@ -122,23 +119,20 @@ node scripts/check-sample-backend.mjs
 Android production builds use EAS Build. The Play Store build is an Android App
 Bundle (`.aab`); the preview profile creates an installable APK. The Android
 application ID is `com.aasaitalk.app`. Choose this ID before registering the
-Android app in Firebase or creating the Play Console listing: it is a permanent
+Android app for Firebase Cloud Messaging or creating the Play Console listing: it is a permanent
 identifier once the app is published.
 
-### 1. Prepare Firebase for Android
+### 1. Prepare Android push notifications
 
 1. In Firebase Console, register an Android app using the exact package name
    `com.aasaitalk.app`. Do not reuse the previous `com.anonymous.aasaitalk`
    Android registration.
-2. Enable **Phone** under Authentication sign-in providers and allow the
-   regions where the app will send verification SMS messages.
-3. Download `google-services.json` and put it in the repository root, beside
+2. Download `google-services.json` and put it in the repository root, beside
    `app.json`. It is ignored by Git but included in EAS build uploads through
    `.easignore`; do not commit it.
-4. After EAS creates the Android signing key, add its SHA-1 and SHA-256
-   fingerprints to the Firebase Android app. Once Play App Signing is set up,
-   add Google's Play app-signing certificate fingerprints too. These
-   fingerprints are required for reliable phone-auth app verification.
+3. Configure Firebase Cloud Messaging (FCM) v1 credentials in EAS for Android
+   push notifications. Phone verification uses Supabase Auth and Twilio Verify,
+   not Firebase Authentication.
 
 ### 2. Configure EAS Build
 
@@ -162,7 +156,7 @@ identifier once the app is published.
    startup message for an HTTP status or missing RPC rather than assuming the
    device is offline.
 
-4. Test Firebase phone sign-in, profile/photo permissions, chat, notifications,
+4. Test Twilio-delivered phone sign-in, profile/photo permissions, chat, notifications,
    audio/video calls, and Cashfree flows on a real Android device. A successful
    web export does not verify native Android SDK integration.
 5. Create the Play Store App Bundle when the Android test build is ready:
@@ -234,39 +228,47 @@ Function secret to the WebRTC server address for the same ZEGO project as
 not add it to `.env.local` as an `EXPO_PUBLIC_` value or ship it in the client.
 
 Phone block, report, and account-deletion requests use the `phone-safety` Edge
-Function. Before deploying it, link the Supabase project, set
-`FIREBASE_PROJECT_ID` as an Edge Function secret, apply the migrations, and
+Function. Before deploying it, link the Supabase project, configure Supabase
+Phone Auth with Twilio Verify in the Dashboard, apply the migrations, and
 deploy the functions:
 
 ```bash
 npx supabase link --project-ref your-project-ref
-npx supabase secrets set FIREBASE_PROJECT_ID=your-firebase-project-id
 npx supabase db push
-npx supabase functions deploy phone-safety
-npx supabase functions deploy zego-token
+npx supabase functions deploy host-payouts
+npx supabase functions deploy content-moderation
 npx supabase functions deploy host-presence
-npx supabase functions deploy push-notifications
+npx supabase functions deploy cashfree-payment-status
 npx supabase functions deploy moderator-ops
+npx supabase functions deploy zego-token
+npx supabase functions deploy phone-safety
+npx supabase functions deploy support-tickets
+npx supabase functions deploy host-documents
+npx supabase functions deploy cashfree-create-order
+npx supabase functions deploy push-notifications
 ```
 
-The function verifies Firebase ID tokens. Its service-role key remains a
-Supabase-managed server secret and must never be added to the client or Vercel
+These functions verify Supabase Auth access tokens. The service-role key remains
+a Supabase-managed server secret and must never be added to the client or Vercel
 `EXPO_PUBLIC_` variables. Account deletion currently records a server request;
 automatic data erasure still requires a scheduled server-side processor.
 
-The moderator operations route requires a Firebase custom claim
-`moderator: true`. Provision that claim only through a trusted Firebase Admin
-environment; do not grant it from the client. The `moderator-ops` function
-checks the claim, and report resolution writes a server-side audit record.
+The moderator operations route requires an active `moderator` entry in
+`admin_roles` for the Supabase Auth user. Provision that role only through a
+trusted administrative process; do not grant it from the client. The
+`moderator-ops` function checks the role, and report resolution writes a
+server-side audit record.
 Operations summaries include seven-day call completion/failure, open/high
 priority reports, and Hosts with a heartbeat in the last minute.
 
 The push and moderator migrations in this workspace are not applied merely by
 adding these files. Run `npx supabase db push` against the intended project and
 deploy the Edge Functions before enabling production use. Push delivery also
-depends on valid EAS/FCM/APNs provider credentials. The app's existing phone
-RPCs still need a broader Firebase-identity authorization audit before the
-wallet or calling features should be treated as production financial services.
+depends on valid EAS/FCM/APNs provider credentials. Phone Auth also depends on
+configuring Twilio Verify in the Supabase Dashboard and testing real SMS
+delivery. The app's phone RPCs and financial flows still need production
+validation before the wallet or calling features should be treated as
+production financial services.
 
 ### Other setup steps
 
