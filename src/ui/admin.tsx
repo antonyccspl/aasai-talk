@@ -581,14 +581,9 @@ export function Admin({
           icon="star"
         />
         <Setting
-          title="Support Email"
-          detail={d.appConfig?.support_email || "Not configured"}
-          icon="mail"
-        />
-        <Setting
-          title="Support Phone"
-          detail={d.appConfig?.support_phone || "Not configured"}
-          icon="phone"
+          title="Support Instagram"
+          detail={d.appConfig?.support_instagram || "Not configured"}
+          icon="globe"
         />
         <Setting
           title="Minimum App Version"

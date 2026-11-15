@@ -36,8 +36,7 @@ export type AppConfig = {
   maintenance_mode: boolean;
   maintenance_message: string;
   minimum_app_version: string;
-  support_email: string;
-  support_phone: string;
+  support_instagram: string;
   new_user_bonus_coins: number;
   audio_rate_diamonds_per_min: number;
   video_rate_diamonds_per_min: number;

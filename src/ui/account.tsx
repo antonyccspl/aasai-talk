@@ -62,6 +62,20 @@ import { Welcome } from "./welcome";
 import { priorityIndianLanguages, useLanguage } from "./language";
 import { policyFallbacks } from "@/data/policy-content";
 
+const INSTAGRAM_SUPPORT_URL = "https://www.instagram.com/aasai_talk/";
+
+async function openInstagramSupport() {
+  try {
+    await Linking.openURL(INSTAGRAM_SUPPORT_URL);
+  } catch (error) {
+    console.error("Unable to open the Aasai Talk Instagram profile:", error);
+    Alert.alert(
+      "Unable to open Instagram",
+      "Open Instagram and search for @aasai_talk.",
+    );
+  }
+}
+
 function latestEligibleBirthday() {
   const date = new Date();
   date.setFullYear(date.getFullYear() - 18);
@@ -1982,6 +1996,30 @@ export function Settings({
           : policyKey === "refund"
             ? "credit-card"
             : "shield";
+    const renderPolicyDescription = (description: string) => {
+      const [before, ...after] = description.split(INSTAGRAM_SUPPORT_URL);
+      if (after.length === 0)
+        return (
+          <T color={c.secondary} style={{ lineHeight: 22 }}>
+            {description}
+          </T>
+        );
+      return (
+        <T color={c.secondary} style={{ lineHeight: 22 }}>
+          <T color={c.secondary}>{before}</T>
+          <T
+            accessibilityRole="link"
+            accessibilityLabel="Aasai Talk on Instagram"
+            onPress={() => void openInstagramSupport()}
+            color={c.mint}
+            style={{ textDecorationLine: "underline" }}
+          >
+            {INSTAGRAM_SUPPORT_URL}
+          </T>
+          <T color={c.secondary}>{after.join(INSTAGRAM_SUPPORT_URL)}</T>
+        </T>
+      );
+    };
     return (
       <Shell title={policyTitle} publicPage={!auth.authenticated}>
         <Card style={{ gap: 12, padding: 20, backgroundColor: c.surface }}>
@@ -2012,16 +2050,21 @@ export function Settings({
               </View>
               <View style={{ flex: 1, gap: 6 }}>
                 <T size={17} bold>{section.title}</T>
-                <T color={c.secondary} style={{ lineHeight: 22 }}>
-                  {section.description}
-                </T>
+                {renderPolicyDescription(section.description)}
               </View>
             </Row>
           </Card>
         ))}
-        <T size={12} color={c.muted} style={{ textAlign: "center", paddingVertical: 8 }}>
-          Questions? Contact antony.ccspl@gmail.com
-        </T>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Contact Aasai Talk on Instagram"
+          onPress={() => void openInstagramSupport()}
+          style={{ alignItems: "center", paddingVertical: 8 }}
+        >
+          <T size={12} color={c.mint} style={{ textAlign: "center", textDecorationLine: "underline" }}>
+            Questions? Contact us on Instagram
+          </T>
+        </Pressable>
       </Shell>
     );
   }
