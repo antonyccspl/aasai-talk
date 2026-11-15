@@ -35,8 +35,11 @@ const legacyPhoneKeys = [
   "aasai-demo-profile-phone",
 ];
 
-function isIndianMobile(phone: string | null | undefined) {
-  return typeof phone === "string" && /^\+91\d{10}$/.test(phone);
+function normalizeIndianMobile(phone: string | null | undefined) {
+  if (typeof phone !== "string") return null;
+  const compactPhone = phone.trim().replace(/[\s()-]/g, "");
+  const match = /^(?:\+?91)?(\d{10})$/.exec(compactPhone);
+  return match ? `+91${match[1]}` : null;
 }
 
 async function clearLegacyPhoneState() {
@@ -66,8 +69,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     const applySession = (nextSession: Session | null) => {
-      const phone = nextSession?.user.phone;
-      if (!nextSession || !isIndianMobile(phone)) {
+      const phone = normalizeIndianMobile(nextSession?.user.phone);
+      if (!nextSession || !phone) {
         setUser(null);
         setSession(null);
         setAuthenticated(false);
@@ -80,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(nextSession.user);
       setSession(nextSession);
       setAuthenticated(true);
-      setDemoPhone(phone ?? null);
+      setDemoPhone(phone);
       setLoading(true);
     };
 
@@ -135,23 +138,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [demoPhone]);
 
   const sendOtp = async (phone: string) => {
-    if (!isIndianMobile(phone))
+    const normalizedPhone = normalizeIndianMobile(phone);
+    if (!normalizedPhone)
       throw new Error("Enter a valid Indian mobile number.");
-    const { error } = await supabase.auth.signInWithOtp({ phone });
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: normalizedPhone,
+    });
     if (error) throw error;
   };
 
   const verifyOtp = async (phone: string, token: string) => {
-    if (!isIndianMobile(phone))
+    const normalizedPhone = normalizeIndianMobile(phone);
+    if (!normalizedPhone)
       throw new Error("Enter a valid Indian mobile number.");
     const {
       data: { session: verifiedSession, user: verifiedUser },
       error,
-    } = await supabase.auth.verifyOtp({ phone, token, type: "sms" });
+    } = await supabase.auth.verifyOtp({
+      phone: normalizedPhone,
+      token,
+      type: "sms",
+    });
     if (error) throw error;
     if (!verifiedSession || !verifiedUser)
       throw new Error("Phone verification did not create an authenticated session.");
-    if (verifiedUser.phone !== phone) {
+    if (normalizeIndianMobile(verifiedUser.phone) !== normalizedPhone) {
       const { error: signOutError } = await supabase.auth.signOut();
       if (signOutError) throw signOutError;
       throw new Error("The verification code does not match this phone number.");
@@ -159,14 +170,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data, error: identityError } = await supabase.rpc(
       "open_phone_identity",
-      { input_phone: phone },
+      { input_phone: normalizedPhone },
     );
     if (identityError) throw identityError;
 
     setUser(verifiedUser);
     setSession(verifiedSession);
     setAuthenticated(true);
-    setDemoPhone(phone);
+    setDemoPhone(normalizedPhone);
     setDemoProfileComplete(data === true);
     setLoading(false);
     return data === true;
@@ -197,7 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
     const token = data.session?.access_token;
-    if (!token || !isIndianMobile(data.session?.user.phone))
+    if (!token || !normalizeIndianMobile(data.session?.user.phone))
       throw new Error("You must be signed in to continue.");
     return token;
   }, []);
