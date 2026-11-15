@@ -110,12 +110,21 @@ Deno.serve(async (request) => {
     }
 
     if (action === "settings") {
-      const { data: settings, error } = await admin
-        .from("phone_host_presence")
-        .select("accepting_calls,show_last_seen,accepting_audio_calls,accepting_video_calls")
-        .eq("host_phone", identity.phone)
-        .maybeSingle();
-      if (error) throw error;
+      const [{ data: settings, error }, { data: phoneChange, error: phoneChangeError }] = await Promise.all([
+        admin
+          .from("phone_host_presence")
+          .select("accepting_calls,show_last_seen,accepting_audio_calls,accepting_video_calls")
+          .eq("host_phone", identity.phone)
+          .maybeSingle(),
+        admin
+          .from("admin_host_phone_change_requests")
+          .select("new_phone,expires_at")
+          .eq("host_phone", identity.phone)
+          .eq("status", "pending")
+          .gt("expires_at", new Date().toISOString())
+          .maybeSingle(),
+      ]);
+      if (error || phoneChangeError) throw error || phoneChangeError;
       const applicationProfile =
         host.application_profile &&
         typeof host.application_profile === "object" &&
@@ -131,7 +140,48 @@ Deno.serve(async (request) => {
           applicationProfile.audio === true || applicationProfile.audio === "true",
         video_capable:
           applicationProfile.video === true || applicationProfile.video === "true",
+        pending_phone_change: phoneChange
+          ? { new_phone: phoneChange.new_phone, expires_at: phoneChange.expires_at }
+          : null,
       }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
+    }
+
+    if (action === "phone-change-ready") {
+      const newPhone = typeof body.new_phone === "string" ? body.new_phone.trim() : "";
+      if (!/^\+91\d{10}$/.test(newPhone))
+        return Response.json({ error: "Enter a valid Indian mobile number." }, { status: 400, headers: corsHeaders });
+      const { data: request, error } = await admin
+        .from("admin_host_phone_change_requests")
+        .select("new_phone,expires_at")
+        .eq("host_phone", identity.phone)
+        .eq("new_phone", newPhone)
+        .eq("status", "pending")
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
+      if (error) throw error;
+      if (!request)
+        return Response.json({ error: "There is no active admin request for this phone number." }, { status: 403, headers: corsHeaders });
+      const { data: existingIdentity, error: identityError } = await admin
+        .from("phone_identities")
+        .select("phone")
+        .eq("phone", newPhone)
+        .maybeSingle();
+      if (identityError) throw identityError;
+      if (existingIdentity)
+        return Response.json({ error: "That phone number is already linked to an account." }, { status: 409, headers: corsHeaders });
+      const { data: activeCall, error: callError } = await admin
+        .from("call_sessions")
+        .select("id")
+        .eq("host_phone", identity.phone)
+        .in("status", ["ringing", "connected"])
+        .limit(1)
+        .maybeSingle();
+      if (callError) throw callError;
+      if (activeCall)
+        return Response.json({ error: "You cannot change your phone number during a call." }, { status: 409, headers: corsHeaders });
+      return Response.json({ ready: true, new_phone: request.new_phone, expires_at: request.expires_at }, {
+        headers: { ...corsHeaders, "Cache-Control": "no-store" },
+      });
     }
 
     if (action === "call-preference") {

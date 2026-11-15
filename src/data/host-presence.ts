@@ -7,6 +7,7 @@ export type HostPresenceSettings = {
   acceptingVideoCalls: boolean;
   canAcceptAudioCalls: boolean;
   canAcceptVideoCalls: boolean;
+  pendingPhoneChange: { newPhone: string; expiresAt: string } | null;
 };
 
 async function requestHostPresence(
@@ -78,6 +79,18 @@ export async function fetchHostPresenceSettings(
   const acceptingVideoCalls = settings.accepting_video_calls;
   const canAcceptAudioCalls = settings.audio_capable;
   const canAcceptVideoCalls = settings.video_capable;
+  const pendingPhoneChange =
+    settings.pending_phone_change &&
+    typeof settings.pending_phone_change === "object" &&
+    "new_phone" in settings.pending_phone_change &&
+    typeof settings.pending_phone_change.new_phone === "string" &&
+    "expires_at" in settings.pending_phone_change &&
+    typeof settings.pending_phone_change.expires_at === "string"
+      ? {
+          newPhone: settings.pending_phone_change.new_phone,
+          expiresAt: settings.pending_phone_change.expires_at,
+        }
+      : null;
   if (
     typeof acceptingCalls !== "boolean" ||
     typeof showLastSeen !== "boolean" ||
@@ -94,7 +107,27 @@ export async function fetchHostPresenceSettings(
     acceptingVideoCalls,
     canAcceptAudioCalls,
     canAcceptVideoCalls,
+    pendingPhoneChange,
   };
+}
+
+export async function assertHostPhoneChangeRequest(
+  idToken: string,
+  newPhone: string,
+) {
+  const result = await requestHostPresence(idToken, {
+    action: "phone-change-ready",
+    new_phone: newPhone,
+  });
+  if (
+    !result ||
+    typeof result !== "object" ||
+    !("ready" in result) ||
+    result.ready !== true ||
+    !("new_phone" in result) ||
+    result.new_phone !== newPhone
+  )
+    throw new Error("There is no active admin phone-change request for this number.");
 }
 
 export async function fetchHostCallAvailability(idToken: string): Promise<boolean> {

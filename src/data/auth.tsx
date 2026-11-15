@@ -9,7 +9,10 @@ import React, {
 } from "react";
 import { Platform } from "react-native";
 import { supabase } from "./supabase";
-import { endHostAvailability } from "./host-presence";
+import {
+  assertHostPhoneChangeRequest,
+  endHostAvailability,
+} from "./host-presence";
 import {
   unregisterBrowserCallPush,
   unregisterPushDevice,
@@ -27,6 +30,9 @@ type AuthContextValue = {
   getIdentityToken: () => Promise<string>;
   sendOtp: (phone: string) => Promise<void>;
   verifyOtp: (phone: string, token: string) => Promise<boolean>;
+  sendHostPhoneChangeOtp: (phone: string) => Promise<void>;
+  resendHostPhoneChangeOtp: (phone: string) => Promise<void>;
+  verifyHostPhoneChangeOtp: (phone: string, token: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -226,6 +232,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return token;
   }, []);
 
+  const sendHostPhoneChangeOtp = async (phone: string) => {
+    const normalizedPhone = normalizeIndianMobile(phone);
+    if (!normalizedPhone)
+      throw new Error("Enter a valid Indian mobile number.");
+    const token = await getIdentityToken();
+    await assertHostPhoneChangeRequest(token, normalizedPhone);
+    const { error } = await supabase.auth.updateUser({ phone: normalizedPhone });
+    if (error) throw error;
+  };
+
+  const resendHostPhoneChangeOtp = async (phone: string) => {
+    const normalizedPhone = normalizeIndianMobile(phone);
+    if (!normalizedPhone)
+      throw new Error("Enter a valid Indian mobile number.");
+    const identityToken = await getIdentityToken();
+    await assertHostPhoneChangeRequest(identityToken, normalizedPhone);
+    const { error } = await supabase.auth.resend({
+      type: "phone_change",
+      phone: normalizedPhone,
+    });
+    if (error) throw error;
+  };
+
+  const verifyHostPhoneChangeOtp = async (phone: string, token: string) => {
+    const normalizedPhone = normalizeIndianMobile(phone);
+    if (!normalizedPhone)
+      throw new Error("Enter a valid Indian mobile number.");
+    if (!/^\d{6}$/.test(token))
+      throw new Error("Enter the six-digit verification code.");
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: normalizedPhone,
+      token,
+      type: "phone_change",
+    });
+    if (error) throw error;
+    if (normalizeIndianMobile(data.user?.phone) !== normalizedPhone)
+      throw new Error("The new phone number could not be verified for this account.");
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -239,6 +284,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         getIdentityToken,
         sendOtp,
         verifyOtp,
+        sendHostPhoneChangeOtp,
+        resendHostPhoneChangeOtp,
+        verifyHostPhoneChangeOtp,
         signOut,
       }}
     >

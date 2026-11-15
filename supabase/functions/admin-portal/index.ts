@@ -139,6 +139,27 @@ Deno.serve(async (request) => {
       const bio = typeof body.bio === "string" ? body.bio.trim() : "";
       const languages = asStringArray(body.languages, 4, "languages");
       const interests = asStringArray(body.interests, 6, "interests");
+      const requiredBooleanFields = [
+        "audio",
+        "video",
+        "accepting_audio_calls",
+        "accepting_video_calls",
+        "admin_photo_safety_attested",
+        "admin_identity_review_attested",
+        "admin_payout_review_attested",
+        "pan_verified",
+        "aadhaar_verified",
+        "payout_verified",
+      ];
+      if (requiredBooleanFields.some((field) => typeof body[field] !== "boolean"))
+        throw new Error("Invalid Host call settings or verification attestations.");
+      if (body.new_phone !== undefined && typeof body.new_phone !== "string")
+        throw new Error("Enter a valid new Host phone number.");
+      if (
+        (body.pan_number !== undefined && typeof body.pan_number !== "string") ||
+        (body.aadhaar_number !== undefined && typeof body.aadhaar_number !== "string")
+      )
+        throw new Error("Invalid Host identity details.");
       const audio = body.audio === true;
       const video = body.video === true;
       const pan = typeof body.pan_number === "string" ? body.pan_number.trim().toUpperCase() : "";
@@ -389,10 +410,14 @@ Deno.serve(async (request) => {
     }
     if (action === "list_hosts") {
       requireRole(role, ["super_admin", "moderator"]); requirePage(pages, "Hosts");
-      const [{ data: profiles, error: profileError }, { data: applications, error: applicationError }] = await Promise.all([
+      const [{ data: profiles, error: profileError }, { data: applications, error: applicationError }, { data: phoneChanges, error: phoneChangesError }] = await Promise.all([
         admin.from("phone_profiles").select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at").eq("gender", "Female").order("created_at", { ascending: false }).limit(250),
         admin.from("host_applications").select("id,phone,status,application_profile,aadhaar_path,pan_path,submitted_at,reviewed_at,review_note").limit(250),
+        role === "super_admin"
+          ? admin.from("admin_host_phone_change_requests").select("host_phone,new_phone,expires_at,status").eq("status", "pending").gt("expires_at", new Date().toISOString())
+          : Promise.resolve({ data: [], error: null }),
       ]); if (profileError || applicationError) throw profileError || applicationError;
+      if (phoneChangesError) throw phoneChangesError;
       const applicationProfile = (value: unknown) =>
         value && typeof value === "object" && !Array.isArray(value)
           ? value as Record<string, unknown>
@@ -430,30 +455,15 @@ Deno.serve(async (request) => {
         phones.length?admin.from("phone_host_payout_accounts").select("host_phone,account_holder_name,payout_method,account_number,ifsc_code,upi_id,status,verification_note,verified_at,updated_at").in("host_phone",phones):Promise.resolve({data:[],error:null}),
         phones.length?admin.from("phone_host_compliance").select("host_phone,pan_last4,aadhaar_last4,pan_verified,aadhaar_verified,verified_at,updated_at").in("host_phone",phones):Promise.resolve({data:[],error:null}),
       ]); if(accountError||complianceError) throw accountError||complianceError;
-      const [
-        { data: presence, error: presenceError },
-        { data: presenceConfig, error: presenceConfigError },
-      ] = await Promise.all([
+      const { data: presence, error: presenceError } = await (
         phones.length
           ? admin
             .from("phone_host_presence")
-            .select("host_phone,last_seen_at,accepting_calls")
+            .select("host_phone,last_seen_at,accepting_calls,accepting_audio_calls,accepting_video_calls")
             .in("host_phone", phones)
-          : Promise.resolve({ data: [], error: null }),
-        admin
-          .from("host_presence_config")
-          .select("timeout_seconds")
-          .eq("singleton", true)
-          .maybeSingle(),
-      ]);
-      if (presenceError || presenceConfigError)
-        throw presenceError || presenceConfigError;
-      if (
-        !presenceConfig ||
-        typeof presenceConfig.timeout_seconds !== "number" ||
-        !Number.isFinite(presenceConfig.timeout_seconds)
-      )
-        throw new Error("Host presence configuration is missing or invalid.");
+          : Promise.resolve({ data: [], error: null })
+      );
+      if (presenceError) throw presenceError;
 
       const applicationsByPhone = new Map(
         (applications || []).map((application) => [application.phone, application]),
@@ -464,12 +474,13 @@ Deno.serve(async (request) => {
       const complianceByPhone = new Map(
         (compliance || []).map((record) => [record.host_phone, record]),
       );
+      const phoneChangesByPhone = new Map(
+        (phoneChanges || []).map((record) => [record.host_phone, record]),
+      );
       const presenceByPhone = new Map(
         (presence || []).map((record) => [record.host_phone, record]),
       );
       const today = Date.now() - 86400000;
-      const onlineThreshold =
-        Date.now() - presenceConfig.timeout_seconds * 1000;
       return reply({
         items: (profiles || []).map((profile) => {
           const application = applicationsByPhone.get(profile.phone);
@@ -495,17 +506,242 @@ Deno.serve(async (request) => {
             profile,
             bank_account: accountsByPhone.get(profile.phone) || null,
             compliance: complianceByPhone.get(profile.phone) || null,
+            pending_phone_change: phoneChangesByPhone.get(profile.phone) || null,
             is_new: Date.parse(profile.created_at) >= today,
             last_seen_at: lastSeenAt,
             accepting_calls: hostPresence?.accepting_calls === true,
+            accepting_audio_calls: hostPresence?.accepting_audio_calls ?? true,
+            accepting_video_calls: hostPresence?.accepting_video_calls ?? true,
             is_online:
               application?.status === "approved" &&
-              hostPresence?.accepting_calls === true &&
-              !!lastSeenAt &&
-              Date.parse(lastSeenAt) > onlineThreshold,
+              hostPresence?.accepting_calls === true,
           };
         }),
       });
+    }
+    if (action === "update_host_details") {
+      requireSuperAdmin(role);
+      requirePage(pages, "Hosts");
+      if (!uploadForm) throw new Error("Host edit data must be submitted as a multipart request.");
+
+      const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+      const displayName = typeof body.display_name === "string" ? body.display_name.trim().replace(/\s+/g, " ") : "";
+      const username = typeof body.username === "string" ? body.username.trim() : "";
+      const dateOfBirth = typeof body.date_of_birth === "string" ? body.date_of_birth : "";
+      const city = typeof body.city === "string" ? body.city.trim().replace(/\s+/g, " ") : "";
+      const bio = typeof body.bio === "string" ? body.bio.trim() : "";
+      const languages = asStringArray(body.languages, 4, "languages");
+      const interests = asStringArray(body.interests, 6, "interests");
+      const audio = body.audio === true;
+      const video = body.video === true;
+      const acceptingAudioCalls = body.accepting_audio_calls === true;
+      const acceptingVideoCalls = body.accepting_video_calls === true;
+      const phoneInput = typeof body.new_phone === "string" ? body.new_phone.trim() : "";
+      const newPhone = phoneInput || null;
+      const photoSafetyAttested = body.admin_photo_safety_attested === true;
+      const identityReviewAttested = body.admin_identity_review_attested === true;
+      const payoutReviewAttested = body.admin_payout_review_attested === true;
+      const photoValue = uploadForm.get("photo");
+      const aadhaarValue = uploadForm.get("aadhaar_file");
+      const panValue = uploadForm.get("pan_file");
+      if ((photoValue !== null && !(photoValue instanceof File)) ||
+          (aadhaarValue !== null && !(aadhaarValue instanceof File)) ||
+          (panValue !== null && !(panValue instanceof File)))
+        throw new Error("Invalid Host photo or verification document upload.");
+      const photo = photoValue instanceof File ? photoValue : null;
+      const aadhaarFile = aadhaarValue instanceof File ? aadhaarValue : null;
+      const panFile = panValue instanceof File ? panValue : null;
+
+      if (!/^\+91\d{10}$/.test(phone)) throw new Error("Choose a valid Host phone number.");
+      if (displayName.length < 2 || displayName.length > 50) throw new Error("Enter a name between 2 and 50 characters.");
+      if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) throw new Error("Use a username with 3–20 letters, numbers, or underscores.");
+      if (!isAdultDateOfBirth(dateOfBirth)) throw new Error("The Host must be at least 18 years old. Check the date of birth.");
+      if (city.length < 2 || city.length > 80) throw new Error("Enter a city between 2 and 80 characters.");
+      if (bio.length < 12 || bio.length > 500) throw new Error("Enter a Host bio between 12 and 500 characters.");
+      if (languages.length < 1 || interests.length < 1) throw new Error("Select at least one language and one interest.");
+      if ((!audio && !video) || (acceptingAudioCalls && !audio) || (acceptingVideoCalls && !video))
+        throw new Error("Choose valid Host call capabilities and preferences.");
+      if (newPhone && (!/^\+91\d{10}$/.test(newPhone) || newPhone === phone))
+        throw new Error("Enter a different valid Indian mobile number for the Host.");
+      if (photo && (photo.size < 1 || photo.size > 5 * 1024 * 1024 || !hostImageTypes.has(photo.type)))
+        throw new Error("Choose a JPG, PNG, or WEBP Host photo smaller than 5 MB.");
+      if (photo && !photoSafetyAttested)
+        throw new Error("Confirm that you reviewed the new profile photo against the Host photo-safety rules.");
+      for (const [file, label] of [[aadhaarFile, "Aadhaar"], [panFile, "PAN"]] as const)
+        if (file && (file.size < 1 || file.size > 10 * 1024 * 1024 || !hostDocumentTypes.has(file.type)))
+          throw new Error(`Choose a valid ${label} image or PDF smaller than 10 MB.`);
+
+      const pan = typeof body.pan_number === "string" ? body.pan_number.trim().toUpperCase() : "";
+      const aadhaar = typeof body.aadhaar_number === "string" ? body.aadhaar_number.replace(/\s/g, "") : "";
+      if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) throw new Error("Enter a valid PAN number.");
+      if (aadhaar && !/^\d{12}$/.test(aadhaar)) throw new Error("Enter a valid 12-digit Aadhaar number.");
+      if ((pan || aadhaar || panFile || aadhaarFile) && !identityReviewAttested)
+        throw new Error("Confirm that you personally reviewed the Host identity details and documents.");
+
+      const holder = typeof body.account_holder_name === "string" ? body.account_holder_name.trim().replace(/\s+/g, " ") : "";
+      const payoutMethod = body.payout_method === "upi" || body.payout_method === "bank" ? body.payout_method : "";
+      const upi = typeof body.upi_id === "string" ? body.upi_id.trim().toLowerCase() : "";
+      const accountNumber = typeof body.account_number === "string" ? body.account_number.replace(/\s/g, "") : "";
+      const ifsc = typeof body.ifsc_code === "string" ? body.ifsc_code.trim().toUpperCase() : "";
+      const payoutVerified = body.payout_verified === true;
+      const payoutDataProvided = !!(payoutMethod || holder || upi || accountNumber || ifsc);
+      if (payoutDataProvided && (!payoutMethod || holder.length < 2 || holder.length > 120))
+        throw new Error("Enter a payout method and the account holder's name.");
+      if (payoutDataProvided && payoutMethod === "upi" && !/^[A-Za-z0-9._-]{2,255}@[A-Za-z][A-Za-z0-9._-]{1,64}$/.test(upi))
+        throw new Error("Enter a valid UPI ID.");
+      if (payoutDataProvided && payoutMethod === "bank" && (!/^\d{9,18}$/.test(accountNumber) || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)))
+        throw new Error("Enter a valid bank account number and IFSC code.");
+      if (payoutDataProvided && !["upi", "bank"].includes(payoutMethod))
+        throw new Error("Choose a valid payout method.");
+      if (!payoutDataProvided && payoutVerified)
+        throw new Error("Enter the Host payout destination before marking it verified.");
+      if (payoutVerified && !payoutReviewAttested)
+        throw new Error("Confirm that you personally verified the Host payout destination.");
+
+      const [{ data: profile, error: profileError }, { data: application, error: applicationError }, { data: payout, error: payoutError }, { data: compliance, error: complianceError }] = await Promise.all([
+        admin.from("phone_profiles").select("phone,display_name,username,date_of_birth,city,bio,languages,interests,avatar_url,gender").eq("phone", phone).eq("gender", "Female").maybeSingle(),
+        admin.from("host_applications").select("id,phone,status,application_profile,aadhaar_path,pan_path").eq("phone", phone).eq("status", "approved").maybeSingle(),
+        admin.from("phone_host_payout_accounts").select("account_holder_name,payout_method,account_number,ifsc_code,upi_id,status").eq("host_phone", phone).maybeSingle(),
+        admin.from("phone_host_compliance").select("pan_last4,aadhaar_last4,pan_verified,aadhaar_verified").eq("host_phone", phone).maybeSingle(),
+      ]);
+      if (profileError || applicationError || payoutError || complianceError)
+        throw profileError || applicationError || payoutError || complianceError;
+      if (!profile || !application) throw new Error("Only an approved Host can be edited.");
+      const desiredPanVerified = body.pan_verified === true;
+      const desiredAadhaarVerified = body.aadhaar_verified === true;
+      if (
+        (desiredPanVerified !== (compliance?.pan_verified === true) ||
+          desiredAadhaarVerified !== (compliance?.aadhaar_verified === true)) &&
+        !identityReviewAttested
+      )
+        throw new Error("Confirm that you reviewed the current identity records before changing verification status.");
+      const { data: matchingUsername, error: usernameError } = await admin.from("phone_profiles")
+        .select("phone").ilike("username", username).neq("phone", phone).limit(1).maybeSingle();
+      if (usernameError) throw usernameError;
+      if (matchingUsername) throw new Error("That username is already in use.");
+      if (newPhone) {
+        const { data: activeCall, error: callError } = await admin.from("call_sessions")
+          .select("id").eq("host_phone", phone).in("status", ["ringing", "connected"]).limit(1).maybeSingle();
+        if (callError) throw callError;
+        if (activeCall) throw new Error("The Host cannot change their phone number during a call.");
+      }
+
+      if (!!pan !== !!panFile)
+        throw new Error("Provide both a PAN number and its updated document.");
+      if (!!aadhaar !== !!aadhaarFile)
+        throw new Error("Provide both an Aadhaar number and its updated document.");
+
+      const storedApplicationProfile =
+        application.application_profile && typeof application.application_profile === "object" && !Array.isArray(application.application_profile)
+          ? { ...application.application_profile as Record<string, unknown> }
+          : {};
+      let avatarUrl = profile.avatar_url;
+      let aadhaarPath = application.aadhaar_path || (typeof storedApplicationProfile.aadhaarPath === "string" ? storedApplicationProfile.aadhaarPath : null);
+      let panPath = application.pan_path || (typeof storedApplicationProfile.panPath === "string" ? storedApplicationProfile.panPath : null);
+      const uploaded: { bucket: string; path: string }[] = [];
+      let moderationItemId: string | null = null;
+      let rpcStarted = false;
+      try {
+        if (photo) {
+          const bytes = new Uint8Array(await photo.arrayBuffer());
+          if (!hasValidFileSignature(bytes, photo.type)) throw new Error("The Host photo does not match its selected image type.");
+          const contentSha256 = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+          const path = `${phone.replace(/\D/g, "")}/${crypto.randomUUID()}.${fileSuffix(photo.type)}`;
+          const { error: moderationUploadError } = await admin.storage.from("moderation-media").upload(path, bytes, { contentType: photo.type, upsert: false });
+          if (moderationUploadError) throw moderationUploadError;
+          uploaded.push({ bucket: "moderation-media", path });
+          const { data: moderationItem, error: moderationInsertError } = await admin.from("phone_content_moderation_items").insert({
+            owner_phone: phone, content_type: "profile_photo", storage_bucket: "moderation-media", storage_path: path,
+            media_type: photo.type, scan_provider: "admin_manual", adult_likelihood: "UNKNOWN", racy_likelihood: "UNKNOWN",
+            provider_result: { review_method: "super_admin_attestation", content_sha256: contentSha256 }, content_sha256: contentSha256,
+            status: "approved", decision_note: "Manually approved by a Super Admin during Host profile editing.",
+            reviewed_by: user.id, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          }).select("id").single();
+          if (moderationInsertError) throw moderationInsertError;
+          moderationItemId = moderationItem.id;
+
+          const publicPath = `${phone.replace(/\D/g, "")}/${crypto.randomUUID()}.${fileSuffix(photo.type)}`;
+          const { error: publicUploadError } = await admin.storage.from("host-photos").upload(publicPath, bytes, { contentType: photo.type, upsert: false });
+          if (publicUploadError) throw publicUploadError;
+          uploaded.push({ bucket: "host-photos", path: publicPath });
+          avatarUrl = admin.storage.from("host-photos").getPublicUrl(publicPath).data.publicUrl;
+          const { error: moderationUpdateError } = await admin.from("phone_content_moderation_items")
+            .update({ public_url: avatarUrl, updated_at: new Date().toISOString() }).eq("id", moderationItemId);
+          if (moderationUpdateError) throw moderationUpdateError;
+        }
+        const uploadDocument = async (file: File, kind: "aadhaar" | "pan") => {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          if (!hasValidFileSignature(bytes, file.type))
+            throw new Error(`The ${kind.toUpperCase()} document does not match its selected file type.`);
+          const path = `${phone.replace(/\D/g, "")}/${kind}-${crypto.randomUUID()}.${fileSuffix(file.type)}`;
+          const { error } = await admin.storage.from("host-verification").upload(path, bytes, { contentType: file.type, upsert: false });
+          if (error) throw error;
+          uploaded.push({ bucket: "host-verification", path });
+          return path;
+        };
+        if (aadhaarFile) aadhaarPath = await uploadDocument(aadhaarFile, "aadhaar");
+        if (panFile) panPath = await uploadDocument(panFile, "pan");
+
+        const updatedApplicationProfile: Record<string, unknown> = {
+          ...storedApplicationProfile,
+          name: displayName,
+          bio,
+          languages,
+          interests,
+          photo: avatarUrl,
+          audio,
+          video,
+          aadhaarPath,
+          panPath,
+          ...(aadhaarFile ? { aadhaarDocument: "Updated by administrator" } : {}),
+          ...(panFile ? { panDocument: "Updated by administrator" } : {}),
+          photoSafetyAdminChecked: photo ? true : storedApplicationProfile.photoSafetyAdminChecked,
+        };
+        const currentPanLast4 = compliance?.pan_last4 || null;
+        const currentAadhaarLast4 = compliance?.aadhaar_last4 || null;
+        const updatedPanLast4 = pan ? pan.slice(-4) : currentPanLast4;
+        const updatedAadhaarLast4 = aadhaar ? aadhaar.slice(-4) : currentAadhaarLast4;
+        const panVerified = desiredPanVerified;
+        const aadhaarVerified = desiredAadhaarVerified;
+        rpcStarted = true;
+        const { data: result, error: updateError } = await admin.rpc("admin_update_host_details", {
+          input_phone: phone,
+          input_profile: { display_name: displayName, username, date_of_birth: dateOfBirth, city, bio, languages, interests, avatar_url: avatarUrl },
+          input_application_profile: updatedApplicationProfile,
+          input_call_preferences: { accepting_audio_calls: acceptingAudioCalls, accepting_video_calls: acceptingVideoCalls },
+          input_payout: { account_holder_name: holder, payout_method: payoutMethod, account_number: payoutMethod === "bank" ? accountNumber : null, ifsc_code: payoutMethod === "bank" ? ifsc : null, upi_id: payoutMethod === "upi" ? upi : null, payout_verified: payoutVerified },
+          input_compliance: { pan_last4: updatedPanLast4, aadhaar_last4: updatedAadhaarLast4, pan_verified: panVerified, aadhaar_verified: aadhaarVerified },
+          input_new_phone: newPhone,
+          input_admin_user_id: user.id,
+        });
+        if (updateError) {
+          rpcStarted = false;
+          throw updateError;
+        }
+        if (!result || typeof result !== "object" || result.ok !== true)
+          throw new Error("The Host update result could not be confirmed.");
+        rpcStarted = false;
+        return reply({ ok: true, phone_change_requested: result?.phone_change_requested === true });
+      } catch (error) {
+        if (rpcStarted) {
+          console.error("Host edit result is uncertain; preserving uploaded media:", errorMessage(error));
+          throw new Error(`${errorMessage(error)} The save result is uncertain; refresh the Host record before retrying.`);
+        }
+        const cleanupErrors: string[] = [];
+        if (moderationItemId) {
+          const { error: itemError } = await admin.from("phone_content_moderation_items").delete().eq("id", moderationItemId);
+          if (itemError) cleanupErrors.push(itemError.message);
+        }
+        for (const { bucket, path } of uploaded) {
+          const { error: cleanupError } = await admin.storage.from(bucket).remove([path]);
+          if (cleanupError) cleanupErrors.push(cleanupError.message);
+        }
+        if (cleanupErrors.length) {
+          console.error("Host edit upload cleanup failed:", cleanupErrors);
+          throw new Error(`${errorMessage(error)} An uploaded file could not be removed; contact support.`);
+        }
+        throw error;
+      }
     }
     if (action === "set_host_availability") {
       requireRole(role, ["super_admin", "moderator"]);

@@ -91,6 +91,8 @@ function otpErrorMessage(error: unknown) {
       ? error.code.toLowerCase()
       : "";
   const providerError = `${code} ${detail}`.toLowerCase();
+  if (/active admin phone-change request|phone-change request.*expired/.test(providerError))
+    return "This admin request has expired. Ask the administrator to send a new phone-change request.";
   if (/phone_provider_disabled|provider.*disabled|phone.*disabled/i.test(providerError)) {
     return "Phone sign-in is not available right now. Please try again later.";
   }
@@ -116,6 +118,8 @@ function otpVerificationErrorMessage(error: unknown) {
       ? error.code.toLowerCase()
       : "";
   const providerError = `${code} ${detail}`.toLowerCase();
+  if (/active admin phone-change request|phone-change request.*expired/.test(providerError))
+    return "This admin request has expired. Ask the administrator to send a new phone-change request.";
   if (
     /phone identity must match the verified session/.test(providerError)
   )
@@ -1233,6 +1237,15 @@ export function Settings({
   const [availabilityBusy, setAvailabilityBusy] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
   const [availabilityRetry, setAvailabilityRetry] = useState(0);
+  const [pendingPhoneChange, setPendingPhoneChange] = useState<{
+    newPhone: string;
+    expiresAt: string;
+  } | null>(null);
+  const [phoneChangeCode, setPhoneChangeCode] = useState("");
+  const [phoneChangeOtpSent, setPhoneChangeOtpSent] = useState(false);
+  const [phoneChangeBusy, setPhoneChangeBusy] = useState(false);
+  const [phoneChangeMessage, setPhoneChangeMessage] = useState("");
+  const [phoneChangeError, setPhoneChangeError] = useState("");
   const [privacyBusy, setPrivacyBusy] = useState(false);
   const [privacyError, setPrivacyError] = useState("");
   const [hostShowLastSeen, setHostShowLastSeen] = useState(true);
@@ -1307,6 +1320,7 @@ export function Settings({
         setAcceptVideoCalls(settings.acceptingVideoCalls);
         setCanAcceptAudioCalls(settings.canAcceptAudioCalls);
         setCanAcceptVideoCalls(settings.canAcceptVideoCalls);
+        setPendingPhoneChange(settings.pendingPhoneChange);
         setHostShowLastSeen(settings.showLastSeen);
         setHostPrivacyLoaded(true);
         if (mode === "availability") setAvailabilityError("");
@@ -1346,6 +1360,19 @@ export function Settings({
     mode,
     availabilityRetry,
   ]);
+  useEffect(() => {
+    setPhoneChangeCode("");
+    setPhoneChangeOtpSent(false);
+    setPhoneChangeMessage("");
+    setPhoneChangeError("");
+  }, [pendingPhoneChange?.newPhone]);
+  useEffect(() => {
+    setPendingPhoneChange(null);
+    setPhoneChangeCode("");
+    setPhoneChangeOtpSent(false);
+    setPhoneChangeMessage("");
+    setPhoneChangeError("");
+  }, [auth.demoPhone]);
   const saveHostCallPreference = (
     callType: "audio" | "video",
     accepting: boolean,
@@ -1369,6 +1396,46 @@ export function Settings({
         );
       })
       .finally(() => setAvailabilityBusy(false));
+  };
+  const sendPhoneChangeCode = async () => {
+    if (!pendingPhoneChange || phoneChangeBusy) return;
+    const stage = phoneChangeOtpSent ? "resend" : "send";
+    setPhoneChangeBusy(true);
+    setPhoneChangeError("");
+    setPhoneChangeMessage("");
+    try {
+      if (stage === "resend")
+        await auth.resendHostPhoneChangeOtp(pendingPhoneChange.newPhone);
+      else
+        await auth.sendHostPhoneChangeOtp(pendingPhoneChange.newPhone);
+      setPhoneChangeOtpSent(true);
+      setPhoneChangeMessage(`A verification code was sent to ${pendingPhoneChange.newPhone}.`);
+    } catch (error: unknown) {
+      logPhoneVerificationFailure(stage, error);
+      setPhoneChangeError(otpErrorMessage(error));
+    } finally {
+      setPhoneChangeBusy(false);
+    }
+  };
+  const verifyPhoneChangeCode = async () => {
+    if (!pendingPhoneChange || phoneChangeBusy) return;
+    setPhoneChangeBusy(true);
+    setPhoneChangeError("");
+    setPhoneChangeMessage("");
+    try {
+      await auth.verifyHostPhoneChangeOtp(
+        pendingPhoneChange.newPhone,
+        phoneChangeCode.replace(/\D/g, ""),
+      );
+      setPhoneChangeMessage("Your login phone number has been verified and updated.");
+      setPhoneChangeCode("");
+      setPhoneChangeOtpSent(false);
+    } catch (error: unknown) {
+      logPhoneVerificationFailure("verify", error);
+      setPhoneChangeError(otpVerificationErrorMessage(error));
+    } finally {
+      setPhoneChangeBusy(false);
+    }
   };
   useEffect(() => {
     if (mode !== "help" || !auth.demoPhone) return;
@@ -1572,6 +1639,62 @@ export function Settings({
             </>
           ) : null}
         </Card>
+        {pendingPhoneChange ? (
+          <Card style={{ gap: 12 }}>
+            <Section title="Account phone number" />
+            <T bold size={17}>Verify your new login number</T>
+            <T size={12} color={c.secondary}>
+              An administrator requested a change to {pendingPhoneChange.newPhone}.
+              It expires {new Date(pendingPhoneChange.expiresAt).toLocaleString("en-IN", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}. Your
+              number and account data change only after you verify the SMS code.
+            </T>
+            {phoneChangeOtpSent ? (
+              <>
+                <TextInput
+                  accessibilityLabel="Phone change verification code"
+                  value={phoneChangeCode}
+                  onChangeText={(value) => setPhoneChangeCode(value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="6-digit code"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoComplete="one-time-code"
+                  style={{
+                    minHeight: 48,
+                    borderWidth: 1,
+                    borderColor: c.line,
+                    borderRadius: 14,
+                    paddingHorizontal: 14,
+                    color: c.ink,
+                    backgroundColor: c.surface,
+                  }}
+                />
+                <Button
+                  title={phoneChangeBusy ? "Verifying…" : "Verify phone number"}
+                  disabled={phoneChangeBusy || phoneChangeCode.replace(/\D/g, "").length !== 6}
+                  onPress={() => void verifyPhoneChangeCode()}
+                />
+                <Button
+                  title={phoneChangeBusy ? "Sending…" : "Send a new code"}
+                  variant="secondary"
+                  disabled={phoneChangeBusy}
+                  onPress={() => void sendPhoneChangeCode()}
+                />
+              </>
+            ) : (
+              <Button
+                title={phoneChangeBusy ? "Sending code…" : "Send verification code"}
+                disabled={phoneChangeBusy}
+                onPress={() => void sendPhoneChangeCode()}
+              />
+            )}
+            {phoneChangeBusy ? <ActivityIndicator color={c.mint} /> : null}
+            {phoneChangeError ? <Notice error>{phoneChangeError}</Notice> : null}
+            {phoneChangeMessage ? <Notice>{phoneChangeMessage}</Notice> : null}
+          </Card>
+        ) : null}
       </Shell>
     );
   if (mode === "privacy" || mode === "notifications") {
