@@ -172,7 +172,7 @@ Deno.serve(async (request) => {
         throw new Error("Confirm that you reviewed the profile photo against the Host photo-safety rules.");
       if (!method || holder.length < 2 || holder.length > 120)
         throw new Error("Enter a payout method and the account holder's name.");
-      if (method === "upi" && !/^[A-Za-z0-9._-]{2,256}@[A-Za-z][A-Za-z0-9._-]{1,64}$/.test(upi))
+      if (method === "upi" && !/^[A-Za-z0-9._-]{2,255}@[A-Za-z][A-Za-z0-9._-]{1,64}$/.test(upi))
         throw new Error("Enter a valid UPI ID.");
       if (method === "bank" && (!/^\d{9,18}$/.test(accountNumber) || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)))
         throw new Error("Enter a valid bank account number and IFSC code.");
