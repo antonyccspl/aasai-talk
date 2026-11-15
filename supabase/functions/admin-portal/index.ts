@@ -690,7 +690,130 @@ Deno.serve(async (request) => {
     }
     if (action === "list_payments") { requireRole(role,["super_admin","finance_admin"]); requirePage(pages,"Payments"); const {data,error}=await admin.from("phone_payment_orders").select("id,phone,coins,amount_paise,currency,provider_order_id,provider_payment_id,status,created_at,captured_at,credited_at").order("created_at",{ascending:false}).limit(150); if(error)throw error; const phones=(data||[]).map((item)=>item.phone); const {data:profiles,error:profileError}=phones.length?await admin.from("phone_profiles").select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at").in("phone",phones):{data:[],error:null}; if(profileError)throw profileError; const byPhone=new Map((profiles||[]).map((profile)=>[profile.phone,profile])); return reply({items:(data||[]).map((item)=>({...item,profile:byPhone.get(item.phone)}))}); }
     if (action === "reconcile_payment") { requireRole(role,["super_admin","finance_admin"]); requirePage(pages,"Payments"); const id=typeof body.id==="string"?body.id:""; if(!id)throw new Error("Choose a payment order."); const {data:before,error:beforeError}=await admin.from("phone_payment_orders").select("status,credited_at,provider_payment_id").eq("id",id).maybeSingle(); if(beforeError||!before)throw beforeError||new Error("Payment order not found."); if(before.status!=="captured")throw new Error("Only a captured payment can be reconciled."); const {data,error}=await admin.rpc("credit_phone_wallet_payment",{input_payment_order_id:id}); if(error)throw error; await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:"payment_reconciled",entity_type:"payment_order",entity_id:id,before_state:before,after_state:data}); return reply({ok:true,result:data}); }
-    if (action === "list_users") { requireRole(role,["super_admin","moderator","support"]); requirePage(pages,"Users"); const { data,error }=await admin.from("phone_profiles").select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at").order("created_at",{ascending:false}).limit(150); if(error)throw error; const phones=(data||[]).map((profile)=>profile.phone); const [{data:statuses,error:statusError},{data:applications,error:applicationError},{data:presence,error:presenceError}]=await Promise.all([phones.length?admin.from("phone_user_admin_status").select("phone,status,updated_at,archived_at").in("phone",phones):Promise.resolve({data:[],error:null}),phones.length?admin.from("host_applications").select("phone,status").in("phone",phones):Promise.resolve({data:[],error:null}),phones.length?admin.from("phone_user_presence").select("phone,last_seen_at").in("phone",phones):Promise.resolve({data:[],error:null})]);if(statusError||applicationError||presenceError)throw statusError||applicationError||presenceError;const statusesByPhone=new Map((statuses||[]).map((status)=>[status.phone,status]));const approvedHosts=new Set((applications||[]).filter((application)=>application.status==="approved").map((application)=>application.phone));const presenceByPhone=new Map((presence||[]).map((record)=>[record.phone,record.last_seen_at]));const onlineThreshold=Date.now()-60000;return reply({items:(data||[]).map((profile)=>{const lastSeenAt=presenceByPhone.get(profile.phone)||null;return {...profile,account_status:statusesByPhone.get(profile.phone)?.status||"active",account_status_updated_at:statusesByPhone.get(profile.phone)?.updated_at||null,is_host:approvedHosts.has(profile.phone),last_seen_at:lastSeenAt,is_online:!!lastSeenAt&&Date.parse(lastSeenAt)>=onlineThreshold&&(!statusesByPhone.get(profile.phone)||statusesByPhone.get(profile.phone)?.status==="active")};})}); }
+    if (action === "list_users") {
+      requireRole(role, ["super_admin", "moderator", "support"]);
+      requirePage(pages, "Users");
+      const { data: profiles, error: profileError } = await admin
+        .from("phone_profiles")
+        .select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at")
+        .order("created_at", { ascending: false })
+        .limit(150);
+      if (profileError) throw profileError;
+
+      const phones = (profiles || []).map((profile) => profile.phone);
+      const [
+        { data: statuses, error: statusError },
+        { data: applications, error: applicationError },
+        { data: userPresence, error: userPresenceError },
+        { data: hostPresence, error: hostPresenceError },
+        { data: callerCalls, error: callerCallsError },
+        { data: hostCalls, error: hostCallsError },
+      ] = await Promise.all([
+        phones.length
+          ? admin
+              .from("phone_user_admin_status")
+              .select("phone,status,updated_at,archived_at")
+              .in("phone", phones)
+          : Promise.resolve({ data: [], error: null }),
+        phones.length
+          ? admin
+              .from("host_applications")
+              .select("phone,status")
+              .in("phone", phones)
+          : Promise.resolve({ data: [], error: null }),
+        phones.length
+          ? admin
+              .from("phone_user_presence")
+              .select("phone,last_seen_at")
+              .in("phone", phones)
+          : Promise.resolve({ data: [], error: null }),
+        phones.length
+          ? admin
+              .from("phone_host_presence")
+              .select("host_phone,last_seen_at")
+              .in("host_phone", phones)
+          : Promise.resolve({ data: [], error: null }),
+        phones.length
+          ? admin
+              .from("call_sessions")
+              .select("caller_phone,host_phone,call_type,connected_at")
+              .in("caller_phone", phones)
+              .eq("status", "connected")
+          : Promise.resolve({ data: [], error: null }),
+        phones.length
+          ? admin
+              .from("call_sessions")
+              .select("caller_phone,host_phone,call_type,connected_at")
+              .in("host_phone", phones)
+              .eq("status", "connected")
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      const failedQuery =
+        statusError ??
+        applicationError ??
+        userPresenceError ??
+        hostPresenceError ??
+        callerCallsError ??
+        hostCallsError;
+      if (failedQuery) throw failedQuery;
+
+      const statusesByPhone = new Map(
+        (statuses || []).map((status) => [status.phone, status]),
+      );
+      const approvedHosts = new Set(
+        (applications || [])
+          .filter((application) => application.status === "approved")
+          .map((application) => application.phone),
+      );
+      const userPresenceByPhone = new Map(
+        (userPresence || []).map((record) => [record.phone, record.last_seen_at]),
+      );
+      const hostPresenceByPhone = new Map(
+        (hostPresence || []).map((record) => [
+          record.host_phone,
+          record.last_seen_at,
+        ]),
+      );
+      const callsByPhone = new Map<
+        string,
+        { call_type: string; connected_at: string | null }
+      >();
+      for (const call of [...(callerCalls || []), ...(hostCalls || [])]) {
+        const activeCall = {
+          call_type: call.call_type,
+          connected_at: call.connected_at,
+        };
+        callsByPhone.set(call.caller_phone, activeCall);
+        callsByPhone.set(call.host_phone, activeCall);
+      }
+
+      const onlineThreshold = Date.now() - 60000;
+      return reply({
+        items: (profiles || []).map((profile) => {
+          const isHost = approvedHosts.has(profile.phone);
+          const lastSeenAt = isHost
+            ? hostPresenceByPhone.get(profile.phone) || null
+            : userPresenceByPhone.get(profile.phone) || null;
+          const accountStatus = statusesByPhone.get(profile.phone)?.status;
+          const activeCall = callsByPhone.get(profile.phone);
+          return {
+            ...profile,
+            account_status: accountStatus || "active",
+            account_status_updated_at:
+              statusesByPhone.get(profile.phone)?.updated_at || null,
+            is_host: isHost,
+            last_seen_at: lastSeenAt,
+            is_online:
+              !!lastSeenAt &&
+              Date.parse(lastSeenAt) >= onlineThreshold &&
+              (!accountStatus || accountStatus === "active"),
+            is_in_call: Boolean(activeCall),
+            active_call_type: activeCall?.call_type || null,
+            active_call_started_at: activeCall?.connected_at || null,
+          };
+        }),
+      });
+    }
     if (action === "list_account_deletion_requests") {
       requireRole(role, ["super_admin", "support"]);
       requirePage(pages, "Account deletions");

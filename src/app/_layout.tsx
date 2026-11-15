@@ -270,6 +270,9 @@ function ActiveCallLifecycle() {
       ...history.filter((call) => call.id !== current.id),
     ]);
     setActive((value) => (value?.id === current.id ? null : value));
+    void refreshWalletBalance().catch((error) =>
+      console.error("Failed to refresh wallet after call ended:", error),
+    );
   };
 
   useEffect(() => {
@@ -349,7 +352,7 @@ function ActiveCallLifecycle() {
         }
       },
     );
-  }, [active?.id, demoPhone, setActive]);
+  }, [active?.id, demoPhone, refreshWalletBalance, setActive]);
 
   useEffect(() => {
     if (

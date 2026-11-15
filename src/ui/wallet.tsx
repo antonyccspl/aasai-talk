@@ -133,6 +133,10 @@ export function Wallet({
   const [paymentMessage, setPaymentMessage] = useState("");
   const [paymentSuccess, setPaymentSuccess] = useState<{ coins?: number } | null>(null);
   const [pendingCashfreeOrder, setPendingCashfreeOrder] = useState("");
+  const activityRefreshRef = useRef({
+    balance: d.balance,
+    activeCallId: d.active?.id,
+  });
   useEffect(() => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -173,6 +177,32 @@ export function Wallet({
       .finally(() => { if (active) setActivityLoading(false); });
     return () => { active = false; };
   }, [d.refreshWalletBalance, demoPhone, reload, user?.phone]);
+  useEffect(() => {
+    const balanceChanged = activityRefreshRef.current.balance !== d.balance;
+    const callChanged =
+      activityRefreshRef.current.activeCallId !== d.active?.id;
+    activityRefreshRef.current = {
+      balance: d.balance,
+      activeCallId: d.active?.id,
+    };
+    if (!balanceChanged && !callChanged) return;
+
+    const phone = demoPhone || user?.phone;
+    if (!phone) return;
+    let active = true;
+    void fetchPhoneWalletActivity(phone)
+      .then((rows) => {
+        if (active) {
+          setActivity(rows.map(toWalletTransaction));
+          setActivityError("");
+        }
+      })
+      .catch((loadError: unknown) => {
+        if (active) setActivityError(loadError instanceof Error
+          ? loadError.message : "Unable to load wallet activity. Please try again.");
+      });
+    return () => { active = false; };
+  }, [d.active?.id, d.balance, demoPhone, user?.phone]);
   const now = Date.now();
   const visibleCoinPacks = coinPacks.filter((pack) => {
     const startsAt = pack.available_from ? Date.parse(pack.available_from) : Number.NEGATIVE_INFINITY;

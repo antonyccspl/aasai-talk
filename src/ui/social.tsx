@@ -35,7 +35,7 @@ import { colors as c } from "./theme";
 import { useLanguage } from "./language";
 
 const formatCallTime = formatTalkDuration;
-const formatRupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+const formatRupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const normalizeLanguage = (language: string) => language.trim().toLocaleLowerCase();
 
 function chatDateKey(value: string) {
