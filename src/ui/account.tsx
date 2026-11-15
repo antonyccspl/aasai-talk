@@ -137,6 +137,24 @@ function otpVerificationErrorMessage(error: unknown) {
   return "We could not verify this code. Please try again or request a new code.";
 }
 
+function accountDeletionErrorMessage(error: unknown) {
+  const detail = error instanceof Error ? error.message : "";
+  if (
+    detail === "A valid Supabase phone session is required." ||
+    detail === "Phone sign-in is required." ||
+    detail === "You must be signed in to continue."
+  )
+    return "Your sign-in session is no longer valid. Sign in again with the phone number for the account you want to delete.";
+  if (detail === "A verified Indian phone identity is required.")
+    return "Sign in with the verified Indian phone number for the account you want to delete.";
+  if (
+    detail ===
+    "A registered Aasai Talk account was not found for this verified number."
+  )
+    return "We could not find a completed account for this verified number.";
+  return "We could not submit your deletion request. Please try again.";
+}
+
 function logPhoneVerificationFailure(
   stage: "send" | "resend" | "verify",
   error: unknown,
@@ -2013,7 +2031,7 @@ export function Settings({
                 })
                 .catch((error) => {
                   console.error("Failed to submit account deletion request:", error);
-                  setMessage("We could not submit your deletion request. Please try again.");
+                  setMessage(accountDeletionErrorMessage(error));
                 })
                 .finally(() => setDeleteSubmitting(false));
             }

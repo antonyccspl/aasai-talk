@@ -14,7 +14,21 @@ export function phoneAuthStatus(error: unknown) {
   return error instanceof PhoneSessionError ? error.status : null;
 }
 
+function normalizeIndianMobile(phone: string | null | undefined) {
+  if (typeof phone !== "string") return null;
+  const compactPhone = phone.trim().replace(/[\s()-]/g, "");
+  const match = /^(?:\+?91)?(\d{10})$/.exec(compactPhone);
+  return match ? `+91${match[1]}` : null;
+}
+
 export async function verifyPhoneSession(token: string) {
+  const accessToken = token.trim();
+  if (!accessToken)
+    throw new PhoneSessionError(
+      "A valid Supabase phone session is required.",
+      401,
+    );
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey =
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
@@ -25,13 +39,17 @@ export async function verifyPhoneSession(token: string) {
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data, error } = await admin.auth.getUser(token);
+  const { data, error } = await admin.auth.getUser(accessToken);
   if (error) {
     const status =
       typeof error === "object" && error !== null && "status" in error
         ? error.status
         : null;
-    if (status === 401 || status === 403)
+    const name =
+      typeof error === "object" && error !== null && "name" in error
+        ? error.name
+        : null;
+    if (status === 401 || status === 403 || name === "AuthSessionMissingError")
       throw new PhoneSessionError(
         "A valid Supabase phone session is required.",
         401,
@@ -40,8 +58,8 @@ export async function verifyPhoneSession(token: string) {
   }
 
   const user = data.user;
-  const phone = user?.phone;
-  if (!user || typeof phone !== "string" || !/^\+91\d{10}$/.test(phone))
+  const phone = normalizeIndianMobile(user?.phone);
+  if (!user || !phone)
     throw new PhoneSessionError(
       "A verified Indian phone identity is required.",
       401,
