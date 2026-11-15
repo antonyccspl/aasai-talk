@@ -14,7 +14,6 @@ import {
   fetchNotifications,
   fetchPlatformMetrics,
   fetchPoliciesAndSettings,
-  fetchSafetyReports,
   fetchCalls,
   fetchMessages,
   fetchTransactions,
@@ -129,7 +128,6 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
   const [dbNotifications, setDbNotifications] = useState<NotificationItem[]>([]);
   const [policies, setPolicies] = useState<Record<string, PolicySection[]>>({});
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
-  const [safetyReports, setSafetyReports] = useState<SafetyReport[]>([]);
   const [platformMetrics, setPlatformMetrics] = useState<Record<string, PlatformMetric>>({});
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -157,7 +155,6 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
       dbAnnounce,
       dbNotifs,
       polAndConf,
-      reports,
       txRows,
       callRows,
       msgRows,
@@ -168,7 +165,6 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
       fetchAnnouncements().catch(() => []),
       fetchNotifications().catch(() => []),
       fetchPoliciesAndSettings().catch(() => ({ policies: {}, config: null })),
-      fetchSafetyReports().catch(() => []),
       fetchTransactions().catch(() => []),
       fetchCalls().catch(() => []),
       fetchMessages().catch(() => []),
@@ -210,9 +206,6 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
       icon: notification.icon,
     }));
 
-    mergedState.reports = reports.map((report) =>
-      `${report.reason} · ${report.reported_user_name}`,
-    );
     mergedState.chart = metricsMap.total_users?.chart_data ?? [];
 
     return {
@@ -222,7 +215,6 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
       notifications: dbNotifs,
       policies: polAndConf.policies,
       config: polAndConf.config,
-      safetyReports: reports,
       metrics: metricsMap,
     };
   }, [identityKey]);
@@ -248,7 +240,6 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
           setDbNotifications(data.notifications);
           setPolicies(data.policies);
           setAppConfig(data.config);
-          setSafetyReports(data.safetyReports);
           setPlatformMetrics(data.metrics);
           setWorkspace(data.workspace);
         }
@@ -268,7 +259,7 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
     return () => {
       active = false;
     };
-  }, [attempt, authLoading, demoPhone, loadAll, identityKey, user]);
+  }, [attempt, authLoading, identityKey, loadAll]);
 
   const flush = useCallback(async () => {
     if (saving.current || !pending.current) return;
@@ -338,18 +329,16 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
 
   const refreshPlatformData = useCallback(async () => {
     try {
-      const [ann, notifs, pols, reps, mets] = await Promise.all([
+      const [ann, notifs, pols, mets] = await Promise.all([
         fetchAnnouncements().catch(() => []),
         fetchNotifications().catch(() => []),
         fetchPoliciesAndSettings().catch(() => ({ policies: {}, config: null })),
-        fetchSafetyReports().catch(() => []),
         fetchPlatformMetrics().catch(() => []),
       ]);
       setAnnouncements(ann);
       setDbNotifications(notifs);
       setPolicies(pols.policies);
       setAppConfig(pols.config);
-      setSafetyReports(reps);
       const metricsMap: Record<string, PlatformMetric> = {};
       for (const m of mets) metricsMap[m.metric_key] = m;
       setPlatformMetrics(metricsMap);
@@ -392,7 +381,7 @@ export function SampleWorkspaceProvider({ children }: { children: React.ReactNod
         notifications: dbNotifications,
         policies,
         appConfig,
-        safetyReports,
+        safetyReports: [],
         platformMetrics,
         change,
         refreshPeople,
