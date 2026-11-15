@@ -1,5 +1,9 @@
 import { supabasePublishableKey, supabaseUrl } from "./supabase-config";
 
+export type ProfilePhotoModerationResult =
+  | { id: string; status: "approved"; publicUrl: string }
+  | { id: string; status: "needs_review" };
+
 export async function submitProfilePhotoForModeration(idToken: string, uri: string) {
   const photoResponse = await fetch(uri);
   if (!photoResponse.ok) throw new Error("Could not read the selected photo.");
@@ -27,13 +31,20 @@ export async function submitProfilePhotoForModeration(idToken: string, uri: stri
   }
   if (!payload || typeof payload !== "object" || !("status" in payload) || typeof payload.status !== "string")
     throw new Error("Invalid photo safety result.");
-  if (payload.status !== "approved" || !("public_url" in payload) || typeof payload.public_url !== "string") {
+  if (payload.status === "approved" && "id" in payload && typeof payload.id === "string"
+      && "public_url" in payload && typeof payload.public_url === "string") {
+    return { id: payload.id, status: "approved", publicUrl: payload.public_url } satisfies ProfilePhotoModerationResult;
+  }
+  if (payload.status === "needs_review" && "id" in payload && typeof payload.id === "string") {
+    return { id: payload.id, status: "needs_review" } satisfies ProfilePhotoModerationResult;
+  }
+  if (payload.status !== "approved") {
     const message = "message" in payload && typeof payload.message === "string"
       ? payload.message
       : payload.status === "rejected"
         ? "This photo was rejected. Choose a different photo."
-        : "Your photo is waiting for a moderator safety review. Keep it selected and tap Submit again after approval.";
+        : "The photo could not be submitted for review. Please try again.";
     throw new Error(message);
   }
-  return payload.public_url;
+  throw new Error("Invalid approved photo result.");
 }

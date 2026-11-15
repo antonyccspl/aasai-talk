@@ -393,13 +393,46 @@ Deno.serve(async (request) => {
         admin.from("phone_profiles").select("phone,display_name,username,gender,date_of_birth,city,bio,languages,interests,avatar_url,created_at,updated_at").eq("gender", "Female").order("created_at", { ascending: false }).limit(250),
         admin.from("host_applications").select("id,phone,status,application_profile,aadhaar_path,pan_path,submitted_at,reviewed_at,review_note").limit(250),
       ]); if (profileError || applicationError) throw profileError || applicationError;
+      const applicationProfile = (value: unknown) =>
+        value && typeof value === "object" && !Array.isArray(value)
+          ? value as Record<string, unknown>
+          : {};
+      const photoReviewPhones = new Map<string, string>();
+      for (const application of applications || []) {
+        const photoReviewId = applicationProfile(application.application_profile).photo_review_id;
+        if (typeof photoReviewId === "string" && application.phone)
+          photoReviewPhones.set(photoReviewId, application.phone);
+      }
+      const photoReviewIds = [...photoReviewPhones.keys()];
+      const { data: photoItems, error: photoError } = photoReviewIds.length
+        ? await admin.from("phone_content_moderation_items")
+          .select("id,owner_phone,storage_bucket,storage_path,status")
+          .in("id", photoReviewIds)
+        : { data: [], error: null };
+      if (photoError) throw photoError;
+      const photoPreviews = new Map<string, string>();
+      for (const item of photoItems || []) {
+        if (
+          photoReviewPhones.get(item.id) !== item.owner_phone
+          || item.storage_bucket !== "moderation-media"
+          || typeof item.storage_path !== "string"
+          || !item.storage_path
+          || !["needs_review", "approved"].includes(item.status)
+        ) throw new Error("A pending Host photo has invalid private storage metadata.");
+        const { data: signed, error: signedError } = await admin.storage
+          .from("moderation-media").createSignedUrl(item.storage_path, 300);
+        if (signedError || !signed?.signedUrl)
+          throw signedError || new Error("Could not prepare a private Host photo preview.");
+        photoPreviews.set(item.id, signed.signedUrl);
+      }
+
       const phones=(profiles||[]).map((profile)=>profile.phone); const [{data:accounts,error:accountError},{data:compliance,error:complianceError}]=await Promise.all([
         phones.length?admin.from("phone_host_payout_accounts").select("host_phone,account_holder_name,payout_method,account_number,ifsc_code,upi_id,status,verification_note,verified_at,updated_at").in("host_phone",phones):Promise.resolve({data:[],error:null}),
         phones.length?admin.from("phone_host_compliance").select("host_phone,pan_last4,aadhaar_last4,pan_verified,aadhaar_verified,verified_at,updated_at").in("host_phone",phones):Promise.resolve({data:[],error:null}),
       ]); if(accountError||complianceError) throw accountError||complianceError;
       const {data:presence,error:presenceError}=phones.length?await admin.from("phone_host_presence").select("host_phone,last_seen_at").in("host_phone",phones):{data:[],error:null};if(presenceError)throw presenceError;
       const applicationsByPhone=new Map((applications||[]).map((application)=>[application.phone,application])); const accountsByPhone=new Map((accounts||[]).map((account)=>[account.host_phone,account])); const complianceByPhone=new Map((compliance||[]).map((record)=>[record.host_phone,record])); const presenceByPhone=new Map((presence||[]).map((record)=>[record.host_phone,record.last_seen_at])); const today=Date.now()-86400000; const onlineThreshold=Date.now()-60000;
-      return reply({items:(profiles||[]).map((profile)=>{const application=applicationsByPhone.get(profile.phone);const lastSeenAt=presenceByPhone.get(profile.phone)||null;return {...(application||{id:`lead:${profile.phone}`,phone:profile.phone,status:"new",submitted_at:profile.created_at,application_profile:{}}),profile,bank_account:accountsByPhone.get(profile.phone)||null,compliance:complianceByPhone.get(profile.phone)||null,is_new:Date.parse(profile.created_at)>=today,last_seen_at:lastSeenAt,is_online:application?.status==="approved"&&!!lastSeenAt&&Date.parse(lastSeenAt)>=onlineThreshold};})});
+      return reply({items:(profiles||[]).map((profile)=>{const application=applicationsByPhone.get(profile.phone);const lastSeenAt=presenceByPhone.get(profile.phone)||null;const profileData=applicationProfile(application?.application_profile);const photoReviewId=profileData.photo_review_id;const photoPreviewUrl=typeof photoReviewId==="string"?photoPreviews.get(photoReviewId):null;return {...(application||{id:`lead:${profile.phone}`,phone:profile.phone,status:"new",submitted_at:profile.created_at,application_profile:{}}),application_profile:photoPreviewUrl?{...profileData,photo_preview_url:photoPreviewUrl}:profileData,profile,bank_account:accountsByPhone.get(profile.phone)||null,compliance:complianceByPhone.get(profile.phone)||null,is_new:Date.parse(profile.created_at)>=today,last_seen_at:lastSeenAt,is_online:application?.status==="approved"&&!!lastSeenAt&&Date.parse(lastSeenAt)>=onlineThreshold};})});
     }
     if (action === "performance_reports") {
       requireSuperAdmin(role); requirePage(pages, "Performance");
@@ -471,15 +504,125 @@ Deno.serve(async (request) => {
       if(method === "upi" && !/^[A-Za-z0-9._-]{2,255}@[A-Za-z][A-Za-z0-9._-]{1,64}$/.test(upi)) throw new Error("Enter a valid UPI ID.");
       if(method === "bank" && (!/^\d{9,18}$/.test(account)||!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc))) throw new Error("Enter a valid bank account number and IFSC.");
       if(!method) throw new Error("Choose a UPI ID or bank account for payouts.");
-      const {data:existing,error:existingError}=await admin.from("host_applications").select("application_profile").eq("phone",phone).maybeSingle(); if(existingError) throw existingError; const existingProfile=existing?.application_profile&&typeof existing.application_profile==="object"?existing.application_profile:{}; const applicationProfile={...existingProfile,name:profile.display_name||"Host",bio:profile.bio||"",languages:profile.languages||[],interests:profile.interests||[],photo:profile.avatar_url||null,aadhaarDocument:"Verified by admin",panDocument:"Verified by admin",audio:true,video:true,audioRate:"2",videoRate:"5",onboardedByAdminId:user.id};
+      const {data:existing,error:existingError}=await admin.from("host_applications").select("application_profile").eq("phone",phone).maybeSingle(); if(existingError) throw existingError; const existingProfile=existing?.application_profile&&typeof existing.application_profile==="object"&&!Array.isArray(existing.application_profile)?existing.application_profile as Record<string,unknown>:{}; const pendingPhoto=typeof existingProfile.photo_review_id==="string"; if(approve&&pendingPhoto) throw new Error("Approve this Host from the Hosts review action so the pending photo is published safely."); const applicationProfile={...existingProfile,name:profile.display_name||"Host",bio:profile.bio||"",languages:profile.languages||[],interests:profile.interests||[],...(!pendingPhoto?{photo:profile.avatar_url||null}:{}),aadhaarDocument:"Verified by admin",panDocument:"Verified by admin",audio:true,video:true,audioRate:"2",videoRate:"5",onboardedByAdminId:user.id};
       const {error:onboardingError}=await admin.rpc("admin_assist_host_onboarding",{input_phone:phone,input_application_profile:applicationProfile,input_pan_last4:pan.slice(-4),input_aadhaar_last4:aadhaar.slice(-4),input_payout:{account_holder_name:holder,payout_method:method,account_number:method==="bank"?account:null,ifsc_code:method==="bank"?ifsc:null,upi_id:method==="upi"?upi:null},input_admin_user_id:user.id,input_approve:approve,input_payout_verified:payoutVerified}); if(onboardingError) throw onboardingError; return reply({ok:true});
     }
     if (action === "review_host") {
       requireRole(role, ["super_admin", "moderator"]); const id = typeof body.id === "string" ? body.id : ""; const status = typeof body.status === "string" ? body.status : "";
       requirePage(pages, "Hosts");
       if (!id || !["approved", "rejected", "inactive", "archived"].includes(status)) throw new Error("Choose a valid Host status.");
-      const { error } = await admin.from("host_applications").update({ status, reviewed_at: new Date().toISOString(), review_note: typeof body.note === "string" ? body.note : null, archived_at: status === "archived" ? new Date().toISOString() : null }).eq("id", id); if (error) throw error;
-      await admin.from("admin_audit_logs").insert({ admin_user_id:user.id, action:"host_reviewed", entity_type:"host_application", entity_id:id, after_state:{status} }); return reply({ ok:true });
+      const note = typeof body.note === "string" ? body.note.trim() : "";
+      if (status === "approved") {
+        const { data: application, error: applicationError } = await admin
+          .from("host_applications")
+          .select("id,phone,status,application_profile")
+          .eq("id", id)
+          .maybeSingle();
+        if (applicationError || !application)
+          throw applicationError || new Error("Host application was not found.");
+        const applicationProfile = application.application_profile
+          && typeof application.application_profile === "object"
+          && !Array.isArray(application.application_profile)
+          ? application.application_profile as Record<string, unknown>
+          : {};
+        const photoReviewId = applicationProfile.photo_review_id;
+        let publicPhotoUrl = typeof applicationProfile.photo === "string"
+          && /^https?:\/\//i.test(applicationProfile.photo)
+          ? applicationProfile.photo
+          : null;
+        let publishedPhotoPath: string | null = null;
+        if (photoReviewId !== undefined) {
+          if (typeof photoReviewId !== "string"
+            || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(photoReviewId)) {
+            throw new Error("The pending Host photo reference is invalid.");
+          }
+          const { data: photo, error: photoError } = await admin
+            .from("phone_content_moderation_items")
+            .select("id,owner_phone,storage_bucket,storage_path,media_type,status,content_type,public_url")
+            .eq("id", photoReviewId)
+            .maybeSingle();
+          if (photoError || !photo)
+            throw photoError || new Error("The pending Host photo was not found.");
+          if (photo.owner_phone !== application.phone || photo.content_type !== "profile_photo")
+            throw new Error("The pending Host photo does not belong to this application.");
+
+          if (photo.status === "approved" && photo.public_url) {
+            publicPhotoUrl = photo.public_url;
+          } else {
+            const mediaType = typeof photo.media_type === "string"
+              ? photo.media_type
+              : fileTypeFromSuffix(photo.storage_path || "");
+            if (
+              photo.status !== "needs_review"
+              || photo.storage_bucket !== "moderation-media"
+              || typeof photo.storage_path !== "string"
+              || !mediaType
+              || !hostImageTypes.has(mediaType)
+            ) throw new Error("The pending Host photo is unavailable. Ask the Host to submit a new photo.");
+
+            const digits = photo.owner_phone.replace(/\D/g, "");
+            const expectedPath = new RegExp(`^${digits}/[0-9a-f-]{36}\\.(jpg|png|webp)$`, "i");
+            if (!expectedPath.test(photo.storage_path))
+              throw new Error("Host photo storage path is invalid.");
+            const { data: file, error: downloadError } = await admin.storage
+              .from("moderation-media").download(photo.storage_path);
+            if (downloadError || !file)
+              throw downloadError || new Error("The private Host photo could not be opened.");
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            if (!hasValidFileSignature(bytes, mediaType))
+              throw new Error("The stored Host photo does not match its image type.");
+
+            publishedPhotoPath = `${digits}/${crypto.randomUUID()}.${fileSuffix(mediaType)}`;
+            const { error: publishError } = await admin.storage.from("host-photos").upload(
+              publishedPhotoPath,
+              bytes,
+              { contentType: mediaType, upsert: false },
+            );
+            if (publishError) throw publishError;
+            publicPhotoUrl = admin.storage.from("host-photos")
+              .getPublicUrl(publishedPhotoPath).data.publicUrl;
+          }
+        }
+
+        const { error: approveError } = await admin.rpc("admin_approve_host_application", {
+          input_application_id: id,
+          input_photo_review_id: typeof photoReviewId === "string" ? photoReviewId : null,
+          input_public_photo_url: publicPhotoUrl,
+          input_admin_user_id: user.id,
+          input_review_note: note || null,
+        });
+        if (approveError) {
+          if (publishedPhotoPath) {
+            const { error: cleanupError } = await admin.storage
+              .from("host-photos").remove([publishedPhotoPath]);
+            if (cleanupError) console.error("Uncommitted Host photo cleanup failed:", cleanupError.message);
+          }
+          throw approveError;
+        }
+        return reply({ ok: true });
+      }
+
+      const reviewedAt = new Date().toISOString();
+      const { data: updated, error } = await admin.from("host_applications")
+        .update({
+          status,
+          reviewed_at: reviewedAt,
+          review_note: note || null,
+          archived_at: status === "archived" ? reviewedAt : null,
+        })
+        .eq("id", id)
+        .select("id")
+        .maybeSingle();
+      if (error || !updated) throw error || new Error("Host application was not found.");
+      const { error: auditError } = await admin.from("admin_audit_logs").insert({
+        admin_user_id: user.id,
+        action: "host_reviewed",
+        entity_type: "host_application",
+        entity_id: id,
+        after_state: { status },
+      });
+      if (auditError) throw auditError;
+      return reply({ ok: true });
     }
     if (action === "review_bank_account") {
       requireSuperAdmin(role); requirePage(pages, "Hosts");
@@ -616,6 +759,7 @@ Deno.serve(async (request) => {
       const [
         { data: reports, error: reportsError },
         { data: photos, error: photosError },
+        { data: applications, error: applicationsError },
       ] = await Promise.all([
         admin.from("safety_reports")
           .select("id,reporter_name,reported_user_id,reported_user_name,reason,details,status,resolution_note,created_at")
@@ -624,8 +768,19 @@ Deno.serve(async (request) => {
           .select("id,owner_phone,storage_bucket,storage_path,status,decision_note,created_at")
           .eq("content_type", "profile_photo").eq("status", "needs_review")
           .order("created_at", { ascending: false }).limit(100),
+        admin.from("host_applications")
+          .select("application_profile")
+          .limit(1000),
       ]);
-      if (reportsError || photosError) throw reportsError || photosError;
+      if (reportsError || photosError || applicationsError) throw reportsError || photosError || applicationsError;
+      const linkedHostPhotoIds = new Set((applications || []).flatMap((application) => {
+        const profile = application.application_profile
+          && typeof application.application_profile === "object"
+          && !Array.isArray(application.application_profile)
+          ? application.application_profile as Record<string, unknown>
+          : {};
+        return typeof profile.photo_review_id === "string" ? [profile.photo_review_id] : [];
+      }));
       const reportIds = (reports || []).map((item) => item.id);
       const { data: notes, error: noteError } = reportIds.length
         ? await admin.from("admin_moderation_notes")
@@ -640,7 +795,9 @@ Deno.serve(async (request) => {
         values.push(note);
         notesById.set(note.entity_id, values);
       }
-      const photoReviews = await Promise.all((photos || []).map(async (item) => {
+      const photoReviews = await Promise.all((photos || []).filter((item) =>
+        !linkedHostPhotoIds.has(item.id)
+      ).map(async (item) => {
         if (
           item.storage_bucket !== "moderation-media"
           || typeof item.storage_path !== "string"

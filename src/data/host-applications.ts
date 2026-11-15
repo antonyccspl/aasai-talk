@@ -32,15 +32,23 @@ export async function submitPhoneHostApplication(
   idToken: string,
 ) {
   let photo = application.photo;
+  let photoReviewId: string | undefined;
   if (photo && !/^https?:\/\//i.test(photo)) {
-    photo = await submitProfilePhotoForModeration(idToken, photo);
+    const result = await submitProfilePhotoForModeration(idToken, photo);
+    if (result.status === "approved") photo = result.publicUrl;
+    else {
+      photoReviewId = result.id;
+      photo = undefined;
+    }
   }
-  const fixedRateApplication = {
+  const fixedRateApplication: Record<string, unknown> = {
     ...application,
     audioRate: "2",
     videoRate: "5",
-    ...(photo ? { photo } : {}),
   };
+  delete fixedRateApplication.photo;
+  if (photo) fixedRateApplication.photo = photo;
+  if (photoReviewId) fixedRateApplication.photo_review_id = photoReviewId;
   const { data, error } = await supabase.rpc("submit_phone_host_application", {
     input_phone: phone,
     input_application: fixedRateApplication,

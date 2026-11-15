@@ -388,9 +388,9 @@ export function HostStatus() {
         <T color={c.secondary}>
           {approved
             ? "You can now use Host availability, calls, earnings, and withdrawals."
-            : "Your Host application is under review. This usually takes 2–3 days."}
+            : "Your application is submitted. An administrator will review your Host profile and photo before approval."}
         </T>
-        <Notice tone={approved ? "success" : "info"} title={approved ? "You’re approved" : "Application under review"}>{approved ? "Your Host account is ready." : "We’ll let you know when your review is complete."}</Notice>
+        <Notice tone={approved ? "success" : "info"} title={approved ? "You’re approved" : "Submitted for admin review"}>{approved ? "Your Host account is ready." : "Your Host profile is now with our admin team. Host features will be available after approval."}</Notice>
       </Card>
       <Card style={{ padding: 14 }}>
         <T mono size={10} color={c.secondary}>HOST CHECKLIST</T>

@@ -86,7 +86,10 @@ export async function saveDemoProfile(phone: string, profile: UserProfile, idTok
   let photo = profile.photo;
   if (photo && !photo.startsWith("http")) {
     if (!idToken) throw new Error("Sign in again before uploading a profile photo.");
-    photo = await submitProfilePhotoForModeration(idToken, photo);
+    const result = await submitProfilePhotoForModeration(idToken, photo);
+    if (result.status !== "approved")
+      throw new Error("Your profile photo is awaiting safety review. Try again after it has been approved.");
+    photo = result.publicUrl;
   }
   const { error } = await supabase.rpc("complete_phone_identity", {
     input_phone: phone,

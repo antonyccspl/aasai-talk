@@ -5,8 +5,8 @@ for phone login, designed to use Twilio Verify for SMS delivery. Phone
 verification uses Supabase Auth and Twilio Verify, not Firebase Authentication.
 The implementation includes profile and public directory data, messaging, call
 lifecycle and minute billing, Host presence and dashboards, safety reports and
-blocks, manual Host photo review, push notification plumbing, and a moderator
-operations view. Live two-party RTC, payment checkout/webhooks,
+blocks, private Host-photo review during application review, push notification
+plumbing, and a moderator operations view. Live two-party RTC, payment checkout/webhooks,
 withdrawals, push delivery, and moderator operations require the provider
 credentials, database migrations, and Edge Functions described below.
 
@@ -84,9 +84,10 @@ both call types, subject to the types enabled in their approved Host profile.
 When **Show last seen** is enabled, male users can see a Host's relative last
 active time in Favorites and call history; switching it off hides that time.
 
-Automatic photo scanning and live-call frame scanning are not used. App-
-submitted Host photos remain private until a moderator approves them in the
-admin Reports queue; admin-created Host photos require the manual safety
+Automatic photo scanning and live-call frame scanning are not used. A Host
+application can be submitted while its photo remains private; admins review the
+photo and profile together in Hosts, and final Host approval publishes the
+photo. Admin-created Host photos retain their required manual safety
 attestation. Live calls rely on existing reporting and moderation tools.
 
 ## Validation

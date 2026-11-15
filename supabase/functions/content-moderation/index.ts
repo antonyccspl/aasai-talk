@@ -42,7 +42,7 @@ function profilePhotoResult(item: {
   return reply({
     id: item.id,
     status: "needs_review",
-    message: "Your photo is waiting for a moderator safety review. Keep it selected and tap Submit again after approval.",
+    message: "Your photo will be reviewed with your Host application.",
   });
 }
 
