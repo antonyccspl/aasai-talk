@@ -106,7 +106,41 @@ function otpErrorMessage(error: unknown) {
   return "We could not send a verification code. Please try again.";
 }
 
-function logPhoneVerificationFailure(stage: "send" | "resend", error: unknown) {
+function otpVerificationErrorMessage(error: unknown) {
+  const detail = error instanceof Error ? error.message : String(error);
+  const code =
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof error.code === "string"
+      ? error.code.toLowerCase()
+      : "";
+  const providerError = `${code} ${detail}`.toLowerCase();
+  if (
+    /phone identity must match the verified session/.test(providerError)
+  )
+    return "The verified phone does not match this account. Start again and use the same mobile number.";
+  if (
+    /otp_expired|invalid_credentials|invalid[_ -]otp|invalid[_ -]token|code.*(expired|invalid)|token.*(expired|invalid)/i.test(
+      providerError,
+    )
+  )
+    return "That code is invalid or expired. If you requested another code, use the most recent one.";
+  if (
+    /over[_ -]sms[_ -]send[_ -]rate[_ -]limit|over[_ -]request[_ -]rate[_ -]limit|too many|rate.?limit/i.test(
+      providerError,
+    )
+  )
+    return "Too many verification attempts. Wait a little, then request a new code.";
+  if (/network|fetch failed|request_timeout/i.test(providerError))
+    return "We could not verify the code. Check your connection and try again.";
+  return "We could not verify this code. Please try again or request a new code.";
+}
+
+function logPhoneVerificationFailure(
+  stage: "send" | "resend" | "verify",
+  error: unknown,
+) {
   const code =
     error &&
     typeof error === "object" &&
@@ -531,13 +565,8 @@ export function Auth({ mode }: { mode: string }) {
                   ),
                 )
                 .catch((verificationError) => {
-                  console.error(
-                    "Supabase OTP verification failed:",
-                    verificationError,
-                  );
-                  setError(
-                    "That code is invalid or expired. Request a new code and try again.",
-                  );
+                  logPhoneVerificationFailure("verify", verificationError);
+                  setError(otpVerificationErrorMessage(verificationError));
                 })
                 .finally(() => setBusy(false));
             }}
