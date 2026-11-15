@@ -32,3 +32,16 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     detectSessionInUrl: Platform.OS === 'web',
   },
 });
+
+export async function withSupabaseRequestTimeout<T>(
+  request: (signal: AbortSignal) => PromiseLike<T>,
+  timeoutMs = 15000,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await request(controller.signal);
+  } finally {
+    clearTimeout(timeout);
+  }
+}

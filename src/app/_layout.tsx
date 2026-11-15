@@ -521,7 +521,7 @@ function AppNavigator() {
     authenticated,
     getIdentityToken,
   } = useAuth();
-  const { identityLoading } = useDemo();
+  const { identityLoading, identityLoadError, retryIdentityLoad } = useDemo();
   const pathname = usePathname();
   const incomingSessionRef = useRef("");
   const incomingSoundKeyRef = useRef("");
@@ -631,6 +631,41 @@ function AppNavigator() {
         <Text style={{ color: colors.secondary, fontSize: 14 }}>
           Loading your account…
         </Text>
+      </View>
+    );
+  }
+  if (authenticated && identityLoadError) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 14,
+          padding: 24,
+          backgroundColor: colors.background,
+        }}
+      >
+        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>
+          We couldn’t load your account.
+        </Text>
+        <Text style={{ color: colors.secondary, fontSize: 14, textAlign: "center" }}>
+          Check your connection and try again.
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void retryIdentityLoad()}
+          style={{
+            paddingHorizontal: 24,
+            paddingVertical: 12,
+            borderRadius: 12,
+            backgroundColor: colors.mint,
+          }}
+        >
+          <Text style={{ color: colors.background, fontWeight: "700" }}>
+            Try again
+          </Text>
+        </Pressable>
       </View>
     );
   }

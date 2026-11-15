@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabase, withSupabaseRequestTimeout } from "./supabase";
 import { submitProfilePhotoForModeration } from "./content-moderation";
 
 export type HostApplicationStatus =
@@ -63,9 +63,10 @@ export async function submitPhoneHostApplication(
 export async function fetchPhoneHostApplicationStatus(
   phone: string,
 ): Promise<HostApplicationStatus> {
-  const { data, error } = await supabase.rpc(
-    "get_phone_host_application_status",
-    { input_phone: phone },
+  const { data, error } = await withSupabaseRequestTimeout((signal) =>
+    supabase
+      .rpc("get_phone_host_application_status", { input_phone: phone })
+      .abortSignal(signal),
   );
   if (error) throw error;
   if (

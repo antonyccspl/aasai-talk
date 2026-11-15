@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabase, withSupabaseRequestTimeout } from "./supabase";
 import { submitProfilePhotoForModeration } from "./content-moderation";
 
 function describeDatabaseError(error: unknown, fallback: string) {
@@ -108,9 +108,11 @@ export async function saveDemoProfile(phone: string, profile: UserProfile, idTok
 }
 
 export async function fetchDemoProfile(phone: string): Promise<UserProfile | null> {
-  const { data, error } = await supabase.rpc("get_phone_identity_profile", {
-    input_phone: phone,
-  });
+  const { data, error } = await withSupabaseRequestTimeout((signal) =>
+    supabase
+      .rpc("get_phone_identity_profile", { input_phone: phone })
+      .abortSignal(signal),
+  );
   if (error) throw error;
   if (!data || typeof data !== "object") return null;
   const profile = data as Record<string, unknown>;

@@ -243,10 +243,12 @@ function useDemoState() {
   const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
   const identityKey = demoPhone || user?.id || null;
   const [identityLoading, setIdentityLoading] = useState(Boolean(identityKey));
+  const [identityLoadError, setIdentityLoadError] = useState(false);
   const loadedIdentityRef = useRef<string | null>(null);
 
   const refreshUserData = useCallback(async () => {
     if (!user && !demoPhone) return;
+    setIdentityLoadError(false);
     const phoneIdentity = demoPhone || user?.phone || null;
     // Demo phone login has priority over any stale Supabase session. Without
     // this order, a prior session can load one person's profile while the
@@ -268,6 +270,10 @@ function useDemoState() {
         preferencesRequest,
         hostStatusRequest,
       ]);
+    setIdentityLoadError(
+      profileResult.status === "rejected" ||
+        hostStatusResult.status === "rejected",
+    );
     if (profileResult.status === "fulfilled") {
       setProfile(profileResult.value ?? EMPTY_PROFILE);
       // Only the server's approved URL is allowed to hydrate the avatar. This
@@ -300,6 +306,20 @@ function useDemoState() {
     setProfile,
     setPhoto,
   ]);
+
+  const retryIdentityLoad = useCallback(async () => {
+    if (!identityKey) return;
+    setIdentityLoadError(false);
+    setIdentityLoading(true);
+    try {
+      await refreshUserData();
+    } catch (error) {
+      console.error("Failed to reload authenticated user data:", error);
+      setIdentityLoadError(true);
+    } finally {
+      setIdentityLoading(false);
+    }
+  }, [identityKey, refreshUserData]);
 
   useEffect(() => {
     if (!identityKey) {
@@ -653,6 +673,8 @@ function useDemoState() {
     refreshPlatformData: platform.refreshPlatformData,
     refreshUserData,
     identityLoading,
+    identityLoadError,
+    retryIdentityLoad,
     submitSafetyReport,
     submitAnnouncement,
     resolveSafetyReport,
