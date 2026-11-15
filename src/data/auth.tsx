@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { Platform } from "react-native";
@@ -60,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [demoPhone, setDemoPhone] = useState<string | null>(null);
   const [demoProfileComplete, setDemoProfileComplete] = useState(false);
   const [loading, setLoading] = useState(true);
+  const activePhoneRef = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -71,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const applySession = (nextSession: Session | null) => {
       const phone = normalizeIndianMobile(nextSession?.user.phone);
       if (!nextSession || !phone) {
+        activePhoneRef.current = null;
         setUser(null);
         setSession(null);
         setAuthenticated(false);
@@ -80,11 +83,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const phoneChanged = activePhoneRef.current !== phone;
+      activePhoneRef.current = phone;
       setUser(nextSession.user);
       setSession(nextSession);
       setAuthenticated(true);
       setDemoPhone(phone);
-      setLoading(true);
+      if (phoneChanged) setLoading(true);
     };
 
     const {
@@ -184,20 +189,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    const { data, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) throw sessionError;
-    const token = data.session?.access_token;
+    const token = session?.access_token;
 
     if (token && Platform.OS === "web") {
-      await endHostAvailability(token);
+      void endHostAvailability(token).catch((error) =>
+        console.warn("Unable to end Host availability during sign-out:", error),
+      );
       if (typeof navigator !== "undefined" && "serviceWorker" in navigator)
-        await unregisterBrowserCallPush(token);
+        void unregisterBrowserCallPush(token).catch((error) =>
+          console.warn(
+            "Unable to unregister browser call notifications during sign-out:",
+            error,
+          ),
+        );
     } else if (token) {
-      try {
-        await unregisterPushDevice(token);
-      } catch (error) {
-        console.warn("Unable to unregister this push device:", error);
-      }
+      void unregisterPushDevice(token).catch((error) =>
+        console.warn("Unable to unregister this push device during sign-out:", error),
+      );
     }
 
     const { error: signOutError } = await supabase.auth.signOut();
