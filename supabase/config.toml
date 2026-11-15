@@ -19,6 +19,10 @@ verify_jwt = true
 [functions.host-payouts]
 verify_jwt = true
 
+[functions.host-documents]
+# The handler validates Supabase sessions itself.
+verify_jwt = false
+
 [functions.admin-portal]
 verify_jwt = false
 
@@ -44,6 +48,10 @@ verify_jwt = false
 
 [functions.cashfree-webhook]
 # Cashfree authenticates this endpoint with its signed webhook headers.
+verify_jwt = false
+
+[functions.support-tickets]
+# The handler validates Supabase sessions itself.
 verify_jwt = false
 
 [api]
