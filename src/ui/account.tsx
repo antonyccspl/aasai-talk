@@ -61,20 +61,9 @@ import { colors as c } from "./theme";
 import { Welcome } from "./welcome";
 import { priorityIndianLanguages, useLanguage } from "./language";
 import { policyFallbacks } from "@/data/policy-content";
+import { ExternalLink } from "@/components/external-link";
 
 const INSTAGRAM_SUPPORT_URL = "https://www.instagram.com/aasai_talk/";
-
-async function openInstagramSupport() {
-  try {
-    await Linking.openURL(INSTAGRAM_SUPPORT_URL);
-  } catch (error) {
-    console.error("Unable to open the Aasai Talk Instagram profile:", error);
-    Alert.alert(
-      "Unable to open Instagram",
-      "Open Instagram and search for @aasai_talk.",
-    );
-  }
-}
 
 function latestEligibleBirthday() {
   const date = new Date();
@@ -2005,19 +1994,22 @@ export function Settings({
           </T>
         );
       return (
-        <T color={c.secondary} style={{ lineHeight: 22 }}>
-          <T color={c.secondary}>{before}</T>
-          <T
-            accessibilityRole="link"
-            accessibilityLabel="Aasai Talk on Instagram"
-            onPress={() => void openInstagramSupport()}
-            color={c.mint}
-            style={{ textDecorationLine: "underline" }}
-          >
-            {INSTAGRAM_SUPPORT_URL}
+        <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+          <T color={c.secondary} style={{ lineHeight: 22 }}>{before}</T>
+          <ExternalLink href={INSTAGRAM_SUPPORT_URL} asChild>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Aasai Talk on Instagram"
+            >
+              <T color={c.mint} style={{ lineHeight: 22, textDecorationLine: "underline" }}>
+                @aasai_talk
+              </T>
+            </Pressable>
+          </ExternalLink>
+          <T color={c.secondary} style={{ lineHeight: 22 }}>
+            {after.join(INSTAGRAM_SUPPORT_URL)}
           </T>
-          <T color={c.secondary}>{after.join(INSTAGRAM_SUPPORT_URL)}</T>
-        </T>
+        </View>
       );
     };
     return (
@@ -2055,16 +2047,17 @@ export function Settings({
             </Row>
           </Card>
         ))}
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel="Contact Aasai Talk on Instagram"
-          onPress={() => void openInstagramSupport()}
-          style={{ alignItems: "center", paddingVertical: 8 }}
-        >
-          <T size={12} color={c.mint} style={{ textAlign: "center", textDecorationLine: "underline" }}>
-            Questions? Contact us on Instagram
-          </T>
-        </Pressable>
+        <ExternalLink href={INSTAGRAM_SUPPORT_URL} asChild>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Contact Aasai Talk on Instagram"
+            style={{ alignItems: "center", paddingVertical: 8 }}
+          >
+            <T size={12} color={c.mint} style={{ textAlign: "center", textDecorationLine: "underline" }}>
+              Questions? Contact us on Instagram
+            </T>
+          </Pressable>
+        </ExternalLink>
       </Shell>
     );
   }
