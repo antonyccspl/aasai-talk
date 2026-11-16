@@ -66,6 +66,47 @@ function formatChatTimestamp(value: string) {
   return `${formatChatDate(value)}, ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
+function HostMemberAction({
+  icon,
+  label,
+  disabled = false,
+  primary = false,
+  onPress,
+}: {
+  icon: "message-circle" | "phone" | "video";
+  label: string;
+  disabled?: boolean;
+  primary?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: 34,
+        height: 34,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: disabled ? c.surface : primary ? c.mint : c.low,
+        borderWidth: 1,
+        borderColor: disabled || !primary ? c.line : c.mint,
+        opacity: disabled ? 0.55 : pressed ? 0.76 : 1,
+      })}
+    >
+      <Icon
+        name={icon}
+        size={17}
+        color={disabled ? c.muted : primary ? c.ink : c.text}
+      />
+    </Pressable>
+  );
+}
+
 function HostDashboardHome() {
   const auth = useAuth();
   const d = useDemo();
@@ -381,15 +422,26 @@ export function HostExplore() {
 
   return (
     <Shell tab="Explore" refreshing={refreshing} onRefresh={refresh}>
-      <Card style={{ gap: 8 }}>
-        <T mono size={11} color={c.mint}>HOST EXPLORE</T>
-        <T size={22} bold>Male members</T>
-        <T color={c.secondary}>
-          See online and offline members and their available coins. Calls can
-          only be started when a member is online and available, and are charged
-          to the member at the existing rate.
-        </T>
-      </Card>
+      <Row style={{ justifyContent: "space-between", alignItems: "center", paddingHorizontal: 2 }}>
+        <View style={{ gap: 1 }}>
+          <T size={21} bold>Discover</T>
+          <T size={12} color={c.secondary}>
+            {members.length ? `${members.length} members` : "Find someone to talk to"}
+          </T>
+        </View>
+        <View
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 14,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: c.high,
+          }}
+        >
+          <Icon name="users" size={18} color={c.mint} />
+        </View>
+      </Row>
       {!callOptions.online ? (
         <Notice tone="warning" title="You are offline">
           Go online from the Dashboard before starting calls. You can still
@@ -400,68 +452,92 @@ export function HostExplore() {
       {loading ? (
         <LoadingCards count={3} />
       ) : members.length ? (
-        members.map((member) => {
-          const memberId = `phone_${member.phone.replace(/\D/g, "")}`;
-          const audioAffordable = member.availableCoins >= 20;
-          const videoAffordable = member.availableCoins >= 40;
-          const audioEnabled =
-            callOptions.online &&
-            callOptions.audio &&
-            member.availability === "Available" &&
-            audioAffordable;
-          const videoEnabled =
-            callOptions.online &&
-            callOptions.video &&
-            member.availability === "Available" &&
-            videoAffordable;
-          return (
-            <Card key={member.phone} style={{ gap: 12 }}>
-              <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
-                <Row style={{ flex: 1 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            justifyContent: "space-between",
+            rowGap: 10,
+          }}
+        >
+          {members.map((member) => {
+            const memberId = `phone_${member.phone.replace(/\D/g, "")}`;
+            const audioAffordable = member.availableCoins >= 20;
+            const videoAffordable = member.availableCoins >= 40;
+            const audioEnabled =
+              callOptions.online &&
+              callOptions.audio &&
+              member.availability === "Available" &&
+              audioAffordable;
+            const videoEnabled =
+              callOptions.online &&
+              callOptions.video &&
+              member.availability === "Available" &&
+              videoAffordable;
+            const availabilityLabel =
+              member.availability === "Available"
+                ? "Online"
+                : member.availability === "Busy"
+                  ? "On a call"
+                  : "Offline";
+            const availabilityColor =
+              member.availability === "Available"
+                ? c.success
+                : member.availability === "Busy"
+                  ? c.warning
+                  : c.secondary;
+            return (
+              <Card
+                key={member.phone}
+                style={{
+                  width: "48.5%",
+                  minWidth: 0,
+                  paddingHorizontal: 11,
+                  paddingVertical: 12,
+                  borderRadius: 18,
+                  gap: 8,
+                }}
+              >
+                <Row style={{ gap: 8, minWidth: 0 }}>
                   <Avatar
                     name={member.displayName}
                     photoUrl={member.photoUrl}
-                    size={48}
+                    size={36}
                   />
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <T bold size={16} numberOfLines={1}>{member.displayName}</T>
-                    <T size={12} color={c.secondary}>
-                      {member.availability === "Available"
-                        ? "Online"
-                        : member.availability === "Busy"
-                          ? "On a call"
-                          : "Offline"}
-                    </T>
+                  <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                    <T bold size={14} numberOfLines={1}>{member.displayName}</T>
+                    <Row style={{ gap: 5 }}>
+                      <View
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: 3,
+                          backgroundColor: availabilityColor,
+                        }}
+                      />
+                      <T size={11} color={availabilityColor} numberOfLines={1}>
+                        {availabilityLabel}
+                      </T>
+                    </Row>
                   </View>
                 </Row>
-                <Badge
-                  text={member.availability}
-                  tone={
-                    member.availability === "Available"
-                      ? "success"
-                      : member.availability === "Busy"
-                        ? "warning"
-                        : "info"
-                  }
-                />
-              </Row>
-              <Row style={{ justifyContent: "space-between" }}>
-                <T size={13} color={c.secondary}>Available balance</T>
-                <T bold color={c.mint}>{coins(member.availableCoins)}</T>
-              </Row>
-              <Row style={{ flexWrap: "wrap" }}>
-                <Button
-                  title="Message"
+                <Row style={{ justifyContent: "space-between", gap: 4 }}>
+                <T size={11} color={c.secondary}>Coins</T>
+                <T bold size={12} color={c.mint} numberOfLines={1}>
+                  {coins(member.availableCoins)}
+                </T>
+                </Row>
+                <Row style={{ justifyContent: "space-between", gap: 6 }}>
+                  <HostMemberAction
                   icon="message-circle"
-                  variant="secondary"
-                  style={{ flex: 1, minWidth: 105 }}
+                  label={`Message ${member.displayName}`}
                   onPress={() => go(`/chat/${memberId}`)}
-                />
+                  />
                 {callOptions.audio ? (
-                  <Button
-                    title="Audio call"
+                  <HostMemberAction
                     icon="phone"
-                    style={{ flex: 1, minWidth: 105 }}
+                    label={`Audio call ${member.displayName}`}
+                    primary
                     disabled={!audioEnabled}
                     onPress={() =>
                       go(`/calls/outgoing/${memberId}?type=audio&name=${encodeURIComponent(member.displayName)}`)
@@ -469,29 +545,27 @@ export function HostExplore() {
                   />
                 ) : null}
                 {callOptions.video ? (
-                  <Button
-                    title="Video call"
+                  <HostMemberAction
                     icon="video"
-                    variant="secondary"
-                    style={{ flex: 1, minWidth: 105 }}
+                    label={`Video call ${member.displayName}`}
                     disabled={!videoEnabled}
                     onPress={() =>
                       go(`/calls/outgoing/${memberId}?type=video&name=${encodeURIComponent(member.displayName)}`)
                     }
                   />
                 ) : null}
-              </Row>
-              {member.availability === "Available" &&
+                </Row>
+                {member.availability === "Available" &&
                 ((callOptions.audio && !audioAffordable) ||
                   (callOptions.video && !videoAffordable)) ? (
-                <T size={12} color={c.warning}>
-                  Calls are disabled when the balance is below the first-minute cost
-                  (20 coins audio, 40 coins video).
+                <T size={10} color={c.warning} numberOfLines={1}>
+                  Calls need 20 audio · 40 video coins
                 </T>
-              ) : null}
-            </Card>
-          );
-        })
+                ) : null}
+              </Card>
+            );
+          })}
+        </View>
       ) : (
         <Empty
           icon="users"
