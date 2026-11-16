@@ -209,8 +209,16 @@ export function Wallet({
     const endsAt = pack.available_until ? Date.parse(pack.available_until) : Number.POSITIVE_INFINITY;
     return !Number.isNaN(startsAt) && !Number.isNaN(endsAt) && startsAt <= now && now < endsAt;
   });
-  const specialCoinPacks = visibleCoinPacks.filter(pack => pack.is_special);
-  const regularCoinPacks = visibleCoinPacks.filter(pack => !pack.is_special);
+  const byPriceAscending = (a: CoinPack, b: CoinPack) =>
+    a.price_paise - b.price_paise ||
+    a.sort_order - b.sort_order ||
+    a.id.localeCompare(b.id);
+  const specialCoinPacks = visibleCoinPacks
+    .filter((pack) => pack.is_special)
+    .sort(byPriceAscending);
+  const regularCoinPacks = visibleCoinPacks
+    .filter((pack) => !pack.is_special)
+    .sort(byPriceAscending);
   const selectedPack = visibleCoinPacks.find(pack => pack.id === d.selectedCoinPackId)
     ?? regularCoinPacks.find((pack) => pack.coins === 500)
     ?? regularCoinPacks[0]
@@ -235,13 +243,13 @@ export function Wallet({
         onPress={() => d.setSelectedCoinPackId(pack.id)}
         style={{
           width: offerCardWidth,
-          padding: compactLayout ? 9 : 10,
-          minHeight: wideLayout ? 138 : 144,
-          borderRadius: 18,
+          padding: compactLayout ? 7 : 8,
+          minHeight: wideLayout ? 120 : 126,
+          borderRadius: 15,
           backgroundColor: selected ? c.high : c.low,
           borderWidth: 1,
           borderColor: selected ? c.mint : pack.is_special ? "#f0bd4b" : "transparent",
-          gap: 6,
+          gap: 4,
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -253,15 +261,15 @@ export function Wallet({
             </View>
           )}
         </View>
-        <CoinStack size={compactLayout ? 25 : 27} />
-        <T size={compactLayout ? 16 : 17} bold color={selected ? c.mint : c.text} style={{ textAlign: "center" }}>
+        <CoinStack size={compactLayout ? 21 : 23} />
+        <T size={compactLayout ? 15 : 16} bold color={selected ? c.mint : c.text} style={{ textAlign: "center" }}>
           {totalCoins}
         </T>
-        <T mono size={11} color={c.secondary} style={{ textAlign: "center" }}>coins</T>
-        <View style={{ height: 15 }}>
-          {pack.bonus_coins > 0 && <T mono size={10} bold color={c.mint}>includes +{pack.bonus_coins} bonus</T>}
+        <T mono size={10} color={c.secondary} style={{ textAlign: "center" }}>coins</T>
+        <View style={{ height: 13 }}>
+          {pack.bonus_coins > 0 && <T mono size={9} bold color={c.mint}>includes +{pack.bonus_coins} bonus</T>}
         </View>
-        <T mono size={10} color={c.muted} style={{ textAlign: "center" }}>
+        <T mono size={9} color={c.muted} style={{ textAlign: "center" }}>
           {money(pack.price_paise / 100)}
         </T>
       </Pressable>
@@ -620,12 +628,12 @@ export function Wallet({
       )}
       {!!specialCoinPacks.length && <Section title="Special offers" />}
       {!!specialCoinPacks.length && (
-        <Row style={{ flexWrap: "wrap", justifyContent: "space-between", columnGap: 0, rowGap: 12 }}>
+        <Row style={{ flexWrap: "wrap", justifyContent: "space-between", columnGap: 0, rowGap: 8 }}>
           {specialCoinPacks.map(renderCoinPack)}
         </Row>
       )}
       {!!regularCoinPacks.length && <Section title="All coin packs" />}
-      <Row style={{ flexWrap: "wrap", justifyContent: "space-between", columnGap: 0, rowGap: 12 }}>
+      <Row style={{ flexWrap: "wrap", justifyContent: "space-between", columnGap: 0, rowGap: 8 }}>
         {regularCoinPacks.map(renderCoinPack)}
       </Row>
       <T mono size={11} color={c.secondary} style={{ textAlign: "center" }}>
