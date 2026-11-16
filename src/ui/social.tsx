@@ -1,6 +1,5 @@
 import { useAuth } from "@/data/auth";
 import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
-import { sendPushEvent } from "@/data/push-notifications";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
 import {
   fetchHostOnlineMaleMembers,
@@ -8,36 +7,37 @@ import {
 } from "@/data/host-members";
 import { fetchHostPresenceSettings } from "@/data/host-presence";
 import { profileLanguages } from "@/data/profile-options";
+import { sendPushEvent } from "@/data/push-notifications";
 import { usePhoneHostCallCapabilities } from "@/hooks/use-phone-host-call-capabilities";
 import { router, useFocusEffect } from "expo-router";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, TextInput, useWindowDimensions, View } from "react-native";
 import { useRefreshPeople } from '../data/sample-workspace';
 import {
-    Avatar,
-    Badge,
-    Button,
-    Card,
-    Chip,
-    Chips,
-    Empty,
-    Field,
-    go,
-    Icon,
-    IconButton,
-    LoadingCards,
-    Notice,
-    presenceText,
-    Row,
-    s,
-    Section,
-    Shell,
-    T,
-    UserCard,
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  Chip,
+  Chips,
+  Empty,
+  Field,
+  go,
+  Icon,
+  IconButton,
+  LoadingCards,
+  Notice,
+  presenceText,
+  Row,
+  s,
+  Section,
+  Shell,
+  T,
+  UserCard,
 } from "./components";
+import { useLanguage } from "./language";
 import { coins, defaultFacets, formatTalkDuration, people, personFor, useDemo } from "./store";
 import { colors as c } from "./theme";
-import { useLanguage } from "./language";
 
 const formatCallTime = formatTalkDuration;
 const formatRupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -1167,22 +1167,12 @@ export function Chat({ id }: { id: string }) {
   const { refreshUnreadMessageCount, refreshUnreadNotificationCount, setOpenChatPhone } = d;
   const auth = useAuth();
   const p = personFor(id);
-  const otherPhone = id.startsWith("phone_")
+  const hostPhone = id.startsWith("phone_")
     ? `+${id.slice("phone_".length)}`
     : "";
-  const hostPhone = otherPhone;
   const callCapabilities = usePhoneHostCallCapabilities(hostPhone);
   const isApprovedHost = d.hostStatus === "approved";
-  const [hostCaller, setHostCaller] = useState<{
-    phone: string;
-    requesterPhone: string;
-    username: string;
-  } | null>(null);
-  const hostCallerUsername =
-    hostCaller?.phone === otherPhone &&
-    hostCaller.requesterPhone === auth.demoPhone
-      ? hostCaller.username
-      : "";
+  const [hostCallerUsername, setHostCallerUsername] = useState("");
   const chatPerson = isApprovedHost
     ? {
         ...p,
@@ -1191,36 +1181,33 @@ export function Chat({ id }: { id: string }) {
       }
     : p;
   const [liveMessages, setLiveMessages] = useState<PhoneMessage[]>([]);
-  const [loadedChatKey, setLoadedChatKey] = useState("");
+  const [messagesLoading, setMessagesLoading] = useState(true);
   const [chatError, setChatError] = useState("");
   const blocked = d.blocked.includes(id);
   const text = d.drafts[id] || "";
-  const chatKey =
-    auth.demoPhone && otherPhone
-      ? `${auth.demoPhone}:${otherPhone}`
-      : "";
-  const messagesLoading = Boolean(chatKey) && loadedChatKey !== chatKey;
+  const otherPhone = id.startsWith("phone_") ? `+${id.slice("phone_".length)}` : "";
   useEffect(() => {
-    if (!isApprovedHost || !auth.demoPhone || !otherPhone) return;
+    if (!isApprovedHost || !auth.demoPhone || !otherPhone) {
+      setHostCallerUsername("");
+      return;
+    }
     let active = true;
     void fetchPhoneConversations(auth.demoPhone)
       .then((rows) => {
         if (active)
-          setHostCaller({
-            phone: otherPhone,
-            requesterPhone: auth.demoPhone!,
-            username:
-              rows.find((row) => row.other_phone === otherPhone)
-                ?.other_username || "",
-          });
+          setHostCallerUsername(
+            rows.find((row) => row.other_phone === otherPhone)?.other_username || "",
+          );
       })
       .catch((error) => console.warn("Unable to load caller username:", error));
     return () => { active = false; };
   }, [auth.demoPhone, isApprovedHost, otherPhone]);
   useEffect(() => {
-    if (!auth.demoPhone || !otherPhone) return;
+    if (!auth.demoPhone || !otherPhone) {
+      setMessagesLoading(false);
+      return;
+    }
     let active = true;
-    const currentChatKey = `${auth.demoPhone}:${otherPhone}`;
     setOpenChatPhone(otherPhone);
     const loadMessages = () => fetchPhoneMessages(auth.demoPhone!, otherPhone)
       .then((messages) => {
@@ -1234,7 +1221,7 @@ export function Chat({ id }: { id: string }) {
         }
       })
       .catch((error) => { if (active) setChatError(error instanceof Error ? error.message : "Unable to load messages."); })
-      .finally(() => { if (active) setLoadedChatKey(currentChatKey); });
+      .finally(() => { if (active) setMessagesLoading(false); });
     void loadMessages();
     const refreshTimer = setInterval(() => { void loadMessages(); }, 5000);
     const unsubscribe = subscribeToPhoneMessages(auth.demoPhone, otherPhone, (message) => {
