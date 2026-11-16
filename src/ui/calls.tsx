@@ -7,12 +7,14 @@ import {
     fetchPhoneHostCallCapabilities,
     requestPhoneCallVideoUpgrade,
     settlePhoneCall,
+    startHostMemberCall,
     startPhoneCall,
     subscribeToPhoneCall,
     updatePhoneCall,
 } from "@/data/call-sessions";
 import { onCallAudioReady, startCallSound, stopAllCallSounds, stopCallSound } from "@/data/call-sounds";
 import { fetchDirectoryProfiles, formatLastSeen, type DirectoryStatus } from "@/data/directory";
+import { fetchHostOnlineMaleMembers } from "@/data/host-members";
 import { usePhoneHostCallCapabilities } from "@/hooks/use-phone-host-call-capabilities";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { setPhoneBlock, submitPhoneSafetyReport } from "@/data/phone-safety";
@@ -85,6 +87,9 @@ type CallScreenProps = {
   autoReject?: boolean;
 };
 
+const hostPhoneFromId = (id: string) =>
+  id.startsWith("phone_") ? `+${id.slice("phone_".length)}` : "";
+
 /** The call route must never fail to a browser-white page. */
 class CallScreenBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -120,13 +125,14 @@ export function CallScreen(props: CallScreenProps) {
 
 function CallScreenAccessGate(props: CallScreenProps) {
   const d = useDemo();
-  if (d.hostStatus === "approved" && props.mode === "outgoing")
+  if (
+    d.profile.gender === "Female" &&
+    d.hostStatus !== "approved" &&
+    props.mode === "outgoing"
+  )
     return (
       <Shell title="Calls">
-        <Notice>
-          Your Host account can receive member calls. Starting outgoing calls is
-          not available for Hosts.
-        </Notice>
+        <Notice error>An approved Host account is required to start calls.</Notice>
         <Button title="Go to Host dashboard" onPress={() => go("/explore")} />
       </Shell>
     );
@@ -145,6 +151,7 @@ function CallScreenContent({
 }: CallScreenProps) {
   const d = useDemo();
   const auth = useAuth();
+  const isMalePayer = d.profile.gender === "Male";
   const { height: viewportHeight } = useWindowDimensions();
   const directoryPerson = people.find((person) => person.id === id);
   const p = directoryPerson
@@ -182,6 +189,8 @@ function CallScreenContent({
   const outgoing =
     mode === "outgoing" ||
     ((mode === "audio" || mode === "video") && !connectedRoute);
+  const hostInitiated =
+    outgoing && d.profile.gender === "Female" && d.hostStatus === "approved";
   const [state, setState] = useState(
     incoming ? "Incoming" : outgoing ? "Ringing" : "Connected",
   );
@@ -255,15 +264,15 @@ function CallScreenContent({
   );
   const activePhone = auth.demoPhone;
   const setActiveCall = d.setActive;
-  const incomingCall = d.active?.incoming;
   const safetyTargetPhone = id.startsWith("phone_")
     ? `+${id.slice("phone_".length)}`
     : "";
-  const hostPhone = d.active?.incoming
-    ? auth.demoPhone
-    : id.startsWith("phone_")
-      ? `+${id.slice("phone_".length)}`
-      : "";
+  const hostPhone =
+    d.profile.gender === "Female" && d.hostStatus === "approved"
+      ? auth.demoPhone
+      : id.startsWith("phone_")
+        ? `+${id.slice("phone_".length)}`
+        : "";
   const canSwitchToVideo =
     !video &&
     d.active?.status === "Connected" &&
@@ -301,7 +310,7 @@ function CallScreenContent({
       if (mediaSessionId && activePhone) {
         void updatePhoneCall(mediaSessionId, activePhone, "ended")
           .then(() =>
-            incomingCall
+              !isMalePayer
               ? undefined
               : settlePhoneCall(mediaSessionId, activePhone),
           )
@@ -314,7 +323,7 @@ function CallScreenContent({
         return null;
       });
     },
-    [activePhone, setActiveCall, incomingCall, mediaSessionId],
+    [activePhone, isMalePayer, setActiveCall, mediaSessionId],
   );
   const onCameraSwitchError = useCallback((requestedFront: boolean) => {
     setFront((current) =>
@@ -505,7 +514,7 @@ function CallScreenContent({
                 : "cancelled",
           d.active?.seconds ?? 0,
         );
-        if (!incoming && !d.active?.incoming) {
+        if (isMalePayer) {
           const settlement = await settlePhoneCall(
             activeSessionId,
             auth.demoPhone,
@@ -590,7 +599,7 @@ function CallScreenContent({
       );
       d.setActive((current) => {
         if (!current || current.id !== mediaSessionId) return current;
-        if (current.incoming) return { ...current, type: result.callType };
+        if (!isMalePayer) return { ...current, type: result.callType };
         const remainingCoins = result.remainingCoins ?? d.balance;
         const remainder = 60 - (current.seconds % 60);
         return {
@@ -602,7 +611,7 @@ function CallScreenContent({
             Math.floor(remainingCoins / result.coinsPerMinute) * 60,
         };
       });
-      if (!d.active?.incoming && typeof result.remainingCoins === "number")
+      if (isMalePayer && typeof result.remainingCoins === "number")
         d.setBalance(result.remainingCoins);
       router.replace(
         `/calls/video/${id}?session=${mediaSessionId}&type=video&name=${encodeURIComponent(p.name)}` as never,
@@ -627,28 +636,53 @@ function CallScreenContent({
     if (d.active && !incoming && !replacingPreviousAttempt) return;
     if (!auth.demoPhone || !id.startsWith("phone_"))
       return go("/status/unavailable");
-    const hostPhone = `+${id.slice("phone_".length)}`;
+    const targetPhone = hostPhoneFromId(id);
     let session;
     let callCoinsPerMinute: number | undefined;
     actionRef.current = true;
     setActionPending(true);
     try {
       if (!incoming) {
-        const directory = await fetchDirectoryProfiles();
-        const currentHost = directory.find((person) => person.id === id);
-        if (!currentHost || currentHost.status !== "Available") {
-          const unavailableStatus = currentHost?.status ?? "Offline";
-          setHostUnavailable(unavailableStatus);
-          setCallError(
-            unavailableStatus === "Busy"
-              ? `${p.name.split(" ")[0]} is busy on another call.`
-              : `${p.name.split(" ")[0]} is offline.`,
+        if (hostInitiated) {
+          const onlineMembers = await fetchHostOnlineMaleMembers();
+          const currentMember = onlineMembers.find(
+            (member) => member.phone === targetPhone,
           );
-          return;
+          if (!currentMember || currentMember.availability !== "Available") {
+            const unavailableStatus =
+              currentMember?.availability ?? "Offline";
+            setHostUnavailable(unavailableStatus);
+            setCallError(
+              unavailableStatus === "Busy"
+                ? `${p.name.split(" ")[0]} is busy on another call.`
+                : `${p.name.split(" ")[0]} is offline.`,
+            );
+            return;
+          }
+          const firstMinuteCost = video ? 40 : 20;
+          if (currentMember.availableCoins < firstMinuteCost) {
+            setCallError(
+              `${p.name} needs at least ${firstMinuteCost} coins for the first ${video ? "video" : "audio"} call minute.`,
+            );
+            return;
+          }
+        } else {
+          const directory = await fetchDirectoryProfiles();
+          const currentHost = directory.find((person) => person.id === id);
+          if (!currentHost || currentHost.status !== "Available") {
+            const unavailableStatus = currentHost?.status ?? "Offline";
+            setHostUnavailable(unavailableStatus);
+            setCallError(
+              unavailableStatus === "Busy"
+                ? `${p.name.split(" ")[0]} is busy on another call.`
+                : `${p.name.split(" ")[0]} is offline.`,
+            );
+            return;
+          }
         }
       }
-      if (!incoming && d.paid) {
-        const hostSlabs = await fetchHostCurrentSlabs(hostPhone);
+      if (!incoming && isMalePayer && d.paid) {
+        const hostSlabs = await fetchHostCurrentSlabs(targetPhone);
         const slab = hostSlabs.find(
           (row) => row.call_type === (video ? "VIDEO" : "AUDIO"),
         );
@@ -673,11 +707,16 @@ function CallScreenContent({
           callType: video ? ("video" as const) : ("audio" as const),
         };
       } else {
-        session = await startPhoneCall(
-          auth.demoPhone,
-          hostPhone,
-          video ? "video" : "audio",
-        );
+        session = hostInitiated
+          ? await startHostMemberCall(
+              hostPhoneFromId(id),
+              video ? "video" : "audio",
+            )
+          : await startPhoneCall(
+              auth.demoPhone,
+              targetPhone,
+              video ? "video" : "audio",
+            );
         try {
           await sendPushEvent(await auth.getIdentityToken(), "incoming_call", session.id);
           const current = await fetchPhoneCallState(session.id, auth.demoPhone);
@@ -692,7 +731,12 @@ function CallScreenContent({
     } catch (error) {
       console.error("Failed to start call session:", error);
       const detail = error instanceof Error ? error.message : "";
-      if (/host is offline|host is busy/i.test(detail)) {
+      if (hostInitiated && /host is offline/i.test(detail)) {
+        setHostUnavailable(null);
+        setCallError("Go online from the Dashboard before starting calls.");
+        return;
+      }
+      if (/host is offline|host is busy|member is offline|member is already on a call/i.test(detail)) {
         const busy = /busy/i.test(detail);
         if (attemptedIds) {
           // A person can become busy in the short gap between directory
@@ -728,7 +772,7 @@ function CallScreenContent({
       incoming,
       speaker: route === "Speaker",
       availableSeconds:
-        !incoming && callCoinsPerMinute
+        !incoming && isMalePayer && callCoinsPerMinute
           ? Math.floor(d.balance / callCoinsPerMinute) * 60
           : undefined,
     });
@@ -750,7 +794,7 @@ function CallScreenContent({
     void connect();
   }, [autoAnswer, incoming, sessionId]);
   const continueWithAnotherAvailablePerson = useCallback(async () => {
-    if (fallbackRef.current || closedRef.current || !outgoing) return;
+    if (fallbackRef.current || closedRef.current || !outgoing || hostInitiated) return;
     fallbackRef.current = true;
     Vibration.cancel();
     await Promise.all([stopCallSound(soundKey), stopAllCallSounds()]);
@@ -807,7 +851,15 @@ function CallScreenContent({
           : "We could not find another available person.",
       );
     }
-  }, [attemptedIds, d, id, outgoing, soundKey, video]);
+  }, [attemptedIds, d, hostInitiated, id, outgoing, soundKey, video]);
+  const finishUnansweredHostCall = useCallback(() => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    d.finishCall("Missed");
+    router.replace(
+      `/calls/result/${id}?status=${encodeURIComponent("No answer")}` as never,
+    );
+  }, [d.finishCall, id]);
   // The active-call store updates every second while a call is ringing. Keep the
   // timeout callback in a ref so those updates do not restart the response window.
   useEffect(() => {
@@ -836,8 +888,10 @@ function CallScreenContent({
         try {
           await updatePhoneCall(activeId, callerPhone, "missed");
           const latest = await fetchPhoneCallState(activeId, callerPhone);
-          if (latest.status === "missed")
-            await fallbackHandlerRef.current();
+          if (latest.status === "missed") {
+            if (hostInitiated) finishUnansweredHostCall();
+            else await fallbackHandlerRef.current();
+          }
         } catch (error) {
           console.warn("Unable to continue the unanswered call:", error);
         }
@@ -847,7 +901,15 @@ function CallScreenContent({
     // must not be treated as a declined call while this timer is running.
     }, 30_000);
     return () => clearTimeout(timeout);
-  }, [auth.demoPhone, mediaSessionId, outgoing, sessionId, state]);
+  }, [
+    auth.demoPhone,
+    finishUnansweredHostCall,
+    hostInitiated,
+    mediaSessionId,
+    outgoing,
+    sessionId,
+    state,
+  ]);
   useEffect(() => {
     const activeId =
       sessionId ||
@@ -864,7 +926,8 @@ function CallScreenContent({
           `/calls/${video ? "video" : "audio"}/${id}?session=${activeId}&type=${video ? "video" : "audio"}&name=${encodeURIComponent(p.name)}` as never,
         );
       } else if (status === "missed" && outgoing) {
-        void continueWithAnotherAvailablePerson();
+        if (hostInitiated) finishUnansweredHostCall();
+        else void continueWithAnotherAvailablePerson();
       } else if (status !== "ringing" && status !== "connected") {
         if (closedRef.current) return;
         closedRef.current = true;
@@ -875,7 +938,17 @@ function CallScreenContent({
         router.replace(`/calls/result/${id}?status=${status}` as never);
       }
     });
-  }, [outgoing, sessionId, d.active?.id, id, video, auth.demoPhone, continueWithAnotherAvailablePerson]);
+  }, [
+    outgoing,
+    sessionId,
+    d.active?.id,
+    id,
+    video,
+    auth.demoPhone,
+    hostInitiated,
+    finishUnansweredHostCall,
+    continueWithAnotherAvailablePerson,
+  ]);
   if (!ringing && (blocked || conflict))
     return (
       <Shell title="Call unavailable">
@@ -1072,8 +1145,10 @@ function CallScreenContent({
         <Badge
           text={
             ringing
-              ? (outgoing && !activeForThisCall ? "Contacting Host…" : state)
-              : d.active?.incoming
+              ? (outgoing && d.active?.status === "Ringing"
+                ? `Contacting ${hostInitiated ? "member" : "Host"}…`
+                : state)
+              : d.profile.gender !== "Male" || d.active?.incoming
                 ? duration(d.active?.seconds ?? 0)
                 : talkTime(remainingTalkSeconds)
           }
@@ -1313,7 +1388,7 @@ function CallScreenContent({
                   }}
                 >
                   <T mono size={12} bold color="#ffffff">
-                    {d.active?.incoming
+                    {d.profile.gender !== "Male" || d.active?.incoming
                       ? duration(d.active?.seconds ?? 0)
                       : talkTime(remainingTalkSeconds)}
                   </T>
@@ -1546,7 +1621,7 @@ function CallScreenContent({
             {hostUnavailable
               ? hostUnavailable === "Busy" ? "Busy on another call" : "Offline"
               : ringing
-              ? `${video ? "Video" : "Audio"} call · ${outgoing && !activeForThisCall ? "contacting host" : state.toLowerCase()}`
+              ? `${video ? "Video" : "Audio"} call · ${outgoing && d.active?.status === "Ringing" ? `contacting ${hostInitiated ? "member" : "host"}` : state.toLowerCase()}`
               : muted
                 ? "Your microphone is muted"
                 : state === "Connected"

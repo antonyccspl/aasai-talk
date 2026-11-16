@@ -16,6 +16,7 @@ import {
     Conversations,
     Discovery,
     Filters,
+    HostExplore,
     UserProfile,
 } from "@/ui/social";
 import { Wallet } from "@/ui/wallet";
@@ -70,7 +71,9 @@ export default function Route() {
   if (root === "auth") screen = <Auth mode={action} />;
   else if (root === "host")
     screen =
-      action === "status" ? (
+      action === "explore" ? (
+        <HostExplore />
+      ) : action === "status" ? (
         <HostStatus />
       ) : action === "withdraw" || action === "withdraw-preview" ? (
         <HostWithdrawals preview={action === "withdraw-preview"} />

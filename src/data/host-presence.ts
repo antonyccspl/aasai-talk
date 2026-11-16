@@ -189,6 +189,6 @@ export async function endHostAvailability(idToken: string) {
   await requestHostPresence(idToken, { action: "logout" });
 }
 
-export async function acknowledgeHostCall(idToken: string, callId: string) {
+export async function acknowledgeIncomingCall(idToken: string, callId: string) {
   await requestHostPresence(idToken, { action: "call-received", call_id: callId });
 }

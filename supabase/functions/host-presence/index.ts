@@ -87,6 +87,16 @@ Deno.serve(async (request) => {
       return Response.json({ error: "This account cannot be tracked as an online Host or male member." }, { status: 409, headers: corsHeaders });
     }
 
+    if (action === "call-received") {
+      if (typeof body.call_id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.call_id))
+        return Response.json({ error: "Invalid call invitation." }, { status: 400, headers: corsHeaders });
+      const { data, error } = await admin.rpc("acknowledge_phone_host_call", {
+        input_host_phone: identity.phone, input_call_id: body.call_id,
+      });
+      if (error) throw error;
+      return Response.json({ received: data === true }, { headers: corsHeaders });
+    }
+
     const { data: host, error: hostError } = await admin
       .from("host_applications")
       .select("phone,application_profile")
@@ -98,16 +108,6 @@ Deno.serve(async (request) => {
       return Response.json({ ok: true }, { headers: corsHeaders });
     if (!host)
       return Response.json({ error: "An approved Host account is required." }, { status: 403, headers: corsHeaders });
-
-    if (action === "call-received") {
-      if (typeof body.call_id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.call_id))
-        return Response.json({ error: "Invalid call invitation." }, { status: 400, headers: corsHeaders });
-      const { data, error } = await admin.rpc("acknowledge_phone_host_call", {
-        input_host_phone: identity.phone, input_call_id: body.call_id,
-      });
-      if (error) throw error;
-      return Response.json({ received: data === true }, { headers: corsHeaders });
-    }
 
     if (action === "settings") {
       const [{ data: settings, error }, { data: phoneChange, error: phoneChangeError }] = await Promise.all([

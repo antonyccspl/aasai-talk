@@ -330,6 +330,33 @@ export async function settlePhoneCall(sessionId: string, phone: string) {
   };
 }
 
+export async function startHostMemberCall(
+  memberPhone: string,
+  callType: CallType,
+): Promise<CallSession> {
+  const { data, error } = await supabase.rpc("start_host_member_call", {
+    input_member_phone: memberPhone,
+    input_call_type: callType,
+  });
+  if (error) throw new Error(error.message);
+  if (!data || typeof data !== "object")
+    throw new Error("Call was not created.");
+  const row = data as Record<string, unknown>;
+  if (
+    typeof row.id !== "string" ||
+    typeof row.room_id !== "string" ||
+    (row.status !== "ringing" && row.status !== "connected") ||
+    (row.call_type !== "audio" && row.call_type !== "video")
+  )
+    throw new Error("Invalid call session returned by the server.");
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    status: row.status,
+    callType: row.call_type,
+  };
+}
+
 export async function chargePhoneCallMinute(
   sessionId: string,
   phone: string,

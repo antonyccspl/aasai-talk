@@ -151,9 +151,9 @@ Deno.serve(async (request) => {
 
     if (action === "call_delivery") {
       const { data, error } = await admin.from("call_sessions")
-        .select("caller_phone,status,host_received_at").eq("id", body.event_id).maybeSingle();
+        .select("initiator_phone,status,host_received_at").eq("id", body.event_id).maybeSingle();
       if (error) throw error;
-      if (!data || data.caller_phone !== identity.phone)
+      if (!data || data.initiator_phone !== identity.phone)
         return Response.json({ error: "Call is not authorized." }, { status: 403, headers: corsHeaders });
       return Response.json({ received: data.status === "connected" || (data.status === "ringing" && Boolean(data.host_received_at)) }, {
         headers: { ...corsHeaders, "Cache-Control": "no-store" },
@@ -352,31 +352,51 @@ Deno.serve(async (request) => {
     let ttl = 3600;
     let incomingCallPayload: Record<string, string> | null = null;
     let presenceAcceptingCalls = false;
+    let recipientIsHost = false;
 
     if (event === "incoming_call") {
       const { data, error } = await admin.from("call_sessions")
-        .select("id,caller_phone,host_phone,call_type,status,created_at")
+        .select("id,caller_phone,host_phone,initiator_phone,call_type,status,created_at")
         .eq("id", eventId).maybeSingle();
       if (error) throw error;
-      if (!data || data.caller_phone !== identity.phone)
+      if (!data || data.initiator_phone !== identity.phone)
         return Response.json({ error: "Incoming call is not authorized." }, { status: 403, headers: corsHeaders });
       if (data.status === "connected") return Response.json({ sent: 0, received: true }, { headers: corsHeaders });
       if (data.status !== "ringing" || Date.parse(data.created_at) <= Date.now() - 60000)
         return Response.json({ error: "This call has already ended." }, { status: 409, headers: corsHeaders });
-      recipientPhone = data.host_phone;
-      const { data: online, error: onlineError } = await admin.rpc("phone_host_is_online", { input_host_phone: recipientPhone });
-      if (onlineError) throw onlineError;
-      if (!online) {
-        await admin.from("call_sessions").update({ status: "missed", ended_at: new Date().toISOString() }).eq("id", eventId).eq("status", "ringing");
-        return Response.json({ error: "Host is offline." }, { status: 409, headers: corsHeaders });
+      recipientPhone = data.initiator_phone === data.caller_phone
+        ? data.host_phone
+        : data.caller_phone;
+      recipientIsHost = recipientPhone === data.host_phone;
+      if (recipientIsHost) {
+        const { data: online, error: onlineError } = await admin.rpc("phone_host_is_online", { input_host_phone: recipientPhone });
+        if (onlineError) throw onlineError;
+        if (!online) {
+          await admin.from("call_sessions").update({ status: "missed", ended_at: new Date().toISOString() }).eq("id", eventId).eq("status", "ringing");
+          return Response.json({ error: "Host is offline." }, { status: 409, headers: corsHeaders });
+        }
+        const { data: presence, error: presenceError } = await admin
+          .from("phone_host_presence")
+          .select("accepting_calls")
+          .eq("host_phone", data.host_phone)
+          .maybeSingle();
+        if (presenceError) throw presenceError;
+        presenceAcceptingCalls = presence?.accepting_calls === true;
+      } else {
+        const { data: presence, error: presenceError } = await admin
+          .from("phone_user_presence")
+          .select("last_seen_at")
+          .eq("phone", recipientPhone)
+          .maybeSingle();
+        if (presenceError) throw presenceError;
+        const lastSeenAt = presence?.last_seen_at
+          ? Date.parse(presence.last_seen_at)
+          : Number.NaN;
+        if (!Number.isFinite(lastSeenAt) || Date.now() - lastSeenAt > 60000) {
+          await admin.from("call_sessions").update({ status: "missed", ended_at: new Date().toISOString() }).eq("id", eventId).eq("status", "ringing");
+          return Response.json({ error: "Member is offline." }, { status: 409, headers: corsHeaders });
+        }
       }
-      const { data: presence, error: presenceError } = await admin
-        .from("phone_host_presence")
-        .select("accepting_calls")
-        .eq("host_phone", data.host_phone)
-        .maybeSingle();
-      if (presenceError) throw presenceError;
-      presenceAcceptingCalls = presence?.accepting_calls === true;
       const { data: caller } = await admin.from("phone_profiles").select("display_name,username")
         .eq("phone", identity.phone).maybeSingle();
       const callerName = typeof caller?.display_name === "string" && caller.display_name.trim()
@@ -440,7 +460,7 @@ Deno.serve(async (request) => {
     }
 
     // Provider failure is not call failure when an active host actually received it.
-    const waitForVisibleHost = async () => {
+    const waitForVisibleRecipient = async () => {
       if (event !== "incoming_call") return false;
       for (let attempt = 0; attempt < 8; attempt++) {
         const { data, error } = await admin.from("call_sessions")
@@ -468,7 +488,7 @@ Deno.serve(async (request) => {
         ? preferences.messages
         : preferences.wallet;
     if (!enabledForAccount) {
-      if (await waitForVisibleHost()) return Response.json({ sent: 0, received: true }, { headers: corsHeaders });
+      if (await waitForVisibleRecipient()) return Response.json({ sent: 0, received: true }, { headers: corsHeaders });
       await markUnreachable();
       return Response.json({ sent: 0 }, { headers: corsHeaders });
     }
@@ -477,7 +497,12 @@ Deno.serve(async (request) => {
       .select("expo_push_token,platform")
       .eq("phone", recipientPhone);
     if (deviceError) throw deviceError;
-    const eligibleDevices = (devices ?? []).filter((device) => device.platform === "ios");
+    const eligibleDevices = (devices ?? []).filter((device) =>
+      device.platform === "ios" ||
+      (event === "incoming_call" &&
+        !recipientIsHost &&
+        device.platform === "android"),
+    );
     let webSubscriptions: Array<{
       endpoint: string;
       p256dh: string;
@@ -490,7 +515,7 @@ Deno.serve(async (request) => {
       webSubscriptions = data ?? [];
     }
     if (!eligibleDevices.length && !webSubscriptions.length) {
-      if (await waitForVisibleHost()) return Response.json({ sent: 0, received: true }, { headers: corsHeaders });
+      if (await waitForVisibleRecipient()) return Response.json({ sent: 0, received: true }, { headers: corsHeaders });
       await markUnreachable();
       return Response.json({ sent: 0 }, { headers: corsHeaders });
     }
@@ -575,14 +600,14 @@ Deno.serve(async (request) => {
     const results = await Promise.allSettled([...nativeResults, ...webResults]);
     const sent = results.filter((result) => result.status === "fulfilled" && result.value).length;
     if (!sent) {
-      if (await waitForVisibleHost()) return Response.json({ sent: 0, received: true }, { headers: corsHeaders });
+      if (await waitForVisibleRecipient()) return Response.json({ sent: 0, received: true }, { headers: corsHeaders });
       if (event === "incoming_call") {
         const { error } = await admin.from("call_sessions").update({ status: "missed", ended_at: new Date().toISOString() }).eq("id", eventId).eq("status", "ringing");
         if (error) throw error;
       }
       await admin.from("phone_push_deliveries").delete()
         .eq("event_key", eventKey).eq("recipient_phone", recipientPhone);
-      return Response.json({ error: "We could not reach the host. Please try again shortly." }, { status: 503, headers: corsHeaders });
+      return Response.json({ error: "We could not reach the call recipient. Please try again shortly." }, { status: 503, headers: corsHeaders });
     }
     return Response.json({ sent }, { headers: { ...corsHeaders, "Cache-Control": "no-store" } });
   } catch (error) {

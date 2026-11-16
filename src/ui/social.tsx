@@ -2,6 +2,11 @@ import { useAuth } from "@/data/auth";
 import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
 import { sendPushEvent } from "@/data/push-notifications";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
+import {
+  fetchHostOnlineMaleMembers,
+  type HostOnlineMaleMember,
+} from "@/data/host-members";
+import { fetchHostPresenceSettings } from "@/data/host-presence";
 import { profileLanguages } from "@/data/profile-options";
 import { usePhoneHostCallCapabilities } from "@/hooks/use-phone-host-call-capabilities";
 import { router, useFocusEffect } from "expo-router";
@@ -30,7 +35,7 @@ import {
     T,
     UserCard,
 } from "./components";
-import { defaultFacets, formatTalkDuration, people, personFor, useDemo } from "./store";
+import { coins, defaultFacets, formatTalkDuration, people, personFor, useDemo } from "./store";
 import { colors as c } from "./theme";
 import { useLanguage } from "./language";
 
@@ -121,7 +126,7 @@ function HostDashboardHome() {
   };
   const todayMetricCardStyle = { ...metricCardStyle, minHeight: 132 };
   return (
-    <Shell tab="Explore" refreshing={refreshing} onRefresh={refresh}>
+    <Shell tab="Dashboard" refreshing={refreshing} onRefresh={refresh}>
       <Card style={{
         backgroundColor: c.low,
         borderWidth: 1,
@@ -240,9 +245,8 @@ function HostDirectoryUnavailable({ title = "Host dashboard" }: { title?: string
         </View>
         <T size={20} bold>Hosts receive calls</T>
         <T color={c.secondary}>
-          Your Host account is set up to receive calls from members. Searching
-          the Host directory and starting outgoing calls are not available for
-          Hosts.
+          Member search is available to male accounts. Approved Hosts can use
+          the Explore tab to find online members and start calls.
         </T>
         <Button title="Go to Host dashboard" onPress={() => go("/explore")} />
       </Card>
@@ -254,7 +258,7 @@ function HostJourneyHome() {
   const d = useDemo();
   const pending = d.hostStatus === "pending";
   return (
-    <Shell tab="Explore">
+    <Shell tab="Dashboard">
       <Card style={{ backgroundColor: "#3b2740", borderWidth: 1, borderColor: "#69476d", gap: 14 }}>
         <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
           <View style={{ backgroundColor: "#f6d6b2", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 }}>
@@ -288,6 +292,215 @@ function HostJourneyHome() {
         </T>
       </Card>
       <Button title="Need help? Contact support" variant="secondary" icon="help-circle" onPress={() => go("/settings/help")} />
+    </Shell>
+  );
+}
+
+export function HostExplore() {
+  const auth = useAuth();
+  const d = useDemo();
+  const [members, setMembers] = useState<HostOnlineMaleMember[]>([]);
+  const [callOptions, setCallOptions] = useState({
+    online: false,
+    audio: false,
+    video: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    if (!auth.demoPhone || d.hostStatus !== "approved") return;
+    const [onlineMembers, settings] = await Promise.all([
+      fetchHostOnlineMaleMembers(),
+      fetchHostPresenceSettings(await auth.getIdentityToken()),
+    ]);
+    setMembers(onlineMembers);
+    setCallOptions({
+      online: settings.acceptingCalls,
+      audio: settings.canAcceptAudioCalls && settings.acceptingAudioCalls,
+      video: settings.canAcceptVideoCalls && settings.acceptingVideoCalls,
+    });
+    setError("");
+  }, [auth.demoPhone, auth.getIdentityToken, d.hostStatus]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let focused = true;
+      let loadingRequest = false;
+      const refreshMembers = async () => {
+        if (!focused || loadingRequest) return;
+        loadingRequest = true;
+        try {
+          await load();
+        } catch (cause) {
+          if (focused)
+            setError(
+              cause instanceof Error
+                ? cause.message
+                : "Unable to load online members.",
+            );
+        } finally {
+          loadingRequest = false;
+          if (focused) setLoading(false);
+        }
+      };
+      setLoading(true);
+      void refreshMembers();
+      const interval = setInterval(() => void refreshMembers(), 10000);
+      return () => {
+        focused = false;
+        clearInterval(interval);
+      };
+    }, [load]),
+  );
+
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to refresh online members.",
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  if (d.hostStatus !== "approved") {
+    return (
+      <Shell title="Explore">
+        <Notice error>An approved Host account is required to view members.</Notice>
+        <Button title="Go to Host dashboard" onPress={() => go("/explore")} />
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell tab="Explore" refreshing={refreshing} onRefresh={refresh}>
+      <Card style={{ gap: 8 }}>
+        <T mono size={11} color={c.mint}>HOST EXPLORE</T>
+        <T size={22} bold>Online members</T>
+        <T color={c.secondary}>
+          See members’ available coins before starting an audio or video call.
+          Calls are charged to the member at the existing rate.
+        </T>
+      </Card>
+      {!callOptions.online ? (
+        <Notice tone="warning" title="You are offline">
+          Go online from the Dashboard before starting calls. You can still
+          message online members.
+        </Notice>
+      ) : null}
+      {error ? <Notice error>{error}</Notice> : null}
+      {loading ? (
+        <LoadingCards count={3} />
+      ) : members.length ? (
+        members.map((member) => {
+          const memberId = `phone_${member.phone.replace(/\D/g, "")}`;
+          const audioAffordable = member.availableCoins >= 20;
+          const videoAffordable = member.availableCoins >= 40;
+          const audioEnabled =
+            callOptions.online &&
+            callOptions.audio &&
+            member.availability === "Available" &&
+            audioAffordable;
+          const videoEnabled =
+            callOptions.online &&
+            callOptions.video &&
+            member.availability === "Available" &&
+            videoAffordable;
+          return (
+            <Card key={member.phone} style={{ gap: 12 }}>
+              <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+                <Row style={{ flex: 1 }}>
+                  <View
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 24,
+                      backgroundColor: c.high,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <T bold size={17} color={c.mint}>
+                      {member.username.slice(0, 1).toUpperCase()}
+                    </T>
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <T bold size={16} numberOfLines={1}>@{member.username}</T>
+                    <T size={12} color={c.secondary}>
+                      {member.availability === "Available" ? "Online" : "On a call"}
+                    </T>
+                  </View>
+                </Row>
+                <Badge
+                  text={member.availability === "Available" ? "Online" : "Busy"}
+                  tone={member.availability === "Available" ? "success" : "warning"}
+                />
+              </Row>
+              <Row style={{ justifyContent: "space-between" }}>
+                <T size={13} color={c.secondary}>Available balance</T>
+                <T bold color={c.mint}>{coins(member.availableCoins)}</T>
+              </Row>
+              <Row style={{ flexWrap: "wrap" }}>
+                <Button
+                  title="Message"
+                  icon="message-circle"
+                  variant="secondary"
+                  style={{ flex: 1, minWidth: 105 }}
+                  onPress={() => go(`/chat/${memberId}`)}
+                />
+                {callOptions.audio ? (
+                  <Button
+                    title="Audio call"
+                    icon="phone"
+                    style={{ flex: 1, minWidth: 105 }}
+                    disabled={!audioEnabled}
+                    onPress={() =>
+                      go(`/calls/outgoing/${memberId}?type=audio&name=${encodeURIComponent(`@${member.username}`)}`)
+                    }
+                  />
+                ) : null}
+                {callOptions.video ? (
+                  <Button
+                    title="Video call"
+                    icon="video"
+                    variant="secondary"
+                    style={{ flex: 1, minWidth: 105 }}
+                    disabled={!videoEnabled}
+                    onPress={() =>
+                      go(`/calls/outgoing/${memberId}?type=video&name=${encodeURIComponent(`@${member.username}`)}`)
+                    }
+                  />
+                ) : null}
+              </Row>
+              {member.availability === "Available" &&
+                ((callOptions.audio && !audioAffordable) ||
+                  (callOptions.video && !videoAffordable)) ? (
+                <T size={12} color={c.warning}>
+                  Calls are disabled when the balance is below the first-minute cost
+                  (20 coins audio, 40 coins video).
+                </T>
+              ) : null}
+            </Card>
+          );
+        })
+      ) : (
+        <Empty
+          icon="users"
+          title="No members online"
+          message="Online male members will appear here with their available coin balances."
+          action="Refresh"
+          onPress={() => void refresh()}
+        />
+      )}
     </Shell>
   );
 }
@@ -954,12 +1167,22 @@ export function Chat({ id }: { id: string }) {
   const { refreshUnreadMessageCount, refreshUnreadNotificationCount, setOpenChatPhone } = d;
   const auth = useAuth();
   const p = personFor(id);
-  const hostPhone = id.startsWith("phone_")
+  const otherPhone = id.startsWith("phone_")
     ? `+${id.slice("phone_".length)}`
     : "";
+  const hostPhone = otherPhone;
   const callCapabilities = usePhoneHostCallCapabilities(hostPhone);
   const isApprovedHost = d.hostStatus === "approved";
-  const [hostCallerUsername, setHostCallerUsername] = useState("");
+  const [hostCaller, setHostCaller] = useState<{
+    phone: string;
+    requesterPhone: string;
+    username: string;
+  } | null>(null);
+  const hostCallerUsername =
+    hostCaller?.phone === otherPhone &&
+    hostCaller.requesterPhone === auth.demoPhone
+      ? hostCaller.username
+      : "";
   const chatPerson = isApprovedHost
     ? {
         ...p,
@@ -968,33 +1191,36 @@ export function Chat({ id }: { id: string }) {
       }
     : p;
   const [liveMessages, setLiveMessages] = useState<PhoneMessage[]>([]);
-  const [messagesLoading, setMessagesLoading] = useState(true);
+  const [loadedChatKey, setLoadedChatKey] = useState("");
   const [chatError, setChatError] = useState("");
   const blocked = d.blocked.includes(id);
   const text = d.drafts[id] || "";
-  const otherPhone = id.startsWith("phone_") ? `+${id.slice("phone_".length)}` : "";
+  const chatKey =
+    auth.demoPhone && otherPhone
+      ? `${auth.demoPhone}:${otherPhone}`
+      : "";
+  const messagesLoading = Boolean(chatKey) && loadedChatKey !== chatKey;
   useEffect(() => {
-    if (!isApprovedHost || !auth.demoPhone || !otherPhone) {
-      setHostCallerUsername("");
-      return;
-    }
+    if (!isApprovedHost || !auth.demoPhone || !otherPhone) return;
     let active = true;
     void fetchPhoneConversations(auth.demoPhone)
       .then((rows) => {
         if (active)
-          setHostCallerUsername(
-            rows.find((row) => row.other_phone === otherPhone)?.other_username || "",
-          );
+          setHostCaller({
+            phone: otherPhone,
+            requesterPhone: auth.demoPhone!,
+            username:
+              rows.find((row) => row.other_phone === otherPhone)
+                ?.other_username || "",
+          });
       })
       .catch((error) => console.warn("Unable to load caller username:", error));
     return () => { active = false; };
   }, [auth.demoPhone, isApprovedHost, otherPhone]);
   useEffect(() => {
-    if (!auth.demoPhone || !otherPhone) {
-      setMessagesLoading(false);
-      return;
-    }
+    if (!auth.demoPhone || !otherPhone) return;
     let active = true;
+    const currentChatKey = `${auth.demoPhone}:${otherPhone}`;
     setOpenChatPhone(otherPhone);
     const loadMessages = () => fetchPhoneMessages(auth.demoPhone!, otherPhone)
       .then((messages) => {
@@ -1008,7 +1234,7 @@ export function Chat({ id }: { id: string }) {
         }
       })
       .catch((error) => { if (active) setChatError(error instanceof Error ? error.message : "Unable to load messages."); })
-      .finally(() => { if (active) setMessagesLoading(false); });
+      .finally(() => { if (active) setLoadedChatKey(currentChatKey); });
     void loadMessages();
     const refreshTimer = setInterval(() => { void loadMessages(); }, 5000);
     const unsubscribe = subscribeToPhoneMessages(auth.demoPhone, otherPhone, (message) => {

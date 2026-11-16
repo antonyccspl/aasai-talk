@@ -3,6 +3,12 @@ import {
     type HostCurrentSlab,
 } from "@/data/host-metrics";
 import { formatLastSeen } from "@/data/directory";
+import { useAuth } from "@/data/auth";
+import {
+    fetchHostCallAvailability,
+    setHostCallAvailability,
+} from "@/data/host-presence";
+import { prepareCallAudio } from "@/data/call-sounds";
 import { usePhoneHostCallCapabilities } from "@/hooks/use-phone-host-call-capabilities";
 import { Feather, FontAwesome6 } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -1108,10 +1114,73 @@ export function Shell({
   stickyContentHeader?: React.ReactNode;
 }) {
   const d = useDemo();
+  const auth = useAuth();
   const scrollRef = useRef<ScrollView>(null);
   const isApprovedHost = d.hostStatus === "approved";
   const isHostAccount = d.profile.gender === "Female";
   const canBuyCoins = d.profile.gender === "Male" && d.paid && !isApprovedHost;
+  const [hostAvailability, setHostAvailability] = useState<boolean | null>(null);
+  const [hostAvailabilityBusy, setHostAvailabilityBusy] = useState(false);
+  const [hostAvailabilityError, setHostAvailabilityError] = useState("");
+  const availabilityRequestRef = useRef(false);
+  const refreshHostAvailability = React.useCallback(async () => {
+    if (!auth.demoPhone || availabilityRequestRef.current) return;
+    availabilityRequestRef.current = true;
+    try {
+      const acceptingCalls = await fetchHostCallAvailability(
+        await auth.getIdentityToken(),
+      );
+      setHostAvailability(acceptingCalls);
+      setHostAvailabilityError("");
+    } catch (error) {
+      setHostAvailabilityError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load your call availability.",
+      );
+    } finally {
+      availabilityRequestRef.current = false;
+    }
+  }, [auth.demoPhone, auth.getIdentityToken]);
+  useEffect(() => {
+    if (!isApprovedHost || !isHostAccount || tab !== "Dashboard") {
+      setHostAvailability(null);
+      setHostAvailabilityError("");
+      return;
+    }
+    void refreshHostAvailability();
+    const interval = setInterval(() => void refreshHostAvailability(), 10000);
+    return () => clearInterval(interval);
+  }, [
+    isApprovedHost,
+    isHostAccount,
+    refreshHostAvailability,
+    tab,
+  ]);
+  const toggleHostAvailability = async () => {
+    if (hostAvailability === null) {
+      await refreshHostAvailability();
+      return;
+    }
+    if (!auth.demoPhone || hostAvailabilityBusy) return;
+    const next = !hostAvailability;
+    setHostAvailabilityBusy(true);
+    setHostAvailabilityError("");
+    try {
+      const token = await auth.getIdentityToken();
+      if (next) prepareCallAudio();
+      await setHostCallAvailability(token, next);
+      setHostAvailability(next);
+    } catch (error) {
+      setHostAvailabilityError(
+        error instanceof Error
+          ? error.message
+          : "Unable to update your call availability.",
+      );
+    } finally {
+      setHostAvailabilityBusy(false);
+    }
+  };
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 220);
@@ -1154,6 +1223,9 @@ export function Shell({
     : 430;
   const tabs: [string, IconName, string][] = [
     [isHostAccount ? "Dashboard" : "Explore", isHostAccount ? "grid" : "compass", "/explore"],
+    ...(isHostAccount && isApprovedHost
+      ? [["Explore", "compass", "/host/explore"] as [string, IconName, string]]
+      : []),
     ...(!isHostAccount || isApprovedHost ? [["Calls", "phone", "/calls"] as [string, IconName, string]] : []),
     ["Messages", "message-square", "/messages"],
     ...(canBuyCoins
@@ -1244,6 +1316,63 @@ export function Shell({
                     </T>
                   </Pressable>
                 )}
+                {!title && isApprovedHost && tab === "Dashboard" && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      hostAvailability === null
+                        ? "Refresh call availability"
+                        : hostAvailability
+                          ? "Go offline"
+                          : "Go online"
+                    }
+                    accessibilityState={{
+                      disabled: hostAvailabilityBusy,
+                      selected: hostAvailability === true,
+                    }}
+                    disabled={hostAvailabilityBusy}
+                    onPress={() => void toggleHostAvailability()}
+                    style={{
+                      minHeight: 36,
+                      paddingHorizontal: compact ? 8 : 10,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: hostAvailability
+                        ? "#b9e2d0"
+                        : c.line,
+                      backgroundColor: hostAvailability
+                        ? c.successSurface
+                        : c.surface,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 5,
+                      opacity: hostAvailabilityBusy ? 0.6 : 1,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: 4,
+                        backgroundColor: hostAvailability ? c.success : c.muted,
+                      }}
+                    />
+                    <T
+                      mono
+                      bold
+                      size={compact ? 9 : 10}
+                      color={hostAvailability ? c.success : c.secondary}
+                    >
+                      {hostAvailabilityBusy
+                        ? "Updating"
+                        : hostAvailability === null
+                          ? "Check"
+                          : hostAvailability
+                            ? "Online"
+                            : "Offline"}
+                    </T>
+                  </Pressable>
+                )}
                 {!title && (
                   <View>
                     <IconButton
@@ -1278,6 +1407,15 @@ export function Shell({
               </>
             )}
           </Row>}
+          {!fullscreen &&
+            !title &&
+            isApprovedHost &&
+            tab === "Dashboard" &&
+            hostAvailabilityError && (
+              <View style={{ paddingHorizontal: 18, paddingTop: 8 }}>
+                <Notice error>{hostAvailabilityError}</Notice>
+              </View>
+            )}
           {d.active && !immersive && !publicPage && (
             <Pressable
               onPress={() =>
@@ -1290,7 +1428,7 @@ export function Shell({
               <Icon name="phone" color={c.mint} size={16} />
               <T size={12} color={c.mint}>
                 {personFor(d.active.person).name} ·{" "}
-                {d.active.incoming
+                {d.profile.gender !== "Male" || d.active.incoming
                   ? duration(d.active.seconds)
                   : talkTime(
                       Math.max(
@@ -1392,7 +1530,7 @@ export function Shell({
               ]}
             >
               {tabs.map(([name, icon, path]) => {
-                const selected = tab === name || (isHostAccount && name === "Dashboard" && tab === "Explore");
+                const selected = tab === name;
                 return (
                 <Pressable
                   key={name}

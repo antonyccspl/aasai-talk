@@ -12,7 +12,7 @@ import { CoinPack, fetchCoinPacks } from "@/data/coin-packs";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import {
   sendPresenceHeartbeat,
-  acknowledgeHostCall,
+  acknowledgeIncomingCall,
 } from "@/data/host-presence";
 import { sendPushEvent } from "@/data/push-notifications";
 import { SampleWorkspaceProvider } from "@/data/sample-workspace";
@@ -249,7 +249,7 @@ if (Platform.OS !== "web") {
 
 /** Keeps a phone call authoritative even while its screen is not mounted. */
 function ActiveCallLifecycle() {
-  const { active, setActive, setBalance, setCalls, refreshWalletBalance } =
+  const { active, profile, setActive, setBalance, setCalls, refreshWalletBalance } =
     useDemo();
   const { demoPhone, getIdentityToken } = useAuth();
   const activeRef = useRef(active);
@@ -289,7 +289,7 @@ function ActiveCallLifecycle() {
               : current,
           );
           if (
-            !previous.incoming &&
+            profile.gender === "Male" &&
             callType === "video" &&
             previous.person.startsWith("phone_")
           ) {
@@ -311,7 +311,7 @@ function ActiveCallLifecycle() {
                   if (
                     !current ||
                     current.id !== active.id ||
-                    current.incoming ||
+                    profile.gender !== "Male" ||
                     current.type !== "video"
                   )
                     return current;
@@ -352,12 +352,12 @@ function ActiveCallLifecycle() {
         }
       },
     );
-  }, [active?.id, demoPhone, refreshWalletBalance, setActive]);
+  }, [active?.id, demoPhone, profile.gender, refreshWalletBalance, setActive]);
 
   useEffect(() => {
     if (
       !active ||
-      active.incoming ||
+      profile.gender !== "Male" ||
       active.status !== "Connected" ||
       !demoPhone ||
       !phoneCallId(active.id)
@@ -413,6 +413,7 @@ function ActiveCallLifecycle() {
     active?.seconds,
     active?.status,
     demoPhone,
+    profile.gender,
     refreshWalletBalance,
     setBalance,
   ]);
@@ -420,7 +421,7 @@ function ActiveCallLifecycle() {
   useEffect(() => {
     if (
       !active ||
-      active.incoming ||
+      profile.gender !== "Male" ||
       active.status !== "Connected" ||
       !demoPhone ||
       !phoneCallId(active.id) ||
@@ -448,6 +449,7 @@ function ActiveCallLifecycle() {
     active?.seconds,
     active?.status,
     demoPhone,
+    profile.gender,
     refreshWalletBalance,
   ]);
 
@@ -581,7 +583,7 @@ function AppNavigator() {
       const visible = Platform.OS === "web" ? document.visibilityState === "visible" : AppState.currentState === "active";
       if (!visible || !incomingSessionRef.current) return;
       const callId = incomingSessionRef.current;
-      void getIdentityToken().then((token) => acknowledgeHostCall(token, callId))
+      void getIdentityToken().then((token) => acknowledgeIncomingCall(token, callId))
         .catch((error) => console.warn("Unable to confirm incoming call receipt:", error));
     };
     const resume = AppState.addEventListener("change", acknowledgeVisibleCall);
@@ -596,8 +598,8 @@ function AppNavigator() {
       acknowledgeVisibleCall();
       const soundKey = `incoming-call-${call.id}`;
       incomingSoundKeyRef.current = soundKey;
-      // Start alerting before navigation so the Host is notified immediately,
-      // including when rendering the call screen takes a moment on mobile web.
+      // Start alerting before navigation so the recipient is notified
+      // immediately, including when rendering takes a moment on mobile web.
       void startCallSound(soundKey, true, true).catch((error) =>
         console.warn("Unable to play the incoming-call alert:", error),
       );
