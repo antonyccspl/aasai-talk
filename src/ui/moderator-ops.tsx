@@ -1,18 +1,14 @@
 import { useAuth } from "@/data/auth";
 import {
-  fetchModeratorProfilePhotos,
   fetchModeratorQueue,
   fetchModeratorReport,
   fetchModeratorSummary,
-  reviewModeratorProfilePhoto,
   resolveModeratorReport,
   type ModeratorOpsSummary,
-  type ModeratorProfilePhotoReview,
   type ModeratorReport,
 } from "@/data/moderator-ops";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Image } from "react-native";
 import { Button, Card, Chips, Field, Notice, Row, Section, Setting, Shell, T } from "./components";
 import { colors as c } from "./theme";
 
@@ -33,14 +29,11 @@ export function ModeratorOps({ page = "dashboard", id }: { page?: string; id?: s
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<ModeratorOpsSummary | null>(null);
   const [reports, setReports] = useState<ModeratorReport[]>([]);
-  const [profilePhotos, setProfilePhotos] = useState<ModeratorProfilePhotoReview[]>([]);
-  const [photoNotes, setPhotoNotes] = useState<Record<string, string>>({});
   const [report, setReport] = useState<ModeratorReport | null>(null);
   const [status, setStatus] = useState<ModeratorReport["status"]>("Under review");
   const [resolutionNote, setResolutionNote] = useState("");
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
-  const [photoSaved, setPhotoSaved] = useState("");
   const detailPage = page === "reports" && Boolean(id);
   const dashboardPage = page === "dashboard" || page === "login" || page === "analytics";
 
@@ -58,12 +51,7 @@ export function ModeratorOps({ page = "dashboard", id }: { page?: string; id?: s
         setStatus(row.status);
         setResolutionNote(row.resolution_note || "");
       } else if (page === "reports") {
-        const [nextReports, nextPhotos] = await Promise.all([
-          fetchModeratorQueue(token),
-          fetchModeratorProfilePhotos(token),
-        ]);
-        setReports(nextReports);
-        setProfilePhotos(nextPhotos);
+        setReports(await fetchModeratorQueue(token));
       }
       setAuthorized(true);
     } catch (cause) {
@@ -100,43 +88,6 @@ export function ModeratorOps({ page = "dashboard", id }: { page?: string; id?: s
       setSaved("Report update saved and audit logged.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to update this report.");
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const reviewProfilePhoto = async (
-    photo: ModeratorProfilePhotoReview,
-    decision: "approved" | "rejected",
-  ) => {
-    const note = (photoNotes[photo.id] || "").trim();
-    if (!note) {
-      setError("Add a moderator note before reviewing this photo.");
-      return;
-    }
-    setRefreshing(true);
-    setError("");
-    setPhotoSaved("");
-    try {
-      await reviewModeratorProfilePhoto(
-        await auth.getIdentityToken(),
-        photo.id,
-        decision,
-        note,
-      );
-      setProfilePhotos((items) => items.filter((item) => item.id !== photo.id));
-      setPhotoNotes((notes) => {
-        const next = { ...notes };
-        delete next[photo.id];
-        return next;
-      });
-      setPhotoSaved(
-        decision === "approved"
-          ? `${photo.display_name}'s photo was approved and published.`
-          : `${photo.display_name}'s photo was rejected and remains private.`,
-      );
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to review this profile photo.");
     } finally {
       setRefreshing(false);
     }
@@ -187,52 +138,8 @@ export function ModeratorOps({ page = "dashboard", id }: { page?: string; id?: s
         : left.priority === "high" ? -1 : 1,
     );
     return (
-      <Shell title="Moderation queue" refreshing={refreshing} onRefresh={() => void load(true)}>
-        <Section title="Pending profile photos" action={`${profilePhotos.length} PHOTOS`} />
+      <Shell title="Safety reports" refreshing={refreshing} onRefresh={() => void load(true)}>
         {error ? <Notice error>{error}</Notice> : null}
-        {photoSaved ? <Notice tone="success" title="Photo review saved">{photoSaved}</Notice> : null}
-        {profilePhotos.map((photo) => (
-          <Card key={photo.id} style={{ gap: 12 }}>
-            <Image
-              source={{ uri: photo.preview_url }}
-              accessibilityLabel={`Private profile photo preview for ${photo.display_name}`}
-              resizeMode="cover"
-              style={{ width: "100%", height: 280, borderRadius: 16, backgroundColor: c.low }}
-            />
-            <T size={18} bold>{photo.display_name}</T>
-            <T size={12} color={c.secondary}>
-              {photo.gender} · {photo.username ? `@${photo.username} · ` : ""}
-              Phone ending {photo.owner_phone.replace(/\D/g, "").slice(-4)}
-            </T>
-            <T size={12} color={c.muted}>
-              Submitted {new Date(photo.created_at).toLocaleString()}
-            </T>
-            {photo.decision_note ? <Notice>{photo.decision_note}</Notice> : null}
-            <Field
-              label="Moderator note"
-              value={photoNotes[photo.id] || ""}
-              onChange={(value) => setPhotoNotes((notes) => ({ ...notes, [photo.id]: value }))}
-              multiline
-              placeholder="Explain the photo decision"
-            />
-            <Row style={{ gap: 10 }}>
-              <Button
-                title="Approve and publish"
-                disabled={refreshing || !(photoNotes[photo.id] || "").trim()}
-                onPress={() => void reviewProfilePhoto(photo, "approved")}
-                style={{ flex: 1 }}
-              />
-              <Button
-                title="Reject"
-                variant="danger"
-                disabled={refreshing || !(photoNotes[photo.id] || "").trim()}
-                onPress={() => void reviewProfilePhoto(photo, "rejected")}
-                style={{ flex: 1 }}
-              />
-            </Row>
-          </Card>
-        ))}
-        {!profilePhotos.length ? <Notice>No profile photos need review.</Notice> : null}
         <Section title="Safety reports" action={`${reports.length} REPORTS`} />
         {ordered.map((item) => (
           <Setting

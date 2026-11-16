@@ -810,27 +810,28 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
   const [form, setForm] = useState(() =>
     onboarding ? { ...d.profile, name: "", username: "" } : d.profile,
   );
-  // This is deliberately screen-local. A photo must not survive leaving this
-  // editor until the save request has completed and the server has approved it.
+  // Keep the selected file local until the server has published it.
   const [photo, setPhoto] = useState(() =>
     onboarding ? d.photo : d.profile.photo || "",
   );
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [photoMessage, setPhotoMessage] = useState("");
+  const [photoPublished, setPhotoPublished] = useState(false);
   const [busy, setBusy] = useState(false);
   const [avatar, setAvatar] = useState(false);
   const [showDate, setShowDate] = useState(false);
   const change = (key: keyof typeof form, value: string | string[]) => {
     setForm((v) => ({ ...v, [key]: value }));
     setSaved(false);
+    setPhotoPublished(false);
   };
   return (
     <Shell title={onboarding ? "Create your profile" : "Edit profile"}>
       {onboarding && <View style={{ gap: 3, marginBottom: 2 }}><T size={22} bold>Set up your profile</T><T size={13} color={c.secondary}>Add the details people need to recognise you.</T></View>}
       <Card style={{ padding: 13, gap: 10 }}>
         <Row style={{ alignItems: "center", gap: 12 }}>
-          <Avatar size={52} name={form.name} />
+          <Avatar size={52} name={form.name} photoUrl={photo} />
           <View style={{ flex: 1, gap: 1 }}>
             <T bold size={15}>Profile photo <T size={12} color={c.secondary}>(optional)</T></T>
             <T size={12} color={c.secondary}>You can add or change this anytime.</T>
@@ -847,6 +848,7 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
             setError("");
             setPhotoMessage("");
             setSaved(false);
+            setPhotoPublished(false);
           }}
         />
       )}
@@ -974,8 +976,8 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           <View style={{ gap: 8 }}>
             {[
               "Uploading your image securely",
-              "Checking it against our safety policy",
-              "Publishing it only after approval",
+              "Updating your profile photo",
+              "Publishing it immediately",
             ].map((step, index) => (
               <Row key={step} style={{ alignItems: "center", gap: 9 }}>
                 <View style={{ width: 21, height: 21, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: index === 0 ? c.mint : "#bbf7d0" }}>
@@ -1022,7 +1024,9 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
         >
           {photoMessage
             ? `${photoMessage} Your other profile changes have been saved.`
-            : "Your changes have been saved."}
+            : photoPublished
+              ? "Your profile and new photo are now live."
+              : "Your changes have been saved."}
         </Notice>
       )}
       <Button
@@ -1083,17 +1087,19 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
               setPhoto(savedPhoto);
               d.setProfile({ ...form, name, city, bio: form.bio.trim(), photo: savedPhoto });
               setPhotoMessage(photoResult?.photoMessage || "");
+              setPhotoPublished(photoResult?.photoStatus === "published");
               setError("");
               setSaved(true);
             })
             .catch((saveError) => {
               console.error("Failed to save profile:", saveError);
-              // A failed moderation or save must never leave the local file
+              // A failed upload or profile save must not leave the local file
               // URI in the editor or global profile state.
               const savedPhoto = d.profile.photo || "";
               setPhoto(savedPhoto);
               d.setPhoto(savedPhoto);
               setPhotoMessage("");
+              setPhotoPublished(false);
               setError(
                 saveError instanceof Error
                   ? saveError.message

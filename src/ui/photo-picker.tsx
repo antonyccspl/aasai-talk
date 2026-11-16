@@ -7,10 +7,12 @@ export function PhotoPicker({
   uri,
   onChange,
   disabled = false,
+  reviewBeforePublication = false,
 }: {
   uri: string;
   onChange: (uri: string) => void;
   disabled?: boolean;
+  reviewBeforePublication?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -91,8 +93,9 @@ export function PhotoPicker({
         />
       </Row>
       <Notice>
-        Profile photos are reviewed before publication. Explicit sexual content
-        is not allowed.
+        {reviewBeforePublication
+          ? "Your photo will be reviewed with your Host application. Explicit sexual content is not allowed."
+          : "Your profile photo appears immediately. Explicit sexual content is not allowed."}
       </Notice>
       {error ? <Notice error>{error}</Notice> : null}
     </View>

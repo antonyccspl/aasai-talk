@@ -1,5 +1,5 @@
 import { supabase, withSupabaseRequestTimeout } from "./supabase";
-import { submitProfilePhotoForModeration } from "./content-moderation";
+import { publishProfilePhoto } from "./content-moderation";
 
 function describeDatabaseError(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;
@@ -30,7 +30,7 @@ export type UserProfile = {
 
 export type DemoProfileSaveResult = {
   photo?: string;
-  photoStatus: "unchanged" | "approved" | "needs_review" | "not_saved";
+  photoStatus: "unchanged" | "published" | "not_saved";
   photoMessage?: string;
 };
 
@@ -128,25 +128,9 @@ export async function saveDemoProfile(
       photoMessage = "Sign in again before uploading a profile photo.";
     } else {
       try {
-        const result = await submitProfilePhotoForModeration(idToken, profile.photo);
-        if (result.status === "approved") {
-          photo = result.publicUrl;
-          try {
-            await saveProfile(photo);
-            photoStatus = "approved";
-          } catch (error) {
-            photo = previousApprovedPhoto;
-            photoStatus = "not_saved";
-            photoMessage = describeDatabaseError(
-              error,
-              "Your photo passed review but could not yet be attached to your profile. Save again to retry.",
-            );
-          }
-        } else {
-          photoStatus = "needs_review";
-          photoMessage =
-            "Your profile details are saved. The new photo is awaiting safety review and will appear after approval.";
-        }
+        const result = await publishProfilePhoto(idToken, profile.photo);
+        photo = result.publicUrl;
+        photoStatus = "published";
       } catch (error) {
         photoStatus = "not_saved";
         photoMessage = describeDatabaseError(

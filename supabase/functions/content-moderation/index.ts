@@ -57,7 +57,12 @@ Deno.serve(async (request) => {
     const action = form.get("action");
     if (action === "scan-call-frame")
       return reply({ status: "not_scanned" });
-    if (action !== "submit-profile-photo")
+    const publishProfilePhoto = action === "publish-profile-photo"
+      || action === "submit-profile-photo";
+    if (
+      !publishProfilePhoto
+      && action !== "submit-host-application-photo"
+    )
       return reply({ error: "Unsupported moderation action." }, 400);
 
     const file = form.get("photo");
@@ -67,8 +72,36 @@ Deno.serve(async (request) => {
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (!hasValidFileSignature(bytes, file.type))
       return reply({ error: "The selected photo does not match its image type." }, 400);
-    const contentSha256 = await sha256(bytes);
     const admin = adminClient();
+    const digits = identity.phone.replace(/\D/g, "");
+    const path = `${digits}/${crypto.randomUUID()}.${fileSuffix(file.type)}`;
+
+    if (publishProfilePhoto) {
+      const { error: uploadError } = await admin.storage.from("host-photos").upload(
+        path,
+        bytes,
+        { contentType: file.type, upsert: false },
+      );
+      if (uploadError) throw uploadError;
+
+      const publicUrl = admin.storage.from("host-photos").getPublicUrl(path).data.publicUrl;
+      const { error: profileError } = await admin.rpc("publish_phone_profile_photo", {
+        input_phone: identity.phone,
+        input_public_photo_url: publicUrl,
+      });
+      if (profileError) {
+        const { error: cleanupError } = await admin.storage.from("host-photos").remove([path]);
+        if (cleanupError) console.error("Uncommitted profile photo cleanup failed:", cleanupError.message);
+        throw profileError;
+      }
+
+      return reply({
+        status: action === "submit-profile-photo" ? "approved" : "published",
+        public_url: publicUrl,
+      });
+    }
+
+    const contentSha256 = await sha256(bytes);
     const { data: existing, error: existingError } = await admin
       .from("phone_content_moderation_items")
       .select("id,status,public_url,decision_note")
@@ -81,7 +114,6 @@ Deno.serve(async (request) => {
     if (existingError) throw existingError;
     if (existing) return profilePhotoResult(existing);
 
-    const path = `${identity.phone.replace(/\D/g, "")}/${crypto.randomUUID()}.${fileSuffix(file.type)}`;
     const upload = await admin.storage.from("moderation-media").upload(path, bytes, {
       contentType: file.type,
       upsert: false,

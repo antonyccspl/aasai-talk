@@ -192,7 +192,11 @@ export function HostApplication() {
       )}
       {step === 1 && (
         <>
-          <PhotoPicker uri={d.photo} onChange={d.setPhoto} />
+          <PhotoPicker
+            uri={d.photo}
+            onChange={d.setPhoto}
+            reviewBeforePublication
+          />
           <Field
             label="Display name"
             value={form.name}
