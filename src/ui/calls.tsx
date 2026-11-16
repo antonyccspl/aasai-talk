@@ -1708,6 +1708,10 @@ function CallScreenContent({
           <View style={{ gap: 10, padding: 20, paddingBottom: 28, backgroundColor: c.background, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
             <T size={20} bold>Call safety</T>
             <T size={13} color={c.secondary}>End the call any time. You can report or block this person without continuing the conversation.</T>
+            <T size={12} color={c.secondary}>
+              Reports include your selected reason and basic call details only.
+              Audio and video calls are not recorded or stored.
+            </T>
             {[
               "Poor audio quality",
               "Poor video quality",

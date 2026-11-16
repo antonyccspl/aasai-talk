@@ -2485,6 +2485,11 @@ export function Safety({ id, mode }: { id: string; mode: string }) {
             Help keep conversations kind.
           </T>
           <T color={c.secondary}>What happened with {p.name}?</T>
+          <T size={12} color={c.secondary}>
+            Your report and the details you provide are reviewed by authorized
+            safety moderators. Include only relevant message text or call
+            details. Audio and video calls are not recorded or stored.
+          </T>
           <View style={{ gap: 10 }}>
             {[
               "Spam",
