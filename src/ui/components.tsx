@@ -1128,6 +1128,13 @@ export function Shell({
   const [hostAvailability, setHostAvailability] = useState<boolean | null>(null);
   const [hostAvailabilityBusy, setHostAvailabilityBusy] = useState(false);
   const [hostAvailabilityError, setHostAvailabilityError] = useState("");
+  const showHostAvailability =
+    !immersive &&
+    !fullscreen &&
+    !publicPage &&
+    !title &&
+    isApprovedHost &&
+    isHostAccount;
   const availabilityRequestRef = useRef(false);
   const refreshHostAvailability = React.useCallback(async () => {
     if (!auth.demoPhone || availabilityRequestRef.current) return;
@@ -1149,7 +1156,7 @@ export function Shell({
     }
   }, [auth.demoPhone, auth.getIdentityToken]);
   useEffect(() => {
-    if (!isApprovedHost || !isHostAccount || tab !== "Dashboard") {
+    if (!showHostAvailability) {
       setHostAvailability(null);
       setHostAvailabilityError("");
       return;
@@ -1158,10 +1165,8 @@ export function Shell({
     const interval = setInterval(() => void refreshHostAvailability(), 10000);
     return () => clearInterval(interval);
   }, [
-    isApprovedHost,
-    isHostAccount,
     refreshHostAvailability,
-    tab,
+    showHostAvailability,
   ]);
   const toggleHostAvailability = async () => {
     if (hostAvailability === null) {
@@ -1322,61 +1327,81 @@ export function Shell({
                     </T>
                   </Pressable>
                 )}
-                {!title && isApprovedHost && tab === "Dashboard" && (
+                {showHostAvailability && (
                   <Pressable
-                    accessibilityRole="button"
+                    accessibilityRole="switch"
                     accessibilityLabel={
                       hostAvailability === null
-                        ? "Refresh call availability"
-                        : hostAvailability
-                          ? "Go offline"
-                          : "Go online"
+                        ? "Host call availability is being checked"
+                        : `Host calls ${hostAvailability ? "online" : "offline"}`
                     }
                     accessibilityState={{
                       disabled: hostAvailabilityBusy,
-                      selected: hostAvailability === true,
+                      checked: hostAvailability === true,
                     }}
                     disabled={hostAvailabilityBusy}
                     onPress={() => void toggleHostAvailability()}
                     style={{
-                      minHeight: 36,
-                      paddingHorizontal: compact ? 8 : 10,
-                      borderRadius: 999,
-                      borderWidth: 1,
+                      minHeight: 42,
+                      minWidth: compact ? 96 : 104,
+                      paddingHorizontal: compact ? 9 : 11,
+                      borderRadius: 14,
+                      borderWidth: 1.5,
                       borderColor: hostAvailability
-                        ? "#b9e2d0"
+                        ? "#a8ddc1"
                         : c.line,
                       backgroundColor: hostAvailability
                         ? c.successSurface
-                        : c.surface,
+                        : c.low,
                       flexDirection: "row",
                       alignItems: "center",
-                      gap: 5,
+                      justifyContent: "space-between",
+                      gap: 7,
                       opacity: hostAvailabilityBusy ? 0.6 : 1,
                     }}
                   >
                     <View
                       style={{
-                        width: 7,
-                        height: 7,
+                        width: 8,
+                        height: 8,
                         borderRadius: 4,
                         backgroundColor: hostAvailability ? c.success : c.muted,
                       }}
                     />
                     <T
-                      mono
                       bold
-                      size={compact ? 9 : 10}
+                      size={compact ? 10 : 11}
                       color={hostAvailability ? c.success : c.secondary}
+                      style={{ flex: 1 }}
                     >
                       {hostAvailabilityBusy
                         ? "Updating"
                         : hostAvailability === null
-                          ? "Check"
+                          ? "Checking"
                           : hostAvailability
                             ? "Online"
                             : "Offline"}
                     </T>
+                    <View
+                      style={{
+                        width: 30,
+                        height: 18,
+                        borderRadius: 9,
+                        padding: 2,
+                        justifyContent: "center",
+                        backgroundColor: hostAvailability ? c.success : c.line,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 14,
+                          height: 14,
+                          borderRadius: 7,
+                          alignSelf: hostAvailability ? "flex-end" : "flex-start",
+                          backgroundColor: "#ffffff",
+                        }}
+                      />
+                    </View>
                   </Pressable>
                 )}
                 {!title && (
@@ -1413,15 +1438,11 @@ export function Shell({
               </>
             )}
           </Row>}
-          {!fullscreen &&
-            !title &&
-            isApprovedHost &&
-            tab === "Dashboard" &&
-            hostAvailabilityError && (
+          {showHostAvailability && hostAvailabilityError && (
               <View style={{ paddingHorizontal: 18, paddingTop: 8 }}>
                 <Notice error>{hostAvailabilityError}</Notice>
               </View>
-            )}
+          )}
           {d.active && !immersive && !publicPage && (
             <Pressable
               onPress={() =>
