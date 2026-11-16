@@ -203,22 +203,18 @@ export function Wallet({
       });
     return () => { active = false; };
   }, [d.active?.id, d.balance, demoPhone, user?.phone]);
+  const byPriceAscending = (a: CoinPack, b: CoinPack) =>
+    a.price_paise - b.price_paise ||
+    a.sort_order - b.sort_order ||
+    a.id.localeCompare(b.id);
   const now = Date.now();
   const visibleCoinPacks = coinPacks.filter((pack) => {
     const startsAt = pack.available_from ? Date.parse(pack.available_from) : Number.NEGATIVE_INFINITY;
     const endsAt = pack.available_until ? Date.parse(pack.available_until) : Number.POSITIVE_INFINITY;
     return !Number.isNaN(startsAt) && !Number.isNaN(endsAt) && startsAt <= now && now < endsAt;
-  });
-  const byPriceAscending = (a: CoinPack, b: CoinPack) =>
-    a.price_paise - b.price_paise ||
-    a.sort_order - b.sort_order ||
-    a.id.localeCompare(b.id);
-  const specialCoinPacks = visibleCoinPacks
-    .filter((pack) => pack.is_special)
-    .sort(byPriceAscending);
-  const regularCoinPacks = visibleCoinPacks
-    .filter((pack) => !pack.is_special)
-    .sort(byPriceAscending);
+  }).sort(byPriceAscending);
+  const specialCoinPacks = visibleCoinPacks.filter((pack) => pack.is_special);
+  const regularCoinPacks = visibleCoinPacks.filter((pack) => !pack.is_special);
   const selectedPack = visibleCoinPacks.find(pack => pack.id === d.selectedCoinPackId)
     ?? regularCoinPacks.find((pack) => pack.coins === 500)
     ?? regularCoinPacks[0]
@@ -229,7 +225,7 @@ export function Wallet({
   const [homeTab, setHomeTab] = useState<"Activity" | "Offers">("Offers");
   const wideLayout = width >= 900;
   const compactLayout = width < 390;
-  const offerCardWidth = wideLayout ? "23.8%" : "48.5%";
+  const offerCardWidth = wideLayout ? "23.8%" : width >= 350 ? "31.8%" : "48.5%";
   const renderCoinPack = (pack: CoinPack) => {
     const selected = selectedPack?.id === pack.id;
     const totalCoins = pack.coins + pack.bonus_coins;
@@ -243,33 +239,35 @@ export function Wallet({
         onPress={() => d.setSelectedCoinPackId(pack.id)}
         style={{
           width: offerCardWidth,
-          padding: compactLayout ? 7 : 8,
-          minHeight: wideLayout ? 120 : 126,
-          borderRadius: 15,
+          padding: compactLayout ? 5 : 6,
+          minHeight: wideLayout ? 88 : 92,
+          borderRadius: 12,
           backgroundColor: selected ? c.high : c.low,
           borderWidth: 1,
           borderColor: selected ? c.mint : pack.is_special ? "#f0bd4b" : "transparent",
-          gap: 4,
+          gap: 2,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <View style={{ height: 18, justifyContent: "center" }}>
+        <View style={{ height: 14, justifyContent: "center" }}>
           {!!label && (
             <View style={{ backgroundColor: isRecommended ? c.secondary : "#b7791f", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}>
-              <T mono size={9} bold color="#ffffff">{label}</T>
+              <T mono size={8} bold color="#ffffff" numberOfLines={1}>{label}</T>
             </View>
           )}
         </View>
-        <CoinStack size={compactLayout ? 21 : 23} />
-        <T size={compactLayout ? 15 : 16} bold color={selected ? c.mint : c.text} style={{ textAlign: "center" }}>
-          {totalCoins}
-        </T>
-        <T mono size={10} color={c.secondary} style={{ textAlign: "center" }}>coins</T>
-        <View style={{ height: 13 }}>
-          {pack.bonus_coins > 0 && <T mono size={9} bold color={c.mint}>includes +{pack.bonus_coins} bonus</T>}
+        <Row style={{ justifyContent: "center", gap: 4 }}>
+          <CoinStack size={compactLayout ? 17 : 18} />
+          <T size={compactLayout ? 13 : 14} bold color={selected ? c.mint : c.text}>
+            {totalCoins}
+          </T>
+          <T mono size={9} color={c.secondary}>coins</T>
+        </Row>
+        <View style={{ height: 11, justifyContent: "center" }}>
+          {pack.bonus_coins > 0 && <T mono size={9} bold color={c.mint} numberOfLines={1}>+{pack.bonus_coins} bonus</T>}
         </View>
-        <T mono size={9} color={c.muted} style={{ textAlign: "center" }}>
+        <T mono size={10} color={c.muted} style={{ textAlign: "center" }}>
           {money(pack.price_paise / 100)}
         </T>
       </Pressable>
@@ -626,15 +624,9 @@ export function Wallet({
           </Row>
         </Card>
       )}
-      {!!specialCoinPacks.length && <Section title="Special offers" />}
-      {!!specialCoinPacks.length && (
-        <Row style={{ flexWrap: "wrap", justifyContent: "space-between", columnGap: 0, rowGap: 8 }}>
-          {specialCoinPacks.map(renderCoinPack)}
-        </Row>
-      )}
-      {!!regularCoinPacks.length && <Section title="All coin packs" />}
-      <Row style={{ flexWrap: "wrap", justifyContent: "space-between", columnGap: 0, rowGap: 8 }}>
-        {regularCoinPacks.map(renderCoinPack)}
+      {!!visibleCoinPacks.length && <Section title="All coin packs" />}
+      <Row style={{ flexWrap: "wrap", justifyContent: "space-between", columnGap: 0, rowGap: 4 }}>
+        {visibleCoinPacks.map(renderCoinPack)}
       </Row>
       <T mono size={11} color={c.secondary} style={{ textAlign: "center" }}>
         10 coins = 1 heart
