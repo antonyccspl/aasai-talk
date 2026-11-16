@@ -38,38 +38,26 @@ revoke all on function public.set_phone_call_default_initiator()
 
 create or replace function public.phone_auth_matches(input_phone text)
 returns boolean
-language plpgsql
+language sql
 stable
 security definer
 set search_path = ''
 as $$
-declare
-  verified_digits text;
-  input_digits text;
-begin
-  if coalesce(auth.role(), '') = 'service_role' then
-    return true;
-  end if;
-  if auth.uid() is null or input_phone is null then
-    return false;
-  end if;
-
-  verified_digits := pg_catalog.regexp_replace(
+  select coalesce(auth.role(), '') = 'service_role'
+    or (
+      auth.uid() is not null
+      and pg_catalog.regexp_replace(
     coalesce(auth.jwt() ->> 'phone', ''),
     '[^0-9]',
     '',
     'g'
-  );
-  input_digits := pg_catalog.regexp_replace(input_phone, '[^0-9]', '', 'g');
-  if length(verified_digits) = 10 then
-    verified_digits := '91' || verified_digits;
-  end if;
-  if length(input_digits) = 10 then
-    input_digits := '91' || input_digits;
-  end if;
-  return verified_digits ~ '^91[0-9]{10}$'
-    and verified_digits = input_digits;
-end;
+      ) = pg_catalog.regexp_replace(
+        coalesce(input_phone, ''),
+        '[^0-9]',
+        '',
+        'g'
+      )
+    );
 $$;
 
 revoke all on function public.phone_auth_matches(text)
@@ -377,22 +365,22 @@ begin
        or (block.blocker_phone = input_member_phone and block.blocked_phone = host_phone)
   ) then raise exception 'Calls are unavailable for this connection'; end if;
 
-  update public.call_sessions as call
+  update public.call_sessions
   set status = 'missed', ended_at = now(), duration_seconds = 0
-  where call.status = 'ringing'
-    and call.created_at < now() - interval '60 seconds'
-    and (call.caller_phone in (host_phone, input_member_phone)
-      or call.host_phone in (host_phone, input_member_phone));
+  where status = 'ringing'
+    and created_at < now() - interval '60 seconds'
+    and (caller_phone in (host_phone, input_member_phone)
+      or host_phone in (host_phone, input_member_phone));
 
-  update public.call_sessions as call
+  update public.call_sessions
   set status = 'cancelled', ended_at = now(), duration_seconds = 0
-  where call.initiator_phone = host_phone and call.status = 'ringing';
+  where initiator_phone = host_phone and status = 'ringing';
 
   if exists (
-    select 1 from public.call_sessions as call
-    where (call.caller_phone in (host_phone, input_member_phone)
-       or call.host_phone in (host_phone, input_member_phone))
-      and call.status in ('ringing', 'connected')
+    select 1 from public.call_sessions
+    where (caller_phone in (host_phone, input_member_phone)
+       or host_phone in (host_phone, input_member_phone))
+      and status in ('ringing', 'connected')
   ) then raise exception 'You or this member is already on a call'; end if;
 
   first_minute_cost := case input_call_type when 'video' then 40.0 else 20.0 end;
@@ -704,7 +692,7 @@ set content = coalesce((
           item.value,
           '{description}',
           to_jsonb(
-            'While you use the app, we refresh a recent-activity timestamp to show your online status to authorised operations staff and approved Hosts. Approved Hosts can also see your available coin balance while you are online so they can check whether a call is affordable. We keep only the latest timestamp, not an activity history, and treat you as offline after about a minute without an update.'::text
+            'While you use the app, we refresh a recent-activity timestamp to show your online status to authorised operations staff and approved Hosts. Approved Hosts can also see your available coin balance while you are online so they can check whether a call is affordable. We keep only the latest timestamp, not an activity history, and treat you as offline after about a minute without an update.'
           ),
           true
         )
