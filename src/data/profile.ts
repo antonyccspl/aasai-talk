@@ -104,6 +104,24 @@ export async function saveDemoProfile(
   let photoStatus: DemoProfileSaveResult["photoStatus"] = "unchanged";
   let photoMessage: string | undefined;
 
+  const saveProfile = async (profilePhoto?: string) => {
+    const { error } = await supabase.rpc("complete_phone_identity", {
+      input_phone: phone,
+      input_profile: {
+        ...profile,
+        dob: profile.dob,
+        gender: profile.gender,
+        photo: profilePhoto,
+      },
+    });
+    if (error)
+      throw new Error(
+        describeDatabaseError(error, "We could not save your profile. Please try again."),
+      );
+  };
+
+  await saveProfile(photo);
+
   if (profile.photo && !isApprovedPhoto(profile.photo)) {
     if (!idToken) {
       photoStatus = "not_saved";
@@ -113,11 +131,21 @@ export async function saveDemoProfile(
         const result = await submitProfilePhotoForModeration(idToken, profile.photo);
         if (result.status === "approved") {
           photo = result.publicUrl;
-          photoStatus = "approved";
+          try {
+            await saveProfile(photo);
+            photoStatus = "approved";
+          } catch (error) {
+            photo = previousApprovedPhoto;
+            photoStatus = "not_saved";
+            photoMessage = describeDatabaseError(
+              error,
+              "Your photo passed review but could not yet be attached to your profile. Save again to retry.",
+            );
+          }
         } else {
           photoStatus = "needs_review";
           photoMessage =
-            "The new photo is awaiting safety review and will appear after approval.";
+            "Your profile details are saved. The new photo is awaiting safety review and will appear after approval.";
         }
       } catch (error) {
         photoStatus = "not_saved";
@@ -129,19 +157,6 @@ export async function saveDemoProfile(
     }
   }
 
-  const { error } = await supabase.rpc("complete_phone_identity", {
-    input_phone: phone,
-    input_profile: {
-      ...profile,
-      dob: profile.dob,
-      gender: profile.gender,
-      photo,
-    },
-  });
-  if (error)
-    throw new Error(
-      describeDatabaseError(error, "We could not save your profile. Please try again."),
-    );
   return { photo, photoStatus, photoMessage };
 }
 

@@ -13,6 +13,17 @@ export type ModeratorReport = {
   priority: "high" | "normal";
 };
 
+export type ModeratorProfilePhotoReview = {
+  id: string;
+  owner_phone: string;
+  display_name: string;
+  username: string | null;
+  gender: string;
+  created_at: string;
+  decision_note: string | null;
+  preview_url: string;
+};
+
 export type ModeratorOpsSummary = {
   period_days: number;
   calls_total: number;
@@ -56,6 +67,27 @@ export async function fetchModeratorSummary(idToken: string) {
 export async function fetchModeratorQueue(idToken: string) {
   const result = await moderatorRequest<{ reports: ModeratorReport[] }>(idToken, "queue");
   return result.reports;
+}
+
+export async function fetchModeratorProfilePhotos(idToken: string) {
+  const result = await moderatorRequest<{ photos: ModeratorProfilePhotoReview[] }>(
+    idToken,
+    "profile-photo-queue",
+  );
+  return result.photos;
+}
+
+export async function reviewModeratorProfilePhoto(
+  idToken: string,
+  photoId: string,
+  decision: "approved" | "rejected",
+  note: string,
+) {
+  await moderatorRequest<{ ok: boolean }>(
+    idToken,
+    "review-profile-photo",
+    { id: photoId, decision, note },
+  );
 }
 
 export async function fetchModeratorReport(idToken: string, reportId: string) {

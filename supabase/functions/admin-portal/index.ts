@@ -1261,6 +1261,39 @@ Deno.serve(async (request) => {
           : {};
         return typeof profile.photo_review_id === "string" ? [profile.photo_review_id] : [];
       }));
+      const photoPhones = [...new Set((photos || []).map((item) => item.owner_phone))];
+      const [
+        { data: photoProfiles, error: photoProfilesError },
+        { data: latestPhotoItems, error: latestPhotoItemsError },
+      ] = photoPhones.length
+        ? await Promise.all([
+            admin.from("phone_profiles")
+              .select("phone,display_name,username,gender")
+              .in("phone", photoPhones),
+            admin.from("phone_content_moderation_items")
+              .select("id,owner_phone")
+              .eq("content_type", "profile_photo")
+              .in("owner_phone", photoPhones)
+              .order("owner_phone", { ascending: true })
+              .order("created_at", { ascending: false })
+              .order("id", { ascending: false })
+              .limit(1000),
+          ])
+        : [
+            { data: [], error: null },
+            { data: [], error: null },
+          ];
+      if (photoProfilesError || latestPhotoItemsError)
+        throw photoProfilesError || latestPhotoItemsError;
+      const profilesByPhone = new Map((photoProfiles || []).map((profile) => [
+        profile.phone,
+        profile,
+      ]));
+      const latestPhotoIdByPhone = new Map<string, string>();
+      for (const item of latestPhotoItems || []) {
+        if (!latestPhotoIdByPhone.has(item.owner_phone))
+          latestPhotoIdByPhone.set(item.owner_phone, item.id);
+      }
       const reportIds = (reports || []).map((item) => item.id);
       const { data: notes, error: noteError } = reportIds.length
         ? await admin.from("admin_moderation_notes")
@@ -1277,20 +1310,26 @@ Deno.serve(async (request) => {
       }
       const photoReviews = await Promise.all((photos || []).filter((item) =>
         !linkedHostPhotoIds.has(item.id)
+        && latestPhotoIdByPhone.get(item.owner_phone) === item.id
       ).map(async (item) => {
+        const digits = item.owner_phone.replace(/\D/g, "");
+        const expectedPath = new RegExp(`^${digits}/[0-9a-f-]{36}\\.(jpg|png|webp)$`, "i");
         if (
           item.storage_bucket !== "moderation-media"
           || typeof item.storage_path !== "string"
-          || !item.storage_path
-        ) throw new Error("A pending Host photo has invalid private storage metadata.");
+          || !expectedPath.test(item.storage_path)
+        ) throw new Error("A pending profile photo has invalid private storage metadata.");
         const { data: signed, error: signedError } = await admin.storage
           .from("moderation-media").createSignedUrl(item.storage_path, 300);
         if (signedError || !signed?.signedUrl)
-          throw signedError || new Error("Could not prepare a private Host photo preview.");
+          throw signedError || new Error("Could not prepare a private profile photo preview.");
+        const profile = profilesByPhone.get(item.owner_phone);
         return {
           id: item.id,
           record_type: "profile_photo_review",
-          display_name: "Host profile photo",
+          display_name: profile?.display_name || "Member",
+          username: profile?.username || null,
+          gender: profile?.gender || "Member",
           phone: item.owner_phone,
           owner_phone: item.owner_phone,
           reason: "Profile photo needs manual safety review",
@@ -1331,14 +1370,19 @@ Deno.serve(async (request) => {
       const id = typeof body.id === "string" ? body.id : "";
       const decision = typeof body.decision === "string" ? body.decision : "";
       const note = typeof body.note === "string" ? body.note.trim() : "";
-      if (!id || !["approved", "rejected"].includes(decision) || !note)
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+        || !["approved", "rejected"].includes(decision)
+        || !note
+        || note.length > 2000
+      )
         throw new Error("Choose a photo decision and add a review note.");
       const { data: before, error: beforeError } = await admin
         .from("phone_content_moderation_items")
         .select("id,owner_phone,storage_bucket,storage_path,media_type,status,content_type")
         .eq("id", id).maybeSingle();
       if (beforeError || !before)
-        throw beforeError || new Error("Host photo review item was not found.");
+        throw beforeError || new Error("Profile photo review item was not found.");
       const mediaType = typeof before.media_type === "string"
         ? before.media_type
         : fileTypeFromSuffix(before.storage_path || "");
@@ -1349,22 +1393,22 @@ Deno.serve(async (request) => {
         || typeof before.storage_path !== "string"
         || !mediaType
         || !hostImageTypes.has(mediaType)
-      ) throw new Error("This Host photo is not awaiting review.");
+      ) throw new Error("This profile photo is not awaiting review.");
 
       const digits = before.owner_phone.replace(/\D/g, "");
       const expectedPath = new RegExp(`^${digits}/[0-9a-f-]{36}\\.(jpg|png|webp)$`, "i");
       if (!expectedPath.test(before.storage_path))
-        throw new Error("Host photo storage path is invalid.");
+        throw new Error("Profile photo storage path is invalid.");
 
       let publicPhotoPath: string | null = null;
       if (decision === "approved") {
         const { data: photo, error: downloadError } = await admin.storage
           .from("moderation-media").download(before.storage_path);
         if (downloadError || !photo)
-          throw downloadError || new Error("The private Host photo could not be opened.");
+          throw downloadError || new Error("The private profile photo could not be opened.");
         const bytes = new Uint8Array(await photo.arrayBuffer());
         if (!hasValidFileSignature(bytes, mediaType))
-          throw new Error("The stored Host photo does not match its image type.");
+          throw new Error("The stored profile photo does not match its image type.");
         publicPhotoPath = `${digits}/${crypto.randomUUID()}.${fileSuffix(mediaType)}`;
         const { error: publishError } = await admin.storage.from("host-photos").upload(
           publicPhotoPath,
@@ -1374,40 +1418,26 @@ Deno.serve(async (request) => {
         if (publishError) throw publishError;
       }
 
-      const reviewedAt = new Date().toISOString();
       const publicUrl = publicPhotoPath
         ? admin.storage.from("host-photos").getPublicUrl(publicPhotoPath).data.publicUrl
         : null;
-      const { data: updated, error: updateError } = await admin
-        .from("phone_content_moderation_items")
-        .update({
-          status: decision,
-          public_url: publicUrl,
-          media_type: mediaType,
-          decision_note: note,
-          reviewed_by: user.id,
-          reviewed_at: reviewedAt,
-          updated_at: reviewedAt,
-        })
-        .eq("id", id).eq("status", "needs_review")
-        .select("id,status").maybeSingle();
-      if (updateError || !updated) {
+      const { error: reviewError } = await admin.rpc("review_admin_profile_photo", {
+        input_item_id: id,
+        input_actor_uid: user.id,
+        input_decision: decision,
+        input_review_note: note,
+        input_public_photo_url: publicUrl,
+      });
+      if (reviewError) {
         if (publicPhotoPath) {
           const { error: cleanupError } = await admin.storage
             .from("host-photos").remove([publicPhotoPath]);
           if (cleanupError) console.error("Uncommitted Host photo cleanup failed:", cleanupError.message);
         }
-        throw updateError || new Error("This Host photo was already reviewed.");
+        if (reviewError.code === "P0001" && reviewError.message === "profile_photo_superseded")
+          throw new Error("A newer photo was submitted. Refresh the Reports queue before reviewing this one.");
+        throw reviewError;
       }
-      const { error: auditError } = await admin.from("admin_audit_logs").insert({
-        admin_user_id: user.id,
-        action: "host_profile_photo_reviewed",
-        entity_type: "content_moderation_item",
-        entity_id: id,
-        before_state: { status: before.status },
-        after_state: { status: decision, note },
-      });
-      if (auditError) throw auditError;
       return reply({ ok: true, status: decision });
     }
     if (action === "review_safety") { requireRole(role,["super_admin","moderator"]); requirePage(pages,"Reports");const id=typeof body.id === "string"?body.id:"";const status=typeof body.status === "string"?body.status:"";const note=typeof body.note === "string"?body.note.trim():"";if(!id||!["Under review","Resolved","Rejected"].includes(status))throw new Error("Invalid report status.");const {data:before,error:beforeError}=await admin.from("safety_reports").select("status,resolution_note").eq("id",id).maybeSingle();if(beforeError||!before)throw beforeError||new Error("Safety report was not found.");if(["Resolved","Rejected"].includes(before.status))throw new Error("This report is already closed. Add a note if more information is needed.");if(["Resolved","Rejected"].includes(status)&&!note)throw new Error("Add a decision note before closing a report.");const {error}=await admin.from("safety_reports").update({status,resolution_note:note||before.resolution_note||null}).eq("id",id);if(error)throw error;await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:"safety_report_reviewed",entity_type:"safety_report",entity_id:id,before_state:before,after_state:{status,note:note||null}});return reply({ok:true}); }
