@@ -110,11 +110,11 @@ function HostMemberAction({
 function HostMaleMemberCard({
   member,
   callOptions,
-  height,
+  imageHeight,
 }: {
   member: HostMaleMember;
   callOptions: { online: boolean; audio: boolean; video: boolean };
-  height: number;
+  imageHeight: number;
 }) {
   const [failedPhoto, setFailedPhoto] = useState(false);
   const memberId = `phone_${member.phone.replace(/\D/g, "")}`;
@@ -146,114 +146,85 @@ function HostMaleMemberCard({
   return (
     <View
       style={{
-        width: "100%",
-        minHeight: height,
-        borderRadius: 24,
-        padding: 16,
+        width: "48.5%",
+        borderRadius: 20,
         overflow: "hidden",
-        backgroundColor: c.deep,
-        justifyContent: "flex-end",
+        backgroundColor: c.low,
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.22)",
+        borderColor: c.line,
         shadowColor: c.deep,
-        shadowOpacity: 0.2,
-        shadowRadius: 20,
-        shadowOffset: { width: 0, height: 14 },
-        elevation: 7,
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 4,
         ...(Platform.OS === "web"
-          ? { boxShadow: "0 20px 44px rgba(25, 13, 47, 0.2)" }
+          ? { boxShadow: "0 10px 24px rgba(25, 13, 47, 0.12)" }
           : {}),
       }}
     >
-      {member.photoUrl && !failedPhoto ? (
-        <Image
-          source={{ uri: member.photoUrl }}
-          resizeMode="cover"
-          accessibilityLabel={`${member.displayName} profile photo`}
-          style={StyleSheet.absoluteFill}
-          onError={() => setFailedPhoto(true)}
-        />
-      ) : (
-        <T
-          bold
-          size={58}
-          color="#ffffff55"
-          style={{ position: "absolute", top: 44, left: 0, right: 0, textAlign: "center" }}
-        >
-          {member.displayName.split(" ").map((part) => part[0]).join("").slice(0, 2)}
-        </T>
-      )}
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: Math.min(310, height * 0.76),
-          backgroundColor: "rgba(10,4,24,0.86)",
-        }}
-      />
       <View
         style={{
-          position: "absolute",
-          top: 14,
-          left: 14,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 6,
-          borderRadius: 99,
-          backgroundColor: "rgba(255,255,255,0.96)",
-          paddingHorizontal: 11,
-          paddingVertical: 7,
+          height: imageHeight,
+          backgroundColor: c.high,
         }}
       >
-        <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: availabilityColor }} />
-        <T size={11} bold color={c.text}>{availabilityLabel}</T>
+        {member.photoUrl && !failedPhoto ? (
+          <Image
+            source={{ uri: member.photoUrl }}
+            resizeMode="cover"
+            accessibilityLabel={`${member.displayName} profile photo`}
+            style={StyleSheet.absoluteFill}
+            onError={() => setFailedPhoto(true)}
+          />
+        ) : (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <T bold size={42} color={c.mint}>
+              {member.displayName.split(" ").map((part) => part[0]).join("").slice(0, 2)}
+            </T>
+          </View>
+        )}
       </View>
-      <View
-        style={{
-          position: "absolute",
-          top: 14,
-          right: 14,
-          borderRadius: 99,
-          backgroundColor: c.mint,
-          paddingHorizontal: 11,
-          paddingVertical: 7,
-        }}
-      >
-        <T size={11} bold color={c.ink}>{coins(member.availableCoins)} coins</T>
-      </View>
-      <View style={{ gap: 9 }}>
+      <View style={{ padding: 11, gap: 8 }}>
+        <Row style={{ justifyContent: "space-between", alignItems: "center", gap: 5 }}>
+          <Row style={{ gap: 5 }}>
+            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: availabilityColor }} />
+            <T size={10} bold color={availabilityColor} numberOfLines={1}>
+              {availabilityLabel}
+            </T>
+          </Row>
+          <T size={10} bold color={c.mint} numberOfLines={1}>
+            {coins(member.availableCoins)}
+          </T>
+        </Row>
         <View style={{ gap: 3 }}>
-          <T size={21} bold color="#fff" numberOfLines={1}>
+          <T size={15} bold color={c.text} numberOfLines={1}>
             {member.displayName}, {member.age}
           </T>
-          <T size={12} color="#f1ebff" numberOfLines={2}>
+          <T size={10} color={c.secondary} numberOfLines={2}>
             {[member.city, member.languages.join(" · ")].filter(Boolean).join(" · ") || "Member"}
           </T>
         </View>
-        <T size={12} color="#f1ebff" numberOfLines={3}>
+        <T size={11} color={c.secondary} numberOfLines={2}>
           {member.bio || "Ready to meet and chat."}
         </T>
         {member.interests.length ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-            {member.interests.slice(0, 4).map((interest) => (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5 }}>
+            {member.interests.slice(0, 3).map((interest) => (
               <View
                 key={interest}
                 style={{
                   borderRadius: 99,
-                  backgroundColor: "rgba(255,255,255,0.16)",
-                  paddingHorizontal: 9,
-                  paddingVertical: 5,
+                  backgroundColor: c.high,
+                  paddingHorizontal: 7,
+                  paddingVertical: 4,
                 }}
               >
-                <T size={10} color="#fff" numberOfLines={1}>{interest}</T>
+                <T size={9} color={c.secondary} numberOfLines={1}>{interest}</T>
               </View>
             ))}
           </View>
         ) : null}
-        <Row style={{ justifyContent: "space-between", gap: 8, paddingTop: 2 }}>
+        <Row style={{ justifyContent: "space-between", gap: 4, paddingTop: 2 }}>
           <HostMemberAction
             icon="message-circle"
             label={`Message ${member.displayName}`}
@@ -284,7 +255,7 @@ function HostMaleMemberCard({
         {member.availability === "Available" &&
         ((callOptions.audio && !audioAffordable) ||
           (callOptions.video && !videoAffordable)) ? (
-          <T size={10} color={c.warning}>
+          <T size={9} color={c.warning} numberOfLines={2}>
             Calls need 20 audio · 40 video coins
           </T>
         ) : null}
@@ -526,7 +497,7 @@ function HostJourneyHome() {
 export function HostExplore() {
   const auth = useAuth();
   const d = useDemo();
-  const cardHeight = Math.min(480, Math.max(360, useWindowDimensions().width * 0.95));
+  const imageHeight = Math.min(230, Math.max(165, useWindowDimensions().width * 0.5));
   const [members, setMembers] = useState<HostMaleMember[]>([]);
   const [callOptions, setCallOptions] = useState({
     online: false,
@@ -641,7 +612,10 @@ export function HostExplore() {
       ) : members.length ? (
         <View
           style={{
-            gap: 14,
+            flexDirection: "row",
+            flexWrap: "wrap",
+            justifyContent: "space-between",
+            rowGap: 12,
           }}
         >
           {members.map((member) => (
@@ -649,7 +623,7 @@ export function HostExplore() {
               key={member.phone}
               member={member}
               callOptions={callOptions}
-              height={cardHeight}
+              imageHeight={imageHeight}
             />
           ))}
         </View>
