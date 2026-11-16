@@ -2,8 +2,8 @@ import { useAuth } from "@/data/auth";
 import { fetchPhoneConversations, fetchPhoneMessages, markPhoneConversationRead, sendPhoneMessage, subscribeToAllPhoneMessages, subscribeToPhoneMessages, type PhoneMessage } from "@/data/chat";
 import { fetchPhoneHostDashboard, type HostDashboard } from "@/data/host-dashboard";
 import {
-  fetchHostOnlineMaleMembers,
-  type HostOnlineMaleMember,
+  fetchHostMaleMembers,
+  type HostMaleMember,
 } from "@/data/host-members";
 import { fetchHostPresenceSettings } from "@/data/host-presence";
 import { profileLanguages } from "@/data/profile-options";
@@ -299,7 +299,7 @@ function HostJourneyHome() {
 export function HostExplore() {
   const auth = useAuth();
   const d = useDemo();
-  const [members, setMembers] = useState<HostOnlineMaleMember[]>([]);
+  const [members, setMembers] = useState<HostMaleMember[]>([]);
   const [callOptions, setCallOptions] = useState({
     online: false,
     audio: false,
@@ -312,7 +312,7 @@ export function HostExplore() {
   const load = useCallback(async () => {
     if (!auth.demoPhone || d.hostStatus !== "approved") return;
     const [onlineMembers, settings] = await Promise.all([
-      fetchHostOnlineMaleMembers(),
+      fetchHostMaleMembers(),
       fetchHostPresenceSettings(await auth.getIdentityToken()),
     ]);
     setMembers(onlineMembers);
@@ -338,7 +338,7 @@ export function HostExplore() {
             setError(
               cause instanceof Error
                 ? cause.message
-                : "Unable to load online members.",
+                : "Unable to load members.",
             );
         } finally {
           loadingRequest = false;
@@ -363,7 +363,7 @@ export function HostExplore() {
       setError(
         cause instanceof Error
           ? cause.message
-          : "Unable to refresh online members.",
+          : "Unable to refresh members.",
       );
     } finally {
       setRefreshing(false);
@@ -383,16 +383,17 @@ export function HostExplore() {
     <Shell tab="Explore" refreshing={refreshing} onRefresh={refresh}>
       <Card style={{ gap: 8 }}>
         <T mono size={11} color={c.mint}>HOST EXPLORE</T>
-        <T size={22} bold>Online members</T>
+        <T size={22} bold>Male members</T>
         <T color={c.secondary}>
-          See members’ available coins before starting an audio or video call.
-          Calls are charged to the member at the existing rate.
+          See online and offline members and their available coins. Calls can
+          only be started when a member is online and available, and are charged
+          to the member at the existing rate.
         </T>
       </Card>
       {!callOptions.online ? (
         <Notice tone="warning" title="You are offline">
           Go online from the Dashboard before starting calls. You can still
-          message online members.
+          message members here.
         </Notice>
       ) : null}
       {error ? <Notice error>{error}</Notice> : null}
@@ -417,32 +418,31 @@ export function HostExplore() {
             <Card key={member.phone} style={{ gap: 12 }}>
               <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
                 <Row style={{ flex: 1 }}>
-                  <View
-                    accessibilityElementsHidden
-                    importantForAccessibility="no-hide-descendants"
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 24,
-                      backgroundColor: c.high,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <T bold size={17} color={c.mint}>
-                      {member.username.slice(0, 1).toUpperCase()}
-                    </T>
-                  </View>
+                  <Avatar
+                    name={member.displayName}
+                    photoUrl={member.photoUrl}
+                    size={48}
+                  />
                   <View style={{ flex: 1, gap: 2 }}>
-                    <T bold size={16} numberOfLines={1}>@{member.username}</T>
+                    <T bold size={16} numberOfLines={1}>{member.displayName}</T>
                     <T size={12} color={c.secondary}>
-                      {member.availability === "Available" ? "Online" : "On a call"}
+                      {member.availability === "Available"
+                        ? "Online"
+                        : member.availability === "Busy"
+                          ? "On a call"
+                          : "Offline"}
                     </T>
                   </View>
                 </Row>
                 <Badge
-                  text={member.availability === "Available" ? "Online" : "Busy"}
-                  tone={member.availability === "Available" ? "success" : "warning"}
+                  text={member.availability}
+                  tone={
+                    member.availability === "Available"
+                      ? "success"
+                      : member.availability === "Busy"
+                        ? "warning"
+                        : "info"
+                  }
                 />
               </Row>
               <Row style={{ justifyContent: "space-between" }}>
@@ -464,7 +464,7 @@ export function HostExplore() {
                     style={{ flex: 1, minWidth: 105 }}
                     disabled={!audioEnabled}
                     onPress={() =>
-                      go(`/calls/outgoing/${memberId}?type=audio&name=${encodeURIComponent(`@${member.username}`)}`)
+                      go(`/calls/outgoing/${memberId}?type=audio&name=${encodeURIComponent(member.displayName)}`)
                     }
                   />
                 ) : null}
@@ -476,7 +476,7 @@ export function HostExplore() {
                     style={{ flex: 1, minWidth: 105 }}
                     disabled={!videoEnabled}
                     onPress={() =>
-                      go(`/calls/outgoing/${memberId}?type=video&name=${encodeURIComponent(`@${member.username}`)}`)
+                      go(`/calls/outgoing/${memberId}?type=video&name=${encodeURIComponent(member.displayName)}`)
                     }
                   />
                 ) : null}
@@ -495,8 +495,8 @@ export function HostExplore() {
       ) : (
         <Empty
           icon="users"
-          title="No members online"
-          message="Online male members will appear here with their available coin balances."
+          title="No members to show"
+          message="Eligible male members will appear here with their online status and available coin balances."
           action="Refresh"
           onPress={() => void refresh()}
         />

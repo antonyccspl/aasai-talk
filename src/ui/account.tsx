@@ -495,12 +495,20 @@ export function Auth({ mode }: { mode: string }) {
               : auth.user
                 ? saveOwnProfile(completedProfile)
                 : Promise.reject(new Error("Phone session is missing.")))
-              .then((approvedPhoto) => {
+              .then((saveResult) => {
+                const photoResult =
+                  saveResult && typeof saveResult === "object"
+                    ? saveResult
+                    : undefined;
+                const savedPhoto = photoResult?.photo;
                 if (auth.demoPhone) auth.markPhoneProfileComplete();
-                if (approvedPhoto) d.setPhoto(approvedPhoto);
+                if (auth.demoPhone) d.setPhoto(savedPhoto || "");
+                else if (savedPhoto) d.setPhoto(savedPhoto);
                 d.setProfile({
                   ...completedProfile,
-                  photo: approvedPhoto || completedProfile.photo,
+                  photo: auth.demoPhone
+                    ? savedPhoto || ""
+                    : savedPhoto || completedProfile.photo,
                 });
                 router.replace("/explore");
               })
@@ -809,6 +817,7 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
   );
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [photoMessage, setPhotoMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [avatar, setAvatar] = useState(false);
   const [showDate, setShowDate] = useState(false);
@@ -836,6 +845,7 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           onChange={(uri) => {
             setPhoto(uri);
             setError("");
+            setPhotoMessage("");
             setSaved(false);
           }}
         />
@@ -1005,7 +1015,16 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           </T>
         </View>
       ) : error ? <Notice error>{error}</Notice> : null}
-      {saved && <Notice tone="success" title="Profile updated">Your changes have been saved.</Notice>}
+      {saved && (
+        <Notice
+          tone={photoMessage ? "warning" : "success"}
+          title="Profile updated"
+        >
+          {photoMessage
+            ? `${photoMessage} Your other profile changes have been saved.`
+            : "Your changes have been saved."}
+        </Notice>
+      )}
       <Button
         title={busy ? "Saving…" : onboarding ? "Continue" : "Save changes"}
         disabled={busy}
@@ -1042,16 +1061,28 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
           setBusy(true);
           void (
             auth.demoPhone
-              ? auth.getIdentityToken().then((token) => saveDemoProfile(auth.demoPhone!, { ...form, name, city, bio: form.bio.trim(), photo }, token))
+              ? auth.getIdentityToken().then((token) =>
+                  saveDemoProfile(
+                    auth.demoPhone!,
+                    { ...form, name, city, bio, photo },
+                    token,
+                    d.profile.photo,
+                  ),
+                )
               : auth.user
                 ? saveOwnProfile({ ...form, name, city, bio: form.bio.trim() })
                 : Promise.reject(new Error("Phone session is missing."))
           )
-            .then((approvedPhoto) => {
-              const savedPhoto = approvedPhoto || d.profile.photo || "";
+            .then((saveResult) => {
+              const photoResult =
+                saveResult && typeof saveResult === "object"
+                  ? saveResult
+                  : undefined;
+              const savedPhoto = photoResult?.photo || d.profile.photo || "";
               d.setPhoto(savedPhoto);
               setPhoto(savedPhoto);
               d.setProfile({ ...form, name, city, bio: form.bio.trim(), photo: savedPhoto });
+              setPhotoMessage(photoResult?.photoMessage || "");
               setError("");
               setSaved(true);
             })
@@ -1062,6 +1093,7 @@ export function ProfileEdit({ onboarding }: { onboarding?: boolean }) {
               const savedPhoto = d.profile.photo || "";
               setPhoto(savedPhoto);
               d.setPhoto(savedPhoto);
+              setPhotoMessage("");
               setError(
                 saveError instanceof Error
                   ? saveError.message

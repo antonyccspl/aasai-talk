@@ -14,7 +14,7 @@ import {
 } from "@/data/call-sessions";
 import { onCallAudioReady, startCallSound, stopAllCallSounds, stopCallSound } from "@/data/call-sounds";
 import { fetchDirectoryProfiles, formatLastSeen, type DirectoryStatus } from "@/data/directory";
-import { fetchHostOnlineMaleMembers } from "@/data/host-members";
+import { fetchHostMaleMembers } from "@/data/host-members";
 import { usePhoneHostCallCapabilities } from "@/hooks/use-phone-host-call-capabilities";
 import { fetchHostCurrentSlabs } from "@/data/host-metrics";
 import { setPhoneBlock, submitPhoneSafetyReport } from "@/data/phone-safety";
@@ -644,8 +644,8 @@ function CallScreenContent({
     try {
       if (!incoming) {
         if (hostInitiated) {
-          const onlineMembers = await fetchHostOnlineMaleMembers();
-          const currentMember = onlineMembers.find(
+          const members = await fetchHostMaleMembers();
+          const currentMember = members.find(
             (member) => member.phone === targetPhone,
           );
           if (!currentMember || currentMember.availability !== "Available") {

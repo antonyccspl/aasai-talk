@@ -384,17 +384,23 @@ export function Chips({
 export function Avatar({
   person,
   name,
+  photoUrl,
   size = 52,
   square = false,
 }: {
   person?: Person;
-  /** Optional name for an unsaved signed-in profile preview. */
+  /** Name and photo for an unsaved profile preview. */
   name?: string;
+  photoUrl?: string | null;
   size?: number;
   square?: boolean;
 }) {
   const { photo, profile } = useDemo();
-  const avatarUri = person ? person.photo : photo;
+  const avatarUri = person
+    ? person.photo
+    : photoUrl !== undefined
+      ? photoUrl ?? undefined
+      : photo;
   // Local file URIs are allowed only inside PhotoPicker while a person is
   // choosing an image. Everywhere else, render solely a server-approved URL.
   const approvedAvatarUri =

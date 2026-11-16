@@ -28,6 +28,12 @@ export type UserProfile = {
   adultAgeConfirmed?: boolean;
 };
 
+export type DemoProfileSaveResult = {
+  photo?: string;
+  photoStatus: "unchanged" | "approved" | "needs_review" | "not_saved";
+  photoMessage?: string;
+};
+
 type ProfileRow = {
   username: string | null;
   display_name: string;
@@ -82,15 +88,47 @@ export async function saveOwnProfile(profile: UserProfile) {
   if (error) throw error;
 }
 
-export async function saveDemoProfile(phone: string, profile: UserProfile, idToken?: string) {
-  let photo = profile.photo;
-  if (photo && !photo.startsWith("http")) {
-    if (!idToken) throw new Error("Sign in again before uploading a profile photo.");
-    const result = await submitProfilePhotoForModeration(idToken, photo);
-    if (result.status !== "approved")
-      throw new Error("Your profile photo is awaiting safety review. Try again after it has been approved.");
-    photo = result.publicUrl;
+export async function saveDemoProfile(
+  phone: string,
+  profile: UserProfile,
+  idToken?: string,
+  previousApprovedPhoto?: string,
+): Promise<DemoProfileSaveResult> {
+  const isApprovedPhoto = (value?: string) =>
+    typeof value === "string" && /^https:\/\//i.test(value);
+  let photo = isApprovedPhoto(profile.photo)
+    ? profile.photo
+    : isApprovedPhoto(previousApprovedPhoto)
+      ? previousApprovedPhoto
+      : undefined;
+  let photoStatus: DemoProfileSaveResult["photoStatus"] = "unchanged";
+  let photoMessage: string | undefined;
+
+  if (profile.photo && !isApprovedPhoto(profile.photo)) {
+    if (!idToken) {
+      photoStatus = "not_saved";
+      photoMessage = "Sign in again before uploading a profile photo.";
+    } else {
+      try {
+        const result = await submitProfilePhotoForModeration(idToken, profile.photo);
+        if (result.status === "approved") {
+          photo = result.publicUrl;
+          photoStatus = "approved";
+        } else {
+          photoStatus = "needs_review";
+          photoMessage =
+            "The new photo is awaiting safety review and will appear after approval.";
+        }
+      } catch (error) {
+        photoStatus = "not_saved";
+        photoMessage = describeDatabaseError(
+          error,
+          "We could not update your profile photo.",
+        );
+      }
+    }
   }
+
   const { error } = await supabase.rpc("complete_phone_identity", {
     input_phone: phone,
     input_profile: {
@@ -104,7 +142,7 @@ export async function saveDemoProfile(phone: string, profile: UserProfile, idTok
     throw new Error(
       describeDatabaseError(error, "We could not save your profile. Please try again."),
     );
-  return photo;
+  return { photo, photoStatus, photoMessage };
 }
 
 export async function fetchDemoProfile(phone: string): Promise<UserProfile | null> {
