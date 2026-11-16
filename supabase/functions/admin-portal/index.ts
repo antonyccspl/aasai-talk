@@ -12,6 +12,7 @@ const defaultPages: Record<string, string[]> = {
   moderator: ["Overview", "Hosts", "Users", "Reports", "Support"],
   support: ["Overview", "Users", "Account deletions", "Support"],
 };
+const STANDARD_COINS_PER_RUPEE = 1.5;
 
 function pageAccessFor(role: string, requested: unknown) {
   const allowed = defaultPages[role] || [];
@@ -1268,6 +1269,94 @@ Deno.serve(async (request) => {
     if (action === "host_document_url") { requireRole(role,["super_admin","moderator"]); requirePage(pages,"Hosts"); const id=typeof body.id === "string"?body.id:""; const kind=body.kind === "aadhaar" || body.kind === "pan" ? body.kind : ""; if(!id || !kind) throw new Error("Choose a Host document."); const {data:application,error}=await admin.from("host_applications").select("phone,application_profile,aadhaar_path,pan_path").eq("id",id).maybeSingle(); if(error||!application) throw error||new Error("Host application not found."); const profile=application.application_profile && typeof application.application_profile === "object" ? application.application_profile as Record<string,unknown> : {}; const path=typeof profile[`${kind}Path`] === "string" ? profile[`${kind}Path`] : kind === "aadhaar" ? application.aadhaar_path : application.pan_path; if(typeof path !== "string" || !path) throw new Error("This legacy application has a document name only; no secure file was uploaded."); const {data:signed,error:signedError}=await admin.storage.from("host-verification").createSignedUrl(path,60); if(signedError||!signed?.signedUrl) throw signedError||new Error("Unable to prepare the document."); await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:"host_verification_document_viewed",entity_type:"host_application",entity_id:id,after_state:{kind}}); return reply({url:signed.signedUrl}); }
     if (action === "list_coin_packs") { requireRole(role,["super_admin","finance_admin"]); requirePage(pages,"Coin packs"); const {data,error}=await admin.from("coin_packs").select("*").order("sort_order",{ascending:true}).limit(100);if(error)throw error;return reply({items:data||[]}); }
     if (action === "set_coin_pack_active") { requireRole(role,["super_admin","finance_admin"]); requirePage(pages,"Coin packs"); const id=typeof body.id === "string"?body.id:""; const active=typeof body.active === "boolean"?body.active:null; if(!id || active === null) throw new Error("Choose a coin pack and activation state."); const {error}=await admin.from("coin_packs").update({active}).eq("id",id); if(error)throw error; await admin.from("admin_audit_logs").insert({admin_user_id:user.id,action:"coin_pack_activation_changed",entity_type:"coin_pack",entity_id:id,after_state:{active}}); return reply({ok:true}); }
+    if (action === "save_standard_coin_pack") {
+      requireRole(role, ["super_admin", "finance_admin"]);
+      requirePage(pages, "Coin packs");
+      const id = typeof body.id === "string" ? body.id.trim() : "";
+      const coins = Number(body.coins);
+      const price = Number(body.price_paise);
+      if (
+        !Number.isSafeInteger(coins) ||
+        coins < 1 ||
+        coins > 2147483647 ||
+        !Number.isSafeInteger(price) ||
+        price < 1 ||
+        price > 2147483647
+      ) {
+        throw new Error("Enter a whole coin amount and a valid price.");
+      }
+      if (Math.round((price * STANDARD_COINS_PER_RUPEE) / 100) !== coins) {
+        throw new Error("Normal packs must follow the rate of 1.5 coins per ₹1.");
+      }
+      const values = {
+        coins,
+        bonus_coins: 0,
+        price_paise: price,
+        is_special: false,
+        special_label: null,
+        available_from: null,
+        available_until: null,
+      };
+      if (id) {
+        const { data: before, error: lookupError } = await admin
+          .from("coin_packs")
+          .select("*")
+          .eq("id", id)
+          .eq("is_special", false)
+          .maybeSingle();
+        if (lookupError) throw lookupError;
+        if (!before) throw new Error("Normal coin pack not found.");
+        const { data: updated, error: updateError } = await admin
+          .from("coin_packs")
+          .update(values)
+          .eq("id", id)
+          .eq("is_special", false)
+          .select("*")
+          .maybeSingle();
+        if (updateError) throw updateError;
+        if (!updated) throw new Error("Normal coin pack not found.");
+        const { error: auditError } = await admin
+          .from("admin_audit_logs")
+          .insert({
+            admin_user_id: user.id,
+            action: "standard_coin_pack_updated",
+            entity_type: "coin_pack",
+            entity_id: id,
+            before_state: before,
+            after_state: updated,
+          });
+        if (auditError) throw auditError;
+        return reply({ ok: true, id });
+      }
+      const { data: latest, error: sortError } = await admin
+        .from("coin_packs")
+        .select("sort_order")
+        .order("sort_order", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (sortError) throw sortError;
+      const sortOrder = Number(latest?.sort_order || 0) + 10;
+      if (!Number.isSafeInteger(sortOrder) || sortOrder > 2147483647) {
+        throw new Error("No display order is available for another coin pack.");
+      }
+      const { data: created, error: insertError } = await admin
+        .from("coin_packs")
+        .insert({ ...values, active: true, sort_order: sortOrder })
+        .select("id")
+        .single();
+      if (insertError) throw insertError;
+      const { error: auditError } = await admin
+        .from("admin_audit_logs")
+        .insert({
+          admin_user_id: user.id,
+          action: "standard_coin_pack_created",
+          entity_type: "coin_pack",
+          entity_id: created.id,
+          after_state: { ...values, active: true, sort_order: sortOrder },
+        });
+      if (auditError) throw auditError;
+      return reply({ ok: true, id: created.id });
+    }
     if (action === "save_special_offer") {
       requireRole(role,["super_admin","finance_admin"]); requirePage(pages,"Coin packs");
       const id=typeof body.id === "string" ? body.id : ""; const coins=Number(body.coins); const bonus=Number(body.bonus_coins||0); const price=Number(body.price_paise); const label=typeof body.special_label === "string" ? body.special_label.trim().slice(0,80) : "Special offer";
