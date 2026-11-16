@@ -54,6 +54,7 @@ function SpecialOfferWelcome() {
   useEffect(() => {
     const onboardingActive = pathname === "/auth" || pathname.startsWith("/auth/");
     const deletionRequestActive = pathname === "/settings/delete-account";
+    const walletActive = pathname === "/wallet";
     const eligibleMember = profile.gender === "Male"
       && profile.guidelinesAccepted === true
       && profile.adultAgeConfirmed === true;
@@ -61,6 +62,10 @@ function SpecialOfferWelcome() {
       campaignRef.current = "";
       setVisible(false);
       setOffers([]);
+      return;
+    }
+    if (!walletActive) {
+      setVisible(false);
       return;
     }
     const controller = new AbortController();
