@@ -11,7 +11,7 @@ import { sendPushEvent } from "@/data/push-notifications";
 import { usePhoneHostCallCapabilities } from "@/hooks/use-phone-host-call-capabilities";
 import { router, useFocusEffect } from "expo-router";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Platform, Pressable, TextInput, useWindowDimensions, View } from "react-native";
+import { Animated, Image, Platform, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
 import { useRefreshPeople } from '../data/sample-workspace';
 import {
   Avatar,
@@ -104,6 +104,192 @@ function HostMemberAction({
         color={disabled ? c.muted : primary ? c.ink : c.text}
       />
     </Pressable>
+  );
+}
+
+function HostMaleMemberCard({
+  member,
+  callOptions,
+  height,
+}: {
+  member: HostMaleMember;
+  callOptions: { online: boolean; audio: boolean; video: boolean };
+  height: number;
+}) {
+  const [failedPhoto, setFailedPhoto] = useState(false);
+  const memberId = `phone_${member.phone.replace(/\D/g, "")}`;
+  const audioAffordable = member.availableCoins >= 20;
+  const videoAffordable = member.availableCoins >= 40;
+  const audioEnabled =
+    callOptions.online &&
+    callOptions.audio &&
+    member.availability === "Available" &&
+    audioAffordable;
+  const videoEnabled =
+    callOptions.online &&
+    callOptions.video &&
+    member.availability === "Available" &&
+    videoAffordable;
+  const availabilityLabel =
+    member.availability === "Available"
+      ? "Online"
+      : member.availability === "Busy"
+        ? "On a call"
+        : "Offline";
+  const availabilityColor =
+    member.availability === "Available"
+      ? c.success
+      : member.availability === "Busy"
+        ? c.warning
+        : c.secondary;
+
+  return (
+    <View
+      style={{
+        width: "100%",
+        minHeight: height,
+        borderRadius: 24,
+        padding: 16,
+        overflow: "hidden",
+        backgroundColor: c.deep,
+        justifyContent: "flex-end",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.22)",
+        shadowColor: c.deep,
+        shadowOpacity: 0.2,
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 14 },
+        elevation: 7,
+        ...(Platform.OS === "web"
+          ? { boxShadow: "0 20px 44px rgba(25, 13, 47, 0.2)" }
+          : {}),
+      }}
+    >
+      {member.photoUrl && !failedPhoto ? (
+        <Image
+          source={{ uri: member.photoUrl }}
+          resizeMode="cover"
+          accessibilityLabel={`${member.displayName} profile photo`}
+          style={StyleSheet.absoluteFill}
+          onError={() => setFailedPhoto(true)}
+        />
+      ) : (
+        <T
+          bold
+          size={58}
+          color="#ffffff55"
+          style={{ position: "absolute", top: 44, left: 0, right: 0, textAlign: "center" }}
+        >
+          {member.displayName.split(" ").map((part) => part[0]).join("").slice(0, 2)}
+        </T>
+      )}
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: Math.min(310, height * 0.76),
+          backgroundColor: "rgba(10,4,24,0.86)",
+        }}
+      />
+      <View
+        style={{
+          position: "absolute",
+          top: 14,
+          left: 14,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          borderRadius: 99,
+          backgroundColor: "rgba(255,255,255,0.96)",
+          paddingHorizontal: 11,
+          paddingVertical: 7,
+        }}
+      >
+        <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: availabilityColor }} />
+        <T size={11} bold color={c.text}>{availabilityLabel}</T>
+      </View>
+      <View
+        style={{
+          position: "absolute",
+          top: 14,
+          right: 14,
+          borderRadius: 99,
+          backgroundColor: c.mint,
+          paddingHorizontal: 11,
+          paddingVertical: 7,
+        }}
+      >
+        <T size={11} bold color={c.ink}>{coins(member.availableCoins)} coins</T>
+      </View>
+      <View style={{ gap: 9 }}>
+        <View style={{ gap: 3 }}>
+          <T size={21} bold color="#fff" numberOfLines={1}>
+            {member.displayName}, {member.age}
+          </T>
+          <T size={12} color="#f1ebff" numberOfLines={2}>
+            {[member.city, member.languages.join(" · ")].filter(Boolean).join(" · ") || "Member"}
+          </T>
+        </View>
+        <T size={12} color="#f1ebff" numberOfLines={3}>
+          {member.bio || "Ready to meet and chat."}
+        </T>
+        {member.interests.length ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+            {member.interests.slice(0, 4).map((interest) => (
+              <View
+                key={interest}
+                style={{
+                  borderRadius: 99,
+                  backgroundColor: "rgba(255,255,255,0.16)",
+                  paddingHorizontal: 9,
+                  paddingVertical: 5,
+                }}
+              >
+                <T size={10} color="#fff" numberOfLines={1}>{interest}</T>
+              </View>
+            ))}
+          </View>
+        ) : null}
+        <Row style={{ justifyContent: "space-between", gap: 8, paddingTop: 2 }}>
+          <HostMemberAction
+            icon="message-circle"
+            label={`Message ${member.displayName}`}
+            onPress={() => go(`/chat/${memberId}`)}
+          />
+          {callOptions.audio ? (
+            <HostMemberAction
+              icon="phone"
+              label={`Audio call ${member.displayName}`}
+              primary
+              disabled={!audioEnabled}
+              onPress={() =>
+                go(`/calls/outgoing/${memberId}?type=audio&name=${encodeURIComponent(member.displayName)}`)
+              }
+            />
+          ) : null}
+          {callOptions.video ? (
+            <HostMemberAction
+              icon="video"
+              label={`Video call ${member.displayName}`}
+              disabled={!videoEnabled}
+              onPress={() =>
+                go(`/calls/outgoing/${memberId}?type=video&name=${encodeURIComponent(member.displayName)}`)
+              }
+            />
+          ) : null}
+        </Row>
+        {member.availability === "Available" &&
+        ((callOptions.audio && !audioAffordable) ||
+          (callOptions.video && !videoAffordable)) ? (
+          <T size={10} color={c.warning}>
+            Calls need 20 audio · 40 video coins
+          </T>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
@@ -340,6 +526,7 @@ function HostJourneyHome() {
 export function HostExplore() {
   const auth = useAuth();
   const d = useDemo();
+  const cardHeight = Math.min(480, Math.max(360, useWindowDimensions().width * 0.95));
   const [members, setMembers] = useState<HostMaleMember[]>([]);
   const [callOptions, setCallOptions] = useState({
     online: false,
@@ -454,117 +641,17 @@ export function HostExplore() {
       ) : members.length ? (
         <View
           style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            justifyContent: "space-between",
-            rowGap: 10,
+            gap: 14,
           }}
         >
-          {members.map((member) => {
-            const memberId = `phone_${member.phone.replace(/\D/g, "")}`;
-            const audioAffordable = member.availableCoins >= 20;
-            const videoAffordable = member.availableCoins >= 40;
-            const audioEnabled =
-              callOptions.online &&
-              callOptions.audio &&
-              member.availability === "Available" &&
-              audioAffordable;
-            const videoEnabled =
-              callOptions.online &&
-              callOptions.video &&
-              member.availability === "Available" &&
-              videoAffordable;
-            const availabilityLabel =
-              member.availability === "Available"
-                ? "Online"
-                : member.availability === "Busy"
-                  ? "On a call"
-                  : "Offline";
-            const availabilityColor =
-              member.availability === "Available"
-                ? c.success
-                : member.availability === "Busy"
-                  ? c.warning
-                  : c.secondary;
-            return (
-              <Card
-                key={member.phone}
-                style={{
-                  width: "48.5%",
-                  minWidth: 0,
-                  paddingHorizontal: 11,
-                  paddingVertical: 12,
-                  borderRadius: 18,
-                  gap: 8,
-                }}
-              >
-                <Row style={{ gap: 8, minWidth: 0 }}>
-                  <Avatar
-                    name={member.displayName}
-                    photoUrl={member.photoUrl}
-                    size={36}
-                  />
-                  <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                    <T bold size={14} numberOfLines={1}>{member.displayName}</T>
-                    <Row style={{ gap: 5 }}>
-                      <View
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 3,
-                          backgroundColor: availabilityColor,
-                        }}
-                      />
-                      <T size={11} color={availabilityColor} numberOfLines={1}>
-                        {availabilityLabel}
-                      </T>
-                    </Row>
-                  </View>
-                </Row>
-                <Row style={{ justifyContent: "space-between", gap: 4 }}>
-                <T size={11} color={c.secondary}>Coins</T>
-                <T bold size={12} color={c.mint} numberOfLines={1}>
-                  {coins(member.availableCoins)}
-                </T>
-                </Row>
-                <Row style={{ justifyContent: "space-between", gap: 6 }}>
-                  <HostMemberAction
-                  icon="message-circle"
-                  label={`Message ${member.displayName}`}
-                  onPress={() => go(`/chat/${memberId}`)}
-                  />
-                {callOptions.audio ? (
-                  <HostMemberAction
-                    icon="phone"
-                    label={`Audio call ${member.displayName}`}
-                    primary
-                    disabled={!audioEnabled}
-                    onPress={() =>
-                      go(`/calls/outgoing/${memberId}?type=audio&name=${encodeURIComponent(member.displayName)}`)
-                    }
-                  />
-                ) : null}
-                {callOptions.video ? (
-                  <HostMemberAction
-                    icon="video"
-                    label={`Video call ${member.displayName}`}
-                    disabled={!videoEnabled}
-                    onPress={() =>
-                      go(`/calls/outgoing/${memberId}?type=video&name=${encodeURIComponent(member.displayName)}`)
-                    }
-                  />
-                ) : null}
-                </Row>
-                {member.availability === "Available" &&
-                ((callOptions.audio && !audioAffordable) ||
-                  (callOptions.video && !videoAffordable)) ? (
-                <T size={10} color={c.warning} numberOfLines={1}>
-                  Calls need 20 audio · 40 video coins
-                </T>
-                ) : null}
-              </Card>
-            );
-          })}
+          {members.map((member) => (
+            <HostMaleMemberCard
+              key={member.phone}
+              member={member}
+              callOptions={callOptions}
+              height={cardHeight}
+            />
+          ))}
         </View>
       ) : (
         <Empty

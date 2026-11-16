@@ -4,6 +4,11 @@ export type HostMaleMember = {
   phone: string;
   displayName: string;
   photoUrl: string | null;
+  age: number;
+  city: string;
+  languages: string[];
+  interests: string[];
+  bio: string;
   availability: "Available" | "Busy" | "Offline";
   availableCoins: number;
 };
@@ -22,6 +27,16 @@ export async function fetchHostMaleMembers(): Promise<HostMaleMember[]> {
         typeof value.display_name === "string" &&
         value.display_name.trim().length > 0 &&
         (value.avatar_url === null || typeof value.avatar_url === "string") &&
+        typeof value.member_age === "number" &&
+        Number.isInteger(value.member_age) &&
+        value.member_age >= 18 &&
+        value.member_age <= 120 &&
+        typeof value.member_city === "string" &&
+        Array.isArray(value.member_languages) &&
+        value.member_languages.every((language) => typeof language === "string") &&
+        Array.isArray(value.member_interests) &&
+        value.member_interests.every((interest) => typeof interest === "string") &&
+        typeof value.member_bio === "string" &&
         (value.availability === "Available" ||
           value.availability === "Busy" ||
           value.availability === "Offline") &&
@@ -37,6 +52,11 @@ export async function fetchHostMaleMembers(): Promise<HostMaleMember[]> {
     phone: row.member_phone,
     displayName: row.display_name,
     photoUrl: row.avatar_url,
+    age: row.member_age,
+    city: row.member_city,
+    languages: row.member_languages,
+    interests: row.member_interests,
+    bio: row.member_bio,
     availability: row.availability,
     availableCoins: row.available_coins,
   }));
