@@ -36,12 +36,49 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
 export async function withSupabaseRequestTimeout<T>(
   request: (signal: AbortSignal) => PromiseLike<T>,
   timeoutMs = 15000,
+  externalSignal?: AbortSignal,
 ): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  let externalAbort: (() => void) | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(
+        new Error(
+          `Supabase request_timeout: request did not complete within ${timeoutMs} ms.`,
+        ),
+      );
+    }, timeoutMs);
+  });
+  const externalAbortPromise = externalSignal
+    ? new Promise<never>((_, reject) => {
+        externalAbort = () => {
+          controller.abort();
+          const error = new Error('The operation was aborted.');
+          error.name = 'AbortError';
+          reject(error);
+        };
+        if (externalSignal.aborted) externalAbort();
+        else externalSignal.addEventListener('abort', externalAbort, { once: true });
+      })
+    : new Promise<never>(() => {});
   try {
-    return await request(controller.signal);
+    return await Promise.race([
+      Promise.resolve().then(() => {
+        if (controller.signal.aborted) {
+          const error = new Error('The operation was aborted.');
+          error.name = 'AbortError';
+          throw error;
+        }
+        return request(controller.signal);
+      }),
+      timeoutPromise,
+      externalAbortPromise,
+    ]);
   } finally {
-    clearTimeout(timeout);
+    if (timeout !== null) clearTimeout(timeout);
+    if (externalSignal && externalAbort)
+      externalSignal.removeEventListener('abort', externalAbort);
   }
 }

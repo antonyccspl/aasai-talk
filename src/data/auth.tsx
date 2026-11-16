@@ -8,7 +8,7 @@ import React, {
   useState,
 } from "react";
 import { Platform } from "react-native";
-import { supabase } from "./supabase";
+import { supabase, withSupabaseRequestTimeout } from "./supabase";
 import {
   assertHostPhoneChangeRequest,
   endHostAvailability,
@@ -129,9 +129,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     void (async () => {
       try {
-        const { data, error } = await supabase.rpc("open_phone_identity", {
-          input_phone: demoPhone,
-        });
+        const { data, error } = await withSupabaseRequestTimeout((signal) =>
+          supabase
+            .rpc("open_phone_identity", { input_phone: demoPhone })
+            .abortSignal(signal),
+        );
         if (error) throw error;
         if (active) setDemoProfileComplete(data === true);
       } catch (error) {
@@ -166,11 +168,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { session: verifiedSession, user: verifiedUser },
       error,
-    } = await supabase.auth.verifyOtp({
-      phone: normalizedPhone,
-      token,
-      type: "sms",
-    });
+    } = await withSupabaseRequestTimeout(() =>
+      supabase.auth.verifyOtp({
+        phone: normalizedPhone,
+        token,
+        type: "sms",
+      }),
+    );
     if (error) throw error;
     if (!verifiedSession || !verifiedUser)
       throw new Error("Phone verification did not create an authenticated session.");
@@ -180,9 +184,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error("The verification code does not match this phone number.");
     }
 
-    const { data, error: identityError } = await supabase.rpc(
-      "open_phone_identity",
-      { input_phone: normalizedPhone },
+    const { data, error: identityError } = await withSupabaseRequestTimeout(
+      (signal) =>
+        supabase
+          .rpc("open_phone_identity", { input_phone: normalizedPhone })
+          .abortSignal(signal),
     );
     if (identityError) throw identityError;
 

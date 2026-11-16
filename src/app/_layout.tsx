@@ -527,6 +527,7 @@ function AppNavigator() {
   const incomingSoundKeyRef = useRef("");
   const stopIncomingStatusRef = useRef<(() => void) | null>(null);
   useEffect(() => {
+    const loginRoute = pathname === "/auth/login";
     const onboardingRoute = pathname === "/auth" || pathname.startsWith("/auth/");
     const publicRoute =
       pathname === "/settings/delete-account" ||
@@ -534,18 +535,25 @@ function AppNavigator() {
       pathname.startsWith("/settings/policies/");
     if (
       loading ||
+      identityLoading ||
+      identityLoadError ||
       !authenticated ||
       !demoPhone ||
-      demoProfileComplete ||
-      onboardingRoute ||
       publicRoute
     )
       return;
+    if (loginRoute) {
+      router.replace(demoProfileComplete ? "/explore" : "/auth/create-profile");
+      return;
+    }
+    if (demoProfileComplete || onboardingRoute) return;
     router.replace("/auth/create-profile");
   }, [
     authenticated,
     demoPhone,
     demoProfileComplete,
+    identityLoadError,
+    identityLoading,
     loading,
     pathname,
   ]);

@@ -1,4 +1,5 @@
 import { supabasePublishableKey, supabaseUrl } from './supabase-config';
+import { withSupabaseRequestTimeout } from './supabase';
 
 export type Announcement = {
   id: string;
@@ -95,17 +96,23 @@ export type PlatformMetric = {
 
 async function queryTable<T>(endpoint: string, signal?: AbortSignal): Promise<T[]> {
   const url = `${supabaseUrl}/rest/v1/${endpoint}`;
-  const response = await fetch(url, {
-    headers: {
-      apikey: supabasePublishableKey,
-      'Content-Type': 'application/json',
+  return withSupabaseRequestTimeout(
+    async (requestSignal) => {
+      const response = await fetch(url, {
+        headers: {
+          apikey: supabasePublishableKey,
+          'Content-Type': 'application/json',
+        },
+        signal: requestSignal,
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to load ${endpoint}: ${response.status}`);
+      }
+      return (await response.json()) as T[];
     },
+    15000,
     signal,
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to load ${endpoint}: ${response.status}`);
-  }
-  return (await response.json()) as T[];
+  );
 }
 
 export async function fetchAnnouncements(signal?: AbortSignal): Promise<Announcement[]> {

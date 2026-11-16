@@ -6,6 +6,7 @@ import {
   supabaseUrl,
   supabasePublishableKey,
 } from './supabase-config';
+import { withSupabaseRequestTimeout } from './supabase';
 import { DirectoryPerson, fetchDirectoryProfiles } from './directory';
 import {
   Announcement,
@@ -58,14 +59,12 @@ type PlatformContextValue = {
 const Context = createContext<PlatformContextValue | null>(null);
 
 async function rpc(name: string, body: object) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-  try {
+  return withSupabaseRequestTimeout(async (signal) => {
     const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${name}`, {
       method: 'POST',
       headers: { apikey: supabasePublishableKey, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: controller.signal,
+      signal,
     });
     if (!response.ok) {
       const payload: unknown = await response.json().catch(() => null);
@@ -89,9 +88,7 @@ async function rpc(name: string, body: object) {
       );
     }
     return await response.json();
-  } finally {
-    clearTimeout(timer);
-  }
+  });
 }
 
 let tokenPromise: Promise<string> | undefined;

@@ -1,4 +1,5 @@
 import { supabasePublishableKey, supabaseUrl } from './supabase-config';
+import { withSupabaseRequestTimeout } from './supabase';
 
 export type DirectoryPerson = {
   id: string;
@@ -73,8 +74,17 @@ export function formatLastSeen(value?: string | null) {
   });
 }
 
-export async function fetchDirectoryProfiles(signal?: AbortSignal): Promise<DirectoryPerson[]> {
-  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+export function fetchDirectoryProfiles(signal?: AbortSignal): Promise<DirectoryPerson[]> {
+  return withSupabaseRequestTimeout(
+    (requestSignal) => fetchDirectoryProfilesWithSignal(requestSignal),
+    15000,
+    signal,
+  );
+}
+
+async function fetchDirectoryProfilesWithSignal(
+  signal: AbortSignal,
+): Promise<DirectoryPerson[]> {
   const response = await fetch(`${supabaseUrl}/rest/v1/rpc/get_public_directory_profiles`, {
     method: "POST",
     headers: { apikey: supabasePublishableKey, "Content-Type": "application/json" },
